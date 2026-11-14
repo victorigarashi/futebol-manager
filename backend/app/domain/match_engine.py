@@ -107,6 +107,28 @@ def derived_attributes(player: PlayerInput) -> dict[str, float]:
     return attrs
 
 
+_XG_GRIDS: dict[str, tuple[list[list[float]], float]] = {}
+
+
+def xg_grid(mode: str) -> tuple[list[list[float]], float]:
+    """Chance quality for a side attacking toward x = length, sampled every 0.5 m."""
+    if mode not in _XG_GRIDS:
+        cfg = PITCH[mode]
+        length, width, half, step = cfg["length"], cfg["width"], cfg["goal"] / 2, 0.5
+        grid = []
+        for i in range(int(length / step) + 1):
+            dx = abs(length - i * step)
+            row = []
+            for j in range(int(width / step) + 1):
+                dy = j * step - width / 2
+                dist = math.hypot(dx, dy)
+                angle = abs(math.atan2(half - dy, dx) - math.atan2(-half - dy, dx))
+                row.append(1 / (1 + math.exp(-(-1.35 - 0.13 * dist * cfg["xg_scale"] + 1.6 * angle))))
+            grid.append(row)
+        _XG_GRIDS[mode] = (grid, step)
+    return _XG_GRIDS[mode]
+
+
 class Agent:
     __slots__ = ("id", "name", "side", "number", "role", "position", "ax", "ay", "x", "y", "pace", "passing",
                  "shooting", "dribbling", "defending", "physical", "keeping", "stamina", "yellow", "sent_off",
@@ -162,6 +184,8 @@ class MatchEngine:
                 agent.active = True
                 agent.entered_tick = 0
         self.by_id = {agent.id: agent for agent in self.agents}
+        self._refresh_active()
+        self._xg = xg_grid(mode)
         self.tick = 0
         self.score = [0, 0]
         self.events: list[dict[str, object]] = []
@@ -205,17 +229,19 @@ class MatchEngine:
         return self.L if side == 0 else 0.0
 
     def shot_xg(self, side: int, x: float, y: float) -> float:
-        gx = self.goal_x(side)
-        dx = abs(gx - x)
-        dy = y - self.W / 2
-        dist = math.hypot(dx, dy)
-        half = self.cfg["goal"] / 2
-        angle = abs(math.atan2(half - dy, dx) - math.atan2(-half - dy, dx))
-        logit = -1.35 - 0.13 * dist * self.cfg["xg_scale"] + 1.6 * angle
-        return 1 / (1 + math.exp(-logit))
+        """Lookup in the precomputed 0.5 m grid (see `xg_grid`)."""
+        grid, step = self._xg
+        f = x if side == 0 else self.L - x
+        i = min(len(grid) - 1, max(0, int(f / step + 0.5)))
+        row = grid[i]
+        return row[min(len(row) - 1, max(0, int(y / step + 0.5)))]
 
     def active(self, side: int) -> list[Agent]:
-        return [a for a in self.team_agents[side] if a.active]
+        """Players currently on the pitch (cached; refreshed when someone enters or leaves)."""
+        return self._active[side]
+
+    def _refresh_active(self) -> None:
+        self._active = [[a for a in self.team_agents[side] if a.active] for side in (0, 1)]
 
     # ------------------------------------------------------------------ events
     def _event(self, kind: str, side: int | None, agent: Agent | None, x: float, y: float, outcome: str = "", other: Agent | None = None, xg: float = 0.0, extra: dict[str, object] | None = None) -> dict[str, object]:
@@ -327,6 +353,7 @@ class MatchEngine:
                 in_agent.active, in_agent.entered_tick = True, self.tick
                 in_agent.x, in_agent.y = self.L / 2, 0.0 if out_agent.y < self.W / 2 else self.W
                 out_agent.active, out_agent.left_tick = False, self.tick
+                self._refresh_active()
                 if self.owner is out_agent:
                     self._give(in_agent)
                 self.subs_used[side] += 1
@@ -437,6 +464,8 @@ class MatchEngine:
         side = taker.side
         attackers = [a for a in self.active(side) if a is not taker and a.role != "GK"]
         defenders = [a for a in self.active(1 - side) if a.role != "GK"]
+        if not attackers:
+            return  # nobody to aim at (sent-offs): the taker simply keeps the ball
         # Bodies attack the box: the best headers become the cross targets.
         target = max(attackers, key=lambda a: a.physical + self.rng.random() * 25)
         tx = self.abs_x(side, self.L - self.cfg["box"] * 0.45)
@@ -551,6 +580,7 @@ class MatchEngine:
         self.team_stats[agent.side]["red_cards"] += 1
         self._event("CARD", agent.side, agent, agent.x, agent.y, outcome)
         agent.active, agent.sent_off, agent.left_tick = False, True, self.tick
+        self._refresh_active()
         if agent.role == "GK":
             # Someone must play in goal: the deepest outfield player takes the gloves.
             remaining = [a for a in self.active(agent.side) if a.role != "GK"]
@@ -947,6 +977,7 @@ class MatchEngine:
                 length = ment[1] * L * 0.80 * (0.75 if ball_f < 0.3 * L else 1.0)
                 width = 0.72
                 follow = 0.38
+            drain_factor = press_cfg[5] * (1.0 + 0.12 * (ment[2] - 1 if ment[2] > 1 else 0))
             outfield = [a for a in team if a.role != "GK"]
             min_ax = min((a.ax for a in outfield), default=0.3)
             max_ax = max((a.ax for a in outfield), default=0.8)
@@ -988,8 +1019,13 @@ class MatchEngine:
                 for opp in threats:
                     if not free:
                         break
-                    marker = min(free, key=lambda a: (a.x - opp.x) ** 2 + (a.y - opp.y) ** 2)
-                    if (marker.x - opp.x) ** 2 + (marker.y - opp.y) ** 2 < 400:
+                    ox, oy = opp.x, opp.y
+                    marker, best = free[0], 1e9
+                    for cand in free:
+                        d = (cand.x - ox) ** 2 + (cand.y - oy) ** 2
+                        if d < best:
+                            marker, best = cand, d
+                    if best < 400:
                         marks[marker.index] = opp
                         free.remove(marker)
             for agent in team:
@@ -1048,30 +1084,34 @@ class MatchEngine:
                     if dead_restart == "KICK_OFF":
                         spot = self._formation_spot(agent, kickoff=True)
                         tf, ty = self.fwd(side, spot[0]), spot[1]
-                    tx = self.abs_x(side, max(1.0, min(L - 1.0, tf)))
-                    ty = max(1.0, min(W - 1.0, ty))
+                    tf = 1.0 if tf < 1.0 else L - 1.0 if tf > L - 1.0 else tf
+                    tx = tf if side == 0 else L - tf
+                    ty = 1.0 if ty < 1.0 else W - 1.0 if ty > W - 1.0 else ty
                 if agent.index in chasers:
                     tx, ty = chasers[agent.index]
                     intensity = 1.0
-                moves.append((agent, tx, ty, intensity, press_cfg[5] * (1.0 + 0.12 * max(0, ment[2] - 1))))
+                moves.append((agent, tx, ty, intensity, drain_factor))
         # Simultaneous update: every target above was computed from the same snapshot,
         # so neither team reacts to positions the other has already changed this tick.
+        hypot = math.hypot
+        team_stats = self.team_stats
         for agent, tx, ty, intensity, drain_factor in moves:
             top = 5.0 + agent.pace * 0.033
             speed = top * (0.66 + 0.34 * agent.stamina) * intensity
             dx, dy = tx - agent.x, ty - agent.y
-            dist = math.hypot(dx, dy)
+            dist = hypot(dx, dy)
             if dist > 0.05:
-                move = min(dist, speed)
+                move = dist if dist < speed else speed
                 agent.x += dx / dist * move
                 agent.y += dy / dist * move
                 agent.stats["distance"] += move
-                self.team_stats[agent.side]["distance"] += move
+                team_stats[agent.side]["distance"] += move
                 actual = move / top
             else:
                 actual = 0.1
             agent.intensity = actual
-            self._drain(agent, actual, drain_factor)
+            stamina = agent.stamina - (0.000032 + 0.000115 * actual * actual * drain_factor) * (1.18 - agent.physical / 250)
+            agent.stamina = stamina if stamina > 0.25 else 0.25
 
     def _drain(self, agent: Agent, intensity: float, factor: float) -> None:
         drain = (0.000032 + 0.000115 * intensity * intensity * factor) * (1.18 - agent.physical / 250)
@@ -1083,18 +1123,22 @@ class MatchEngine:
 
     # ------------------------------------------------------------------ output
     def _record_frame(self) -> None:
-        players = []
-        for agent in self.agents:
-            if agent.active:
-                players.extend((round(agent.x / self.L, 4), round(agent.y / self.W, 4)))
-            else:
-                players.extend((-1, -1))
+        # Raw metres; normalised and rounded only when a client asks for frames.
+        positions = tuple((a.x, a.y) if a.active else None for a in self.agents)
         owner = self.owner.index if self.owner is not None else -1
-        self.frames.append((self.tick, round(self.bx / self.L, 4), round(self.by / self.W, 4), owner, players))
+        self.frames.append((self.tick, self.bx, self.by, owner, positions))
 
     def frames_since(self, tick: int, limit: int = 400) -> list[dict[str, object]]:
-        rows = [frame for frame in self.frames if frame[0] > tick]
-        return [{"t": t, "b": [bx, by, owner], "p": players} for t, bx, by, owner, players in rows[-limit:]]
+        """Normalised frames (0..1, home attacks toward x=1); -1 marks players off the pitch."""
+        L, W = self.L, self.W
+        rows = [frame for frame in self.frames if frame[0] > tick][-limit:]
+        result = []
+        for t, bx, by, owner, positions in rows:
+            flat: list[float] = []
+            for pos in positions:
+                flat.extend((round(pos[0] / L, 4), round(pos[1] / W, 4)) if pos else (-1, -1))
+            result.append({"t": t, "b": [round(bx / L, 4), round(by / W, 4), owner], "p": flat})
+        return result
 
     def minute(self) -> float:
         return round(self.tick / 60, 2)
@@ -1170,6 +1214,8 @@ def replay_engine(match_id: str, mode: str, home: TeamInput, away: TeamInput, se
     """Rebuild an engine deterministically from its inputs and command log."""
     engine = MatchEngine(match_id, mode, home, away, seed)
     for command in sorted(command_log, key=lambda c: int(c["tick"])):
+        if int(command["tick"]) > until_tick:
+            break  # later decisions cannot influence an earlier moment
         engine.advance_to(int(command["tick"]))
         side = int(command["side"])
         if command["kind"] == "TACTICS":

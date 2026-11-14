@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     # Real seconds of play for 90 game minutes, plus the real half-time break.
     live_match_seconds: int = 180
     live_halftime_seconds: int = 20
+    # Match presentation (line-ups on screen) between "all ready" and kick-off.
+    live_intro_seconds: int = 8
 
     request_limit_per_minute: int = 600
     auth_limit_per_minute: int = 120
@@ -29,7 +31,7 @@ class Settings(BaseSettings):
     def validate_runtime(self) -> "Settings":
         if self.app_environment not in {"development", "test", "production"}:
             raise ValueError("APP_ENVIRONMENT deve ser development, test ou production.")
-        if self.live_match_seconds < 30 or self.live_halftime_seconds < 0:
+        if self.live_match_seconds < 30 or self.live_halftime_seconds < 0 or self.live_intro_seconds < 0:
             raise ValueError("LIVE_MATCH_SECONDS deve ser >= 30 e LIVE_HALFTIME_SECONDS >= 0.")
         if min(self.request_limit_per_minute, self.auth_limit_per_minute, self.max_request_body_bytes) < 1:
             raise ValueError("Limites de requisição devem ser positivos.")

@@ -51,18 +51,23 @@ class RoomSeason:
     # Live engines are runtime objects; snapshots keep (inputs, seed, command log).
     engines: dict[str, MatchEngine] = field(default_factory=dict)
     human_clubs: set[str] = field(default_factory=set)
+    # When the current round became available for preparation (server clock).
+    preparation_opened_at: float | None = None
 
 
 class SeasonService:
-    def __init__(self, clock: Callable[[], float] = time.time, play_seconds: int = 180, halftime_seconds: int = 20) -> None:
+    def __init__(self, clock: Callable[[], float] = time.time, play_seconds: int = 180, halftime_seconds: int = 20, intro_seconds: int = 0) -> None:
         self.clock = clock
         self.play_seconds = play_seconds
         self.halftime_seconds = halftime_seconds
+        # Match presentation before kick-off: line-ups shown, tactics still editable.
+        self.intro_seconds = intro_seconds
         self._seasons: dict[str, RoomSeason] = {}
 
     def create(self, room_id: str, market: InitialMarket) -> RoomSeason:
         if room_id not in self._seasons:
-            self._seasons[room_id] = RoomSeason(SeasonState(generate_calendar(tuple(market.teams))), market.mode, current_overalls={player_id: player.overall for player_id, player in market.catalog.items()})
+            self._seasons[room_id] = RoomSeason(SeasonState(generate_calendar(tuple(market.teams))), market.mode, current_overalls={player_id: player.overall for player_id, player in market.catalog.items()},
+                                                preparation_opened_at=self.clock())
         return self._seasons[room_id]
 
     def create_next_season(self, room_id: str, market: InitialMarket) -> dict[str, object]:
@@ -82,6 +87,22 @@ class SeasonService:
             raise MarketError("A temporada regular já terminou.")
         season.ready_clubs.add(club_code)
         return self.view(room_id)
+
+    def preparation_deadline(self, room_id: str, duration_seconds: int) -> float | None:
+        season = self._season(room_id)
+        if season.live_round or season.transfer_window_open or self.current_round(room_id) > 38 or season.preparation_opened_at is None:
+            return None
+        return season.preparation_opened_at + duration_seconds
+
+    def start_if_preparation_expired(self, room_id: str, market: InitialMarket, human_clubs: set[str], duration_seconds: int) -> bool:
+        """Preparation timeout: coaches who did not confirm play with their saved plan."""
+        deadline = self.preparation_deadline(room_id, duration_seconds)
+        if deadline is None or self.clock() < deadline:
+            return False
+        season = self._season(room_id)
+        season.ready_clubs |= human_clubs
+        self.advance(room_id, market, human_clubs)
+        return season.live_round is not None
 
     # ------------------------------------------------------------------ live round
     def advance(self, room_id: str, market: InitialMarket, human_clubs: set[str]) -> dict[str, object]:
@@ -114,8 +135,9 @@ class SeasonService:
         for match_id, (engine, meta) in prepared.items():
             season.engines[match_id] = engine
             season.matches[match_id] = meta
-        started_at = self.clock()
-        season.live_round = {"round_number": round_number, "started_at": started_at,
+        announced_at = self.clock()
+        started_at = announced_at + self.intro_seconds
+        season.live_round = {"round_number": round_number, "announced_at": announced_at, "started_at": started_at,
                              "ends_at": started_at + self.play_seconds + self.halftime_seconds,
                              "duration_seconds": self.play_seconds + self.halftime_seconds,
                              "play_seconds": self.play_seconds, "halftime_seconds": self.halftime_seconds,
@@ -142,7 +164,9 @@ class SeasonService:
         phase = "FIRST_HALF" if tick < TICKS_PER_HALF else "HALF_TIME" if now < half_end + float(live["halftime_seconds"]) and tick == TICKS_PER_HALF else "SECOND_HALF"
         if tick >= FULL_TIME_TICK:
             phase = "FULL_TIME"
-        return {"tick": tick, "minute": round(tick / 60, 2), "phase": phase, "server_now": now,
+        if now < float(live["started_at"]):
+            phase = "PRESENTATION"
+        return {"tick": tick, "kickoff_at": live["started_at"], "minute": round(tick / 60, 2), "phase": phase, "server_now": now,
                 "ticks_per_second": FULL_TIME_TICK / float(live["play_seconds"]),
                 "halftime_ends_at": half_end + float(live["halftime_seconds"]), "ends_at": live["ends_at"]}
 
@@ -177,6 +201,7 @@ class SeasonService:
         season.state.results.update(results)
         season.transfer_window_open = live["round_number"] == 19
         season.live_round = None
+        season.preparation_opened_at = self.clock()
         return True
 
     def command(self, room_id: str, club: str, payload: dict[str, object]) -> dict[str, object]:
@@ -237,13 +262,14 @@ class SeasonService:
                                             season.state.fixtures, season.state.results),
                 "current_round": self.current_round(room_id), "ready_clubs": sorted(season.ready_clubs)}
 
-    def live_frames(self, room_id: str, club: str, since_tick: int) -> dict[str, object]:
+    def live_frames(self, room_id: str, club: str, since_tick: int, sync: bool = True) -> dict[str, object]:
         season = self._season(room_id)
         live = season.live_round
         if not live:
             return {"frames": [], "tick": None, "finished": True}
         now = self.clock()
-        self.sync_live(room_id, now)
+        if sync:
+            self.sync_live(room_id, now)
         match_id = next((key for key in live["match_ids"] if club in (season.matches[key]["home"], season.matches[key]["away"])), None)
         engine = season.engines.get(match_id) if match_id else None
         if engine is None:
@@ -273,6 +299,15 @@ class SeasonService:
         engine = season.engines.get(match_id)
         if engine and you:
             match["commands"] = [status for command_id, status in engine.applied_commands.items() if command_id.startswith(f"{club}:")]
+        # Engine inputs and the command log stay server-side: they would reveal the
+        # rival's plan. Each coach gets only his own decisions.
+        side = 0 if you == "home" else 1
+        log = match.get("command_log") or []
+        match = {key: value for key, value in match.items() if key not in ("inputs", "seed", "command_log", "bot_sides")}
+        if you and not engine:
+            match["commands"] = [{"command_id": c["command_id"], "kind": c["kind"], "status": "APPLIED", "applied_tick": c["tick"],
+                                  "tactics": c.get("tactics"), "out_player_id": c.get("out"), "in_player_id": c.get("in")}
+                                 for c in log if int(c["side"]) == side and str(c["command_id"]).startswith(f"{club}:")]
         return {**match, "you": you}
 
     def live_table(self, room_id: str, now: float | None = None) -> list[dict[str, object]]:
@@ -381,6 +416,7 @@ class SeasonService:
             raise MarketError("A janela só pode ser encerrada entre as rodadas 19 e 20.")
         season.transfer_window_open = False
         season.ready_clubs.clear()
+        season.preparation_opened_at = self.clock()
         return self.view(room_id)
 
     def _advance_playoffs(self, room_id: str, market: InitialMarket, season: RoomSeason) -> dict[str, object]:
@@ -481,7 +517,7 @@ class SeasonService:
         season = self._season(room_id)
         clubs = tuple(sorted({club for fixture in season.state.fixtures for club in (fixture.home, fixture.away)}))
         current = self.current_round(room_id)
-        return {"live_round": season.live_round, "server_now": self.clock(), "live_table": self.live_table(room_id), "season_number": season.season_number, "current_round": current, "regular_season_complete": current > 38, "season_complete": bool(season.playoffs and season.playoffs.champion), "progression_applied": season.progression_applied, "champion": season.playoffs.champion if season.playoffs else None, "playoffs": season.playoffs.view() if season.playoffs else None, "transfer_window_open": season.transfer_window_open, "ready_clubs": sorted(season.ready_clubs), "table": standings(clubs, season.state.fixtures, season.state.results), "fixtures": [{"id": fixture.id, "round_number": fixture.round_number, "home": fixture.home, "away": fixture.away, "result": self._result_view(season.state.results.get(fixture.id)), "match_id": fixture.id if fixture.id in season.matches else None} for fixture in season.state.fixtures if fixture.round_number == min(current, 38)], "matches": [{"id": match_id, "round_number": next((f.round_number for f in season.state.fixtures if f.id == match_id), 39), "home": match["home"], "away": match["away"], "home_goals": projected["home_goals"], "away_goals": projected["away_goals"]} for match_id, match in season.matches.items() for projected in [self._score(season, match_id)]], "match_count": len(season.matches), "season_history": season.season_history, "development_records": season.development_records, "top_scorers": self._top_scorers(season)}
+        return {"live_round": season.live_round, "server_now": self.clock(), "preparation_opened_at": season.preparation_opened_at, "live_table": self.live_table(room_id), "season_number": season.season_number, "current_round": current, "regular_season_complete": current > 38, "season_complete": bool(season.playoffs and season.playoffs.champion), "progression_applied": season.progression_applied, "champion": season.playoffs.champion if season.playoffs else None, "playoffs": season.playoffs.view() if season.playoffs else None, "transfer_window_open": season.transfer_window_open, "ready_clubs": sorted(season.ready_clubs), "table": standings(clubs, season.state.fixtures, season.state.results), "fixtures": [{"id": fixture.id, "round_number": fixture.round_number, "home": fixture.home, "away": fixture.away, "result": self._result_view(season.state.results.get(fixture.id)), "match_id": fixture.id if fixture.id in season.matches else None} for fixture in season.state.fixtures if fixture.round_number == min(current, 38)], "matches": [{"id": match_id, "round_number": next((f.round_number for f in season.state.fixtures if f.id == match_id), 39), "home": match["home"], "away": match["away"], "home_goals": projected["home_goals"], "away_goals": projected["away_goals"]} for match_id, match in season.matches.items() for projected in [self._score(season, match_id)]], "match_count": len(season.matches), "schedule": [{"id": f.id, "round_number": f.round_number, "home": f.home, "away": f.away, "result": self._result_view(season.state.results.get(f.id))} for f in season.state.fixtures], "season_history": season.season_history, "development_records": season.development_records, "top_scorers": self._top_scorers(season)}
 
     @staticmethod
     def _top_scorers(season: RoomSeason) -> list[dict[str, object]]:
@@ -507,6 +543,7 @@ class SeasonService:
         return {
             "live_round": season.live_round,
             "human_clubs": sorted(season.human_clubs),
+            "preparation_opened_at": season.preparation_opened_at,
             "mode": season.mode,
             "fixtures": [asdict(fixture) for fixture in season.state.fixtures],
             "results": {key: asdict(value) for key, value in season.state.results.items()},
@@ -556,6 +593,8 @@ class SeasonService:
         live_payload = payload.get("live_round")
         live_ids = set(live_payload.get("match_ids", [])) if isinstance(live_payload, dict) else set()
         for match_id, match in matches_payload.items():
+            if match.get("status") == "LIVE" and match_id not in live_ids:
+                raise ValueError("Snapshot de transmissão contém partida ao vivo fora da rodada.")
             if match_id in live_ids and match.get("status") == "LIVE":
                 if not isinstance(match.get("inputs"), dict) or not isinstance(match.get("command_log", []), list):
                     raise ValueError("Snapshot de partida ao vivo sem entradas do motor.")
@@ -617,6 +656,7 @@ class SeasonService:
             season_history=list(payload.get("season_history", [])),
             progression_applied=bool(payload.get("progression_applied", False)),
             human_clubs=set(map(str, payload.get("human_clubs", []))),
+            preparation_opened_at=float(payload["preparation_opened_at"]) if payload.get("preparation_opened_at") is not None else None,
         )
         if room_season.live_round:
             # Rebuild every live engine deterministically from inputs, seed and the command
@@ -724,4 +764,5 @@ def project_events(home: str, away: str, events: list[dict[str, object]]) -> dic
 
 
 _settings = get_settings()
-season_service = SeasonService(play_seconds=_settings.live_match_seconds, halftime_seconds=_settings.live_halftime_seconds)
+season_service = SeasonService(play_seconds=_settings.live_match_seconds, halftime_seconds=_settings.live_halftime_seconds,
+                               intro_seconds=_settings.live_intro_seconds)

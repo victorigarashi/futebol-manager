@@ -28,6 +28,8 @@ O demo está desligado por padrão e é recusado em produção. Sem demo, config
 
 ## Documentação
 
+- [Modo Carreira: motor 2D, partida ao vivo e nova interface](docs/MODO_CARREIRA.md)
+
 - [Execução local e amigos](docs/RUNNING.md)
 - [Modo demo e pendências de dados reais](docs/DEMO.md)
 - [Entrega parcial de dados reais e auditoria de fontes](docs/CATALOG_DATA_DELIVERY.md)

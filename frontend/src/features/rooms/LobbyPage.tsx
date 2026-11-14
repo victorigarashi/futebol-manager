@@ -95,7 +95,10 @@ export function LobbyPage({ needsProfile, onEditProfile, onSaveProfile }: LobbyP
       socket.onmessage = (message) => {
         try {
           const event = JSON.parse(message.data) as { type?: string };
-          if (event.type === "season.tick" || event.type === "season.sync") {
+          if (event.type === "live.frames") {
+            // 2D frames go straight to the canvas buffer, never through React state.
+            window.dispatchEvent(new CustomEvent("bm:frames", { detail: event }));
+          } else if (event.type === "season.tick" || event.type === "season.sync") {
             void queryClient.invalidateQueries({ queryKey: ["live", activeRoomId] });
           } else if (event.type) refresh();
         } catch { /* A malformed notification must not crash the current game. */ }

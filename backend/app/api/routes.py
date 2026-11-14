@@ -35,6 +35,7 @@ from app.domain.catalog import catalog_status, load_catalog
 from app.domain.clubs import CLUBS
 from app.domain.demo_catalog import create_demo_catalog
 from app.domain.market import MarketError
+from app.domain.match_engine import PlayerInput, derived_attributes
 from app.domain.rooms import room_manager
 from app.services.auth import (
     SESSION_COOKIE,
@@ -354,6 +355,13 @@ async def get_squad(room_id: str, identity: GuestIdentity = Depends(current_iden
         if room_id in season_service._seasons:
             market = market_service._session(room_id).market
             squad["players"] = [transfer_service.player_view(room_id, market, player.id) for player in market.catalog.values() if player.id in market.teams[club].roster]
+        # The exact abilities the match engine uses (derived from overall when the
+        # catalog has no component ratings), so the squad screen shows the truth.
+        for row in squad["players"]:
+            row["match_attributes"] = {k: round(v) for k, v in derived_attributes(PlayerInput(
+                str(row["id"]), str(row["name"]), str(row["position"]), str(row["position"]), 50, 50, int(row["overall"]),
+                {k: int(v) + int(row["overall"]) - int(row.get("base_overall", row["overall"])) for k, v in dict(row.get("attributes") or {}).items()})).items()}
+            row["attributes_derived"] = not row.get("attributes")
         return envelope(squad)
     except MarketError as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
@@ -450,6 +458,9 @@ async def broadcast_round(room_id: str) -> None:
                         room = room_manager._room(room_id)
                         await room_manager.set_phase(room_id, room.host_user_id, "TRANSFER_WINDOW")
                     snapshot_room(room_id)
+            if not completed:
+                # Engines were synced above under the lock; just read each coach's new frames.
+                await hub.push_frames(room_id, lambda club, since: season_service.live_frames(room_id, club, since, sync=False))
             now = season_service.clock()
             if completed or now - last_tick_broadcast >= 1.0:
                 # Clients stream frames by polling; the socket only nudges state refreshes.
@@ -466,6 +477,27 @@ async def broadcast_round(room_id: str) -> None:
         season = season_service._seasons.get(room_id)
         if completed and season and season.live_round:
             schedule_round(room_id)
+
+
+async def start_round_if_preparation_expired(room_id: str) -> None:
+    """Enforce the league's preparation deadline (configured when creating the room)."""
+    if room_id not in season_service._seasons:
+        return
+    room = room_manager._room(room_id)
+    if room.phase != "SEASON_PREPARATION":
+        return
+    humans = {p.selected_club_code for p in room.participants.values() if p.selected_club_code}
+    async with round_locks.setdefault(room_id, asyncio.Lock()):
+        try:
+            started = season_service.start_if_preparation_expired(
+                room_id, market_service._session(room_id).market, humans, room.round_preparation_duration_seconds)
+        except MarketError:
+            return
+        if started:
+            schedule_round(room_id)
+            snapshot_room(room_id)
+    if started:
+        await hub.broadcast(room_id, {"type": "season.round_started", "reason": "preparation_timeout"})
 
 
 @router.post("/rooms/{room_id}/season/ready")
@@ -712,6 +744,7 @@ async def start_next_season(room_id: str, identity: GuestIdentity = Depends(curr
 @router.get("/rooms/{room_id}/season")
 async def season_state(room_id: str, identity: GuestIdentity = Depends(current_identity)) -> dict[str, object]:
     market_club(room_id, identity.id)
+    await start_round_if_preparation_expired(room_id)
     try:
         return envelope(season_service.view(room_id))
     except MarketError as error:
@@ -861,9 +894,9 @@ async def room_websocket(websocket: WebSocket, room_id: str) -> None:
     except HTTPException:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
-    await hub.connect(room_id, websocket)
+    member = room_manager._room(room_id).participants.get(identity.id)
+    await hub.connect(room_id, websocket, member.selected_club_code if member else None)
     try:
-        member = room_manager._room(room_id).participants.get(identity.id)
         if room_id in season_service._seasons and member and member.selected_club_code:
             club = member.selected_club_code
             await websocket.send_json({"type": "season.sync", "data": season_service.live_view(room_id, club)})
