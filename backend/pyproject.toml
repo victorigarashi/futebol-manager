@@ -1,0 +1,17 @@
+[project]
+name = "brasileirao-manager-backend"
+version = "0.2.0"
+description = "API em memória do Brasileirão Manager"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+testpaths = ["app/tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["B008", "E501"]

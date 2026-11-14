@@ -1,0 +1,129 @@
+# Arquivos alterados na beta
+
+Comparação com o ZIP da transmissão entregue anteriormente. Arquivos de evidências são listados separadamente; dependências, caches, builds e estado temporário ficam fora da entrega.
+
+## Fonte, testes, configuração e documentação
+
+- Alterado: `.env.example`
+- Alterado: `README.md`
+- Novo: `backend/.dockerignore`
+- Alterado: `backend/app/api/routes.py`
+- Alterado: `backend/app/api/schemas.py`
+- Alterado: `backend/app/core/config.py`
+- Alterado: `backend/app/domain/rooms.py`
+- Alterado: `backend/app/domain/squad.py`
+- Alterado: `backend/app/main.py`
+- Alterado: `backend/app/services/auth.py`
+- Novo: `backend/app/services/http_security.py`
+- Alterado: `backend/app/services/market_service.py`
+- Alterado: `backend/app/services/realtime.py`
+- Alterado: `backend/app/services/recovery.py`
+- Alterado: `backend/app/services/season_service.py`
+- Alterado: `backend/app/services/squad_service.py`
+- Alterado: `backend/app/services/transfer_service.py`
+- Novo: `backend/app/tests/test_beta_api_flow.py`
+- Novo: `backend/app/tests/test_beta_security_recovery.py`
+- Novo: `backend/app/tests/test_beta_transfers.py`
+- Alterado: `backend/app/tests/test_lobby.py`
+- Novo: `backend/requirements-lock.txt`
+- Novo: `backend/tools/beta_acceptance.py`
+- Alterado: `docker-compose.yml`
+- Novo: `docs/API.md`
+- Novo: `docs/BACKEND_AUDIT.md`
+- Novo: `docs/BETA_DELIVERY_REPORT.md`
+- Novo: `docs/DEMO.md`
+- Novo: `docs/DESIGN_SYSTEM.md`
+- Novo: `docs/FINAL_UI_AUDIT.md`
+- Alterado: `docs/IMPLEMENTATION_PROGRESS.md`
+- Novo: `docs/MARKET_SQUAD_AUDIT.md`
+- Alterado: `docs/PARTIDA_AO_VIVO.md`
+- Novo: `docs/PRODUCTION.md`
+- Novo: `docs/QA_REPORT.md`
+- Novo: `docs/RUNNING.md`
+- Novo: `docs/SEASON_UI_AUDIT.md`
+- Novo: `docs/TESTING.md`
+- Novo: `docs/openapi.json`
+- Novo: `frontend/.dockerignore`
+- Alterado: `frontend/Dockerfile`
+- Alterado: `frontend/package-lock.json`
+- Alterado: `frontend/package.json`
+- Alterado: `frontend/public/crests/README.md`
+- Novo: `frontend/scripts/verify-beta.cjs`
+- Novo: `frontend/scripts/verify-club-dialogs.cjs`
+- Novo: `frontend/scripts/verify-home-recovery.cjs`
+- Alterado: `frontend/scripts/verify-live.cjs`
+- Novo: `frontend/scripts/verify-onboarding.cjs`
+- Alterado: `frontend/src/app/App.tsx`
+- Alterado: `frontend/src/components/AppHeader.tsx`
+- Novo: `frontend/src/components/CareerPanel.tsx`
+- Alterado: `frontend/src/components/ClubCard.tsx`
+- Alterado: `frontend/src/components/ClubCrest.tsx`
+- Alterado: `frontend/src/components/ConnectionIndicator.tsx`
+- Novo: `frontend/src/components/ErrorBoundary.tsx`
+- Alterado: `frontend/src/components/InviteCode.tsx`
+- Alterado: `frontend/src/components/LeagueSettingsDialog.tsx`
+- Alterado: `frontend/src/components/LeagueSettingsSummary.tsx`
+- Novo: `frontend/src/components/Modal.tsx`
+- Alterado: `frontend/src/components/ProfileDialog.tsx`
+- Novo: `frontend/src/components/RoomToolbar.tsx`
+- Novo: `frontend/src/components/ui/AsyncState.tsx`
+- Alterado: `frontend/src/features/market/MarketPage.tsx`
+- Alterado: `frontend/src/features/market/MarketProgressPage.tsx`
+- Alterado: `frontend/src/features/rooms/LobbyPage.tsx`
+- Alterado: `frontend/src/features/season/LiveMatchPage.tsx`
+- Alterado: `frontend/src/features/season/MatchReplay.tsx`
+- Alterado: `frontend/src/features/season/SeasonPage.tsx`
+- Novo: `frontend/src/features/season/StandingsTable.tsx`
+- Alterado: `frontend/src/features/season/TransferHub.tsx`
+- Novo: `frontend/src/features/season/season-beta.css`
+- Alterado: `frontend/src/features/squad/SquadPage.tsx`
+- Alterado: `frontend/src/index.css`
+- Alterado: `frontend/src/lib/api.ts`
+- Novo: `frontend/src/lib/format.ts`
+- Novo: `frontend/src/lib/storage.test.ts`
+- Novo: `frontend/src/lib/storage.ts`
+- Alterado: `frontend/src/main.tsx`
+- Alterado: `frontend/src/stores/session.ts`
+- Novo: `frontend/src/styles/beta.css`
+
+## Evidências novas ou atualizadas
+
+- `docs/evidencias/beta/beta-verification.json`
+- `docs/evidencias/beta/champion-1366.png`
+- `docs/evidencias/beta/champion-390.png`
+- `docs/evidencias/beta/club-confirm-390.png`
+- `docs/evidencias/beta/club-dialog-verification.json`
+- `docs/evidencias/beta/club-selection-390.png`
+- `docs/evidencias/beta/history-1366.png`
+- `docs/evidencias/beta/history-390.png`
+- `docs/evidencias/beta/home-1366.png`
+- `docs/evidencias/beta/home-390.png`
+- `docs/evidencias/beta/home-recovery-verification.json`
+- `docs/evidencias/beta/live-desktop.png`
+- `docs/evidencias/beta/live-mobile.png`
+- `docs/evidencias/beta/live-verification.json`
+- `docs/evidencias/beta/lobby-1366.png`
+- `docs/evidencias/beta/lobby-390.png`
+- `docs/evidencias/beta/market-1366.png`
+- `docs/evidencias/beta/market-390.png`
+- `docs/evidencias/beta/npm-audit.json`
+- `docs/evidencias/beta/onboarding-1366.png`
+- `docs/evidencias/beta/onboarding-390.png`
+- `docs/evidencias/beta/onboarding-verification.json`
+- `docs/evidencias/beta/postmatch-1366.png`
+- `docs/evidencias/beta/postmatch-390.png`
+- `docs/evidencias/beta/reassignment-1366.png`
+- `docs/evidencias/beta/reassignment-390.png`
+- `docs/evidencias/beta/review-1366.png`
+- `docs/evidencias/beta/review-390.png`
+- `docs/evidencias/beta/season-1366.png`
+- `docs/evidencias/beta/season-390.png`
+- `docs/evidencias/beta/selection-1366.png`
+- `docs/evidencias/beta/selection-390.png`
+- `docs/evidencias/beta/settings-modal-1366.png`
+- `docs/evidencias/beta/squad11-1366.png`
+- `docs/evidencias/beta/squad11-390.png`
+- `docs/evidencias/beta/squad5-1366.png`
+- `docs/evidencias/beta/squad5-390.png`
+- `docs/evidencias/beta/transfers-1366.png`
+- `docs/evidencias/beta/transfers-390.png`

@@ -1,0 +1,33 @@
+{
+  "generated_at": "2026-11-13",
+  "sources": [
+    {
+      "id": "transfermarkt-datasets",
+      "role": "historical_identity_and_market_value",
+      "license": "CC0-1.0",
+      "integrated_operationally": false,
+      "reason": "snapshot histórico sem overall/potencial e sem confirmação da Série A 2026"
+    },
+    {
+      "id": "eafc26-datahub",
+      "role": "international_ratings_staging",
+      "license": "CC BY 4.0 declared by Kaggle dataset",
+      "integrated_operationally": false,
+      "reason": "candidatos brasileiros inconsistentes; direitos subjacentes e vínculo atual não confirmados"
+    },
+    {
+      "id": "fcmania-fcm26-v5",
+      "role": "candidate_source",
+      "license": "restricted_personal_patch_terms",
+      "integrated_operationally": false,
+      "reason": "sem exportação autorizada ou permissão de redistribuição"
+    },
+    {
+      "id": "cbf-serie-a-2026",
+      "role": "official_reference",
+      "license": "terms restrict bulk reproduction without authorization",
+      "integrated_operationally": false,
+      "reason": "nenhum export autorizado fornecido"
+    }
+  ]
+}

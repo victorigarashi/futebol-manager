@@ -1,0 +1,572 @@
+/*
+ * Brasileirão Manager — shared beta design system.
+ * `html` prefixes intentionally outrank the recovered legacy stylesheet, which
+ * remains intact so feature layouts and local club assets are preserved.
+ */
+html:root {
+  color-scheme: dark;
+  --bg: #0d1117;
+  --ink: var(--bg);
+  --surface: #161c24;
+  --surface-raised: #1d2630;
+  --line: #2b3440;
+  --primary: #26b47d;
+  --highlight: #90fca3;
+  --lime: var(--highlight);
+  --lime-deep: var(--primary);
+  --paper: #f1f5f9;
+  --muted: #94a3b8;
+  --danger: #ffb4ab;
+  --warning: #f6cf87;
+  --away: #ffaaa5;
+  --pitch: #205a3b;
+  --pitch-stripe: #246344;
+  --pitch-line: #d4e5d8;
+  --surface-selected: #193c30;
+  --surface-error: #382327;
+  --surface-warning: #342e22;
+  --field-bg: #10161e;
+  --focus-ring: var(--highlight);
+  --font-body: "Segoe UI", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-heading: "Arial Narrow", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --font-numbers: var(--font-body);
+  --space-1: .25rem;
+  --space-2: .5rem;
+  --space-3: .75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --radius-sm: .45rem;
+  --radius-md: .75rem;
+  --radius-lg: 1.1rem;
+  --shadow-card: 0 10px 32px rgb(0 0 0 / 12%);
+  --shadow-dialog: 0 24px 80px rgb(0 0 0 / 45%);
+  --overlay: rgb(4 9 15 / 82%);
+  --transition: 140ms ease;
+  font-family: var(--font-body);
+  line-height: 1.5;
+  color: var(--paper);
+  background: var(--bg);
+}
+html { scroll-behavior: smooth; scroll-padding-top: 1.5rem; }
+html body { min-width: 320px; overflow-x: visible; background: var(--bg); color: var(--paper); }
+html button, html input, html select, html textarea { font: inherit; }
+html button, html input:not([type="checkbox"]):not([type="radio"]), html select { min-height: 44px; }
+html button, html a, html input, html select { -webkit-tap-highlight-color: transparent; }
+html button, html a { touch-action: manipulation; }
+html button { transition: background var(--transition), border-color var(--transition), color var(--transition); }
+html button:disabled { cursor: not-allowed; opacity: .58; }
+html a { color: var(--highlight); text-underline-offset: .2em; }
+html :is(button, a, input, select, textarea, summary, [tabindex]):focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 3px; }
+html :is(h1, h2, h3, h4) { color: var(--paper); font-family: var(--font-heading); font-weight: 800; letter-spacing: -.035em; line-height: 1.15; text-wrap: balance; }
+html :is(h1, h2, h3) em { font-style: normal; color: var(--highlight); }
+html p { line-height: 1.6; }
+html :is(input, select, textarea) { min-width: 0; max-width: 100%; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: .7rem .85rem; color: var(--paper); background: var(--field-bg); }
+html input::placeholder, html textarea::placeholder { color: var(--muted); opacity: 1; }
+html label, html legend { color: var(--muted); }
+html :is(table, dl, time) { font-variant-numeric: tabular-nums; }
+html :is(canvas, img, svg) { max-width: 100%; }
+html :is(section, article, main, aside, form, header, footer, nav) { min-width: 0; }
+html :is(.button-primary, .button-secondary) { display: inline-flex; align-items: center; justify-content: center; gap: .6rem; min-height: 46px; border-radius: var(--radius-sm); padding: .75rem 1.1rem; font-size: .875rem; font-weight: 750; line-height: 1.25; text-align: center; }
+html .button-primary { border-color: var(--primary); background: var(--primary); color: var(--bg); }
+html .button-primary:hover:not(:disabled) { border-color: var(--highlight); background: var(--highlight); transform: none; }
+html .button-secondary { border-color: var(--line); background: var(--surface-raised); color: var(--paper); }
+html .button-secondary:hover:not(:disabled) { border-color: var(--primary); background: var(--surface-selected); color: var(--highlight); }
+html .text-action, html .back-link { min-height: 44px; padding: .5rem .25rem; color: var(--highlight); font-size: .875rem; font-weight: 650; }
+html .back-link { margin-top: .75rem; }
+html .section-kicker { color: var(--highlight); font-size: .6875rem; font-weight: 800; letter-spacing: .13em; line-height: 1.5; }
+html .muted { color: var(--muted); }
+html .feedback { border: 1px solid var(--line); border-left: 3px solid var(--primary); border-radius: var(--radius-sm); padding: .85rem 1rem; background: var(--surface-raised); color: var(--paper); line-height: 1.5; font-size: .875rem; }
+html .feedback--error, html .field-error { color: var(--danger); }
+html .feedback--error { border-left-color: var(--danger); background: var(--surface-error); }
+html .field-error { margin: .4rem 0 0; font-size: .8125rem; line-height: 1.5; }
+html .toast { border: 1px solid var(--danger); border-radius: var(--radius-md); padding: 1rem; background: var(--surface-error); box-shadow: var(--shadow-dialog); }
+html .empty-state, html .club-loading { border-color: var(--line); border-radius: var(--radius-md); padding: 1.5rem; background: var(--surface); color: var(--muted); font-size: .875rem; }
+html .loading { min-height: 50dvh; display: grid; align-content: center; justify-items: center; padding: 2rem; color: var(--muted); }
+html .demo-banner { border-bottom: 1px solid var(--warning); background: var(--surface-warning); color: var(--warning); padding: .6rem 1rem; font-size: .75rem; line-height: 1.5; }
+html .app-shell, html .landing-shell .app-header, html .landing-hero, html .landing-footer { width: min(1400px, calc(100% - 3rem)); margin-inline: auto; }
+html .app-shell--reference { padding-bottom: 3rem; }
+html .app-header, html .landing-shell .app-header { min-height: 78px; gap: 1rem; }
+html .brand { gap: .6rem; font-family: var(--font-heading); font-size: 1rem; font-weight: 850; letter-spacing: .025em; line-height: 1.05; }
+html .brand small { font-size: .625rem; color: var(--highlight); }
+html .brand__crest { width: 35px; height: 44px; color: var(--bg); background: var(--highlight); }
+html .app-header__nav { gap: 1.5rem; }
+html .app-header__nav a { min-height: 44px; font-size: .8125rem; }
+html .app-header__profile, html .landing-shell .app-header__profile { min-height: 44px; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: .5rem .75rem; background: var(--surface); color: var(--paper); }
+html .app-header__profile span { font-size: .625rem; color: var(--muted); }
+html .app-header__profile strong { max-width: 170px; overflow: hidden; text-overflow: ellipsis; font-size: .8125rem; }
+html .prototype-badge { font-size: .625rem; letter-spacing: .09em; color: var(--muted); }
+html .page-crumb { padding-block: 1rem; font-size: .75rem; }
+html .page-crumb small { font-size: .6875rem; color: var(--muted); }
+html .landing-shell { background: var(--bg); }
+html .landing-hero { grid-template-columns: minmax(0, 1fr) minmax(0, .95fr); gap: 3rem; min-height: 580px; padding: 2rem 0; align-items: center; }
+html .landing-hero__copy { padding-bottom: 0; }
+html .landing-hero h1 { max-width: 14ch; margin: 1rem 0; font-family: var(--font-heading); font-size: clamp(2.5rem, 4vw, 3.75rem); font-weight: 850; letter-spacing: -.045em; line-height: 1.08; }
+html .landing-hero__motto { gap: .15rem; margin-bottom: 1.25rem; font-size: 1rem; }
+html .landing-profile-form label { color: var(--paper); font-size: .875rem; line-height: 1.5; }
+html .landing-profile-form small { color: var(--muted); font-size: .75rem; }
+html .landing-profile-form input { min-height: 48px; border-color: var(--line); background: var(--surface); }
+html .landing-profile-form .button-primary { min-height: 48px; }
+html .landing-hero__friends { margin-top: 1.25rem; font-size: .75rem; }
+html .landing-hero__friends span { border-color: var(--bg); background: var(--surface-raised); color: var(--highlight); }
+html .landing-hero__visual { max-height: 450px; border: 1px solid var(--line); border-radius: var(--radius-lg); background-color: var(--surface); box-shadow: var(--shadow-card); }
+html .landing-footer { padding-block: 1rem; color: var(--muted); font-size: .6875rem; letter-spacing: .03em; }
+html .landing-footer span { color: var(--muted); }
+html .home-reference__hero { grid-template-columns: minmax(0, 1.2fr) minmax(0, .8fr); min-height: 285px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: radial-gradient(ellipse at right top, color-mix(in srgb, var(--primary) 18%, transparent), transparent 60%), var(--surface); }
+html .home-reference__hero > div:first-child { padding: 2rem 2.25rem; }
+html .home-reference__hero h1 { margin: 0; font-family: var(--font-heading); font-size: clamp(2rem, 3.3vw, 3.1rem); font-weight: 850; letter-spacing: -.045em; line-height: 1.1; }
+html .home-reference__hero p:not(.section-kicker) { margin-block: .85rem; font-size: .9375rem; }
+html .home-reference__hero .button-primary { margin-top: .3rem; }
+html .home-reference__trophy { gap: .6rem; min-height: 0; padding: 1.5rem; border-left-color: var(--line); }
+html .home-reference__trophy > span { font-size: 3.75rem; }
+html .home-reference__trophy strong { font-family: var(--font-heading); font-size: 1.6rem; font-weight: 850; letter-spacing: -.03em; line-height: 1.2; text-transform: none; }
+html .home-reference__crest-row i { width: 38px; height: 38px; border-color: var(--line); background: var(--surface-raised); font-size: .625rem; }
+html .home-reference__heading { align-items: center; gap: 1rem; margin: 1.5rem 0 1rem; }
+html .home-reference__heading h2 { font-family: var(--font-heading); font-size: 1.4rem; }
+html .home-reference__heading span { font-size: .75rem; letter-spacing: .03em; color: var(--muted); }
+html .entry-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+html .entry-card { min-height: 185px; border-color: var(--line); border-radius: var(--radius-md); padding: 1.25rem; background: var(--surface); box-shadow: var(--shadow-card); }
+html .entry-card:hover { border-color: var(--primary); background: var(--surface-raised); transform: none; }
+html .entry-card b { width: 36px; height: 36px; border-color: var(--line); border-radius: var(--radius-sm); color: var(--highlight); }
+html .entry-card h3 { margin: .8rem 0 .4rem; font-family: var(--font-heading); font-size: 1.1rem; line-height: 1.25; }
+html .entry-card p { min-height: 0; font-size: .8125rem; line-height: 1.55; }
+html .entry-card > strong { margin-top: .85rem; font-size: .8125rem; }
+html .entry-card--join { border-color: var(--primary); background: var(--surface); }
+html .entry-card--join div { flex-wrap: nowrap; gap: .5rem; }
+html .entry-card--join input { min-width: 0; min-height: 44px; font-size: .875rem; letter-spacing: .12em; }
+html .entry-card--join button { min-height: 44px; padding: .6rem .75rem; border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--highlight); background: var(--surface-selected); font-size: .8125rem; }
+html .public-rooms--reference { padding-top: 2.25rem; }
+html .section-heading h2 { font-size: clamp(1.3rem, 2.5vw, 1.8rem); letter-spacing: -.03em; }
+html .room-row { border-radius: var(--radius-md); background: var(--surface); }
+html .room-row strong { font-size: .9375rem; overflow-wrap: anywhere; }
+html .room-row span { font-size: .8125rem; }
+html .reference-selection__intro, html .reference-lobby__intro { align-items: center; gap: 1.5rem; margin: 1.25rem 0; }
+html .reference-selection__intro h1, html .reference-lobby__intro h1 { font-family: var(--font-heading); font-size: clamp(1.9rem, 3.5vw, 3rem); line-height: 1.1; letter-spacing: -.04em; }
+html .reference-selection__intro p, html .reference-lobby__intro p { font-size: .9375rem; }
+html .reference-selection__intro > div:last-child p { font-size: .8125rem; }
+html .available-badge, html .room-status { min-height: 32px; border-color: var(--line); border-radius: 2rem; padding: .4rem .75rem; color: var(--paper); background: var(--surface-raised); font-size: .6875rem; letter-spacing: .04em; }
+html .room-status--offline, html .room-status--reconnecting { border-color: var(--warning); color: var(--warning); }
+html .reference-selection .club-selection-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .85rem; }
+html .reference-selection .club-card { min-height: 164px; border-color: var(--line); border-radius: var(--radius-md); padding: 1rem .65rem; background: var(--surface); box-shadow: var(--shadow-card); }
+html .club-card:hover:not(:disabled) { border-color: var(--primary); background: var(--surface-raised); transform: none; }
+html .reference-selection .club-card--selected { border-color: var(--primary); background: var(--surface-selected); }
+html .club-card--occupied { background: var(--surface); opacity: .65; }
+html .club-card__copy strong { color: var(--paper); font-size: .9375rem; line-height: 1.3; }
+html .club-card__copy small { color: var(--muted); font-size: .75rem; }
+html .club-card__status { color: var(--muted); font-size: .6875rem; line-height: 1.4; letter-spacing: .03em; }
+html .club-card--selected .club-card__status { color: var(--highlight); }
+html .selected-club-panel, html .league-summary, html .reference-lobby .lobby-participants { border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); box-shadow: var(--shadow-card); }
+html .selected-club-panel, html .league-summary { border-top: 3px solid var(--primary); }
+html .selected-club-panel h2, html .league-summary h2 { font-size: 1.35rem; letter-spacing: -.03em; }
+html .selected-club-panel p, html .league-summary__reason { font-size: .875rem; line-height: 1.6; }
+html .selected-club-panel dt, html .league-summary dt { font-size: .6875rem; }
+html .selected-club-panel dd, html .league-summary dd { font-size: .875rem; }
+html .reference-lobby__grid { grid-template-columns: minmax(0, 1.45fr) minmax(300px, .75fr); gap: 1.25rem; }
+html .reference-lobby .lobby-participants, html .reference-lobby .league-summary { padding: 1.4rem; }
+html .reference-lobby .invite-code { align-items: center; border: 1px dashed var(--primary); border-radius: var(--radius-sm); padding: .75rem; background: var(--surface-selected); }
+html .invite-code strong, html .reference-lobby .invite-code strong { font-size: 1.2rem; }
+html .invite-code button { min-height: 44px; border-radius: var(--radius-sm); padding: .5rem .65rem; font-size: .8125rem; }
+html .participant-card strong { font-size: .9375rem; }
+html .participant-card span, html .participant-card small { font-size: .8125rem; }
+html .participant-card__avatar { background: var(--surface-selected); color: var(--highlight); }
+html .dialog-backdrop, html .market-modal { overscroll-behavior: contain; padding: 1rem; background: var(--overlay); backdrop-filter: blur(6px); }
+html .dialog, html .market-modal section { max-height: calc(100dvh - 2rem); overflow-y: auto; overscroll-behavior: contain; width: min(100%, 650px); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 1.75rem; background: var(--surface); color: var(--paper); box-shadow: var(--shadow-dialog); }
+html .market-modal section { width: min(100%, 460px); }
+html .dialog h2, html .market-modal h2 { padding-right: 2rem; font-size: clamp(1.35rem, 3.5vw, 1.9rem); line-height: 1.2; letter-spacing: -.03em; }
+html .dialog__close, html .market-modal section > button:first-child { display: grid; place-items: center; min-width: 44px; min-height: 44px; width: 44px; height: 44px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-raised); color: var(--paper); }
+html .dialog label, html .dialog legend, html .market-modal label { font-size: .8125rem; line-height: 1.5; letter-spacing: .015em; text-transform: none; }
+html .dialog label small { font-size: .75rem; font-weight: 400; }
+html .dialog input, html .dialog select { background: var(--field-bg); border-color: var(--line); }
+html .choice { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: .75rem .5rem; background: var(--surface-raised); color: var(--paper); font-size: .8125rem; line-height: 1.35; }
+html .choice small { font-size: .75rem; }
+html .choice--active { border-color: var(--primary); background: var(--surface-selected); color: var(--highlight); }
+html .market-page { padding: 1.5rem 0 3rem; }
+html .market-page__header { align-items: center; }
+html .market-page__header h1, html .market-progress > header h1, html .squad-header h1, html .season-header h1 { margin: .4rem 0; font-family: var(--font-heading); font-size: clamp(1.9rem, 3.7vw, 3rem); line-height: 1.12; letter-spacing: -.04em; }
+html .market-page__header p:not(.section-kicker), html .market-progress > header p, html .squad-header p, html .season-header p { font-size: .9375rem; color: var(--muted); }
+html .market-timer { min-width: 150px; border: 1px solid var(--primary); border-radius: var(--radius-md); background: var(--surface-selected); padding: .8rem 1rem; }
+html .market-timer strong { font-family: var(--font-numbers); color: var(--highlight); font-size: 1.9rem; font-variant-numeric: tabular-nums; }
+html .market-timer span, html .market-summary span { font-size: .6875rem; line-height: 1.4; letter-spacing: .05em; }
+html .market-summary { gap: .85rem; margin-block: 1.25rem; }
+html .market-summary > div { border-radius: var(--radius-md); padding: 1rem; background: var(--surface); }
+html .market-summary strong { font-size: 1.125rem; font-variant-numeric: tabular-nums; }
+html .market-layout { grid-template-columns: minmax(0, 1fr) 300px; gap: 1.25rem; align-items: start; }
+html .market-filters { display: flex; flex-wrap: wrap; gap: .75rem; }
+html .market-filters input { min-width: 160px; }
+html .market-filters select { border-radius: var(--radius-sm); padding-inline: .75rem; }
+html .market-player-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .85rem; }
+html .market-player { min-height: 178px; gap: .45rem; border-radius: var(--radius-md); padding: 1rem; background: var(--surface); }
+html .market-player:hover { border-color: var(--primary); background: var(--surface-raised); }
+html .market-player strong { font-size: 1rem; line-height: 1.35; overflow-wrap: anywhere; }
+html .market-player b { color: var(--highlight); font-size: .8125rem; }
+html .market-player span, html .market-player small { font-size: .8125rem; color: var(--muted); }
+html .market-player em { font-size: .875rem; color: var(--highlight); }
+html .market-offers { border-radius: var(--radius-md); padding: 1.1rem; background: var(--surface); }
+html .market-offers h2 { font-size: 1.125rem; }
+html .market-offers article { gap: .5rem; padding-block: 1rem; }
+html .market-offers article > strong { font-size: .9375rem; }
+html .market-offers span { font-size: .8125rem; }
+html .market-offers button { min-height: 44px; padding: .5rem .65rem; border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--paper); background: var(--surface-raised); font-size: .8125rem; }
+html .market-progress { max-width: 1200px; padding-top: 1.5rem; }
+html .market-progress__summary, html .market-financial-preview, html .market-review__summary { border-radius: var(--radius-md); border-color: var(--line); background: var(--surface); }
+html .market-progress__summary { font-size: .875rem; }
+html .market-right-grid { gap: .85rem; }
+html .market-right { min-height: 150px; border-radius: var(--radius-md); padding: 1rem; background: var(--surface); }
+html .market-right--committed { border-top-color: var(--primary); }
+html .market-right--excess { border-top-color: var(--muted); }
+html .market-right input { min-width: 22px; min-height: 22px; width: 22px; height: 22px; accent-color: var(--primary); }
+html .market-right strong { font-size: 1rem; line-height: 1.4; }
+html .market-right small, html .market-right span span { font-size: .8125rem; }
+html .market-right em { font-size: .8125rem; color: var(--warning); }
+html .market-financial-preview h2, html .market-review__summary h2 { font-size: 1.25rem; }
+html .market-financial-preview dl div { border-radius: var(--radius-sm); padding: .85rem; }
+html .market-financial-preview dt { font-size: .75rem; }
+html .market-opportunity, html .market-review__card { max-width: 720px; border: 1px solid var(--line); border-top: 3px solid var(--primary); border-radius: var(--radius-lg); padding: 2rem; background: radial-gradient(ellipse at center top, color-mix(in srgb, var(--primary) 14%, transparent), transparent 70%), var(--surface); box-shadow: var(--shadow-card); }
+html .market-opportunity h2, html .market-review__card h2 { font-size: clamp(1.5rem, 3.3vw, 2.3rem); font-family: var(--font-heading); line-height: 1.2; overflow-wrap: anywhere; }
+html .market-review__card > span { font-size: .75rem; }
+html .market-review__card > b { font-size: 1.7rem; }
+html .market-review__controls { gap: .75rem; }
+html .market-review__controls button { min-width: 100px; }
+html .market-rule { font-size: .875rem; }
+html .beta-player-portrait { display: grid; place-items: center; width: 60px; height: 72px; border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--highlight); background: linear-gradient(150deg, var(--surface-raised), var(--surface-selected)); font-size: 1.25rem; font-weight: 800; }
+html .beta-player-portrait svg { width: 42px; height: 42px; }
+html .market-offer-impact { display: grid; gap: .4rem; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: .85rem; background: var(--surface-raised); color: var(--muted); font-size: .8125rem; }
+html .market-offer-impact strong { color: var(--paper); }
+html .market-review__crest { display: flex; justify-content: center; margin: 1rem auto; }
+html .market-review__stats { display: flex; justify-content: center; flex-wrap: wrap; gap: .65rem; margin-block: 1rem; }
+html .market-review__stats > * { min-width: 80px; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: .65rem; background: var(--surface-raised); font-size: .875rem; }
+html .squad-page, html .season-page { max-width: 1240px; padding: 1.75rem 0 3rem; }
+html .squad-header { align-items: center; gap: 1.5rem; margin-bottom: 1.25rem; }
+html .squad-header dl { flex-wrap: wrap; gap: .75rem; }
+html .squad-header dl div { min-width: 120px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); padding: .85rem; }
+html .squad-header dt { color: var(--muted); font-size: .6875rem; }
+html .squad-layout { grid-template-columns: minmax(0, 1.4fr) minmax(290px, .8fr); gap: 1.25rem; }
+html .squad-board, html .squad-roster { border-color: var(--line); border-radius: var(--radius-md); padding: 1.25rem; background: var(--surface); }
+html .squad-board__toolbar { flex-wrap: wrap; gap: 1rem; }
+html .squad-board__toolbar label { font-size: .8125rem; }
+html .squad-board select { border-color: var(--line); color: var(--paper); background: var(--field-bg); border-radius: var(--radius-sm); }
+html .squad-pitch { min-height: 570px; border-color: var(--primary); border-radius: var(--radius-md); background: repeating-linear-gradient(90deg, var(--pitch) 0 13%, var(--pitch-stripe) 13% 26%); }
+html .squad-pitch::before { border-color: var(--pitch-line); }
+html .squad-slot { color: var(--paper); font-size: .75rem; }
+html .squad-slot span { color: var(--highlight); }
+html .squad-slot select { min-height: 44px; width: 100%; padding: .45rem .25rem; font-size: .75rem; }
+html .squad-roster h2 { font-size: 1.15rem; }
+html .squad-roster article { border-color: var(--line); }
+html .squad-roster b { color: var(--highlight); font-size: .75rem; }
+html .squad-roster article div { min-width: 0; }
+html .squad-roster article strong { font-size: .875rem; overflow-wrap: anywhere; }
+html .squad-roster span { color: var(--muted); font-size: .8125rem; }
+html .squad-roster em { color: var(--paper); font-size: 1.125rem; }
+html .squad-tactics { border-color: var(--line); border-radius: var(--radius-md); background: var(--surface-raised); }
+html .squad-tactics label { font-size: .8125rem; }
+html .squad-tactics p { color: var(--muted); font-size: .875rem; }
+html .squad-bench { margin-top: 1rem; padding: 1rem; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface-raised); }
+html .squad-bench h2, html .squad-bench h3 { margin-top: 0; font-size: 1.1rem; }
+html .squad-bench > div { display: flex; flex-wrap: wrap; gap: .75rem; }
+html .squad-bench article { flex: 1 1 160px; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: .85rem; background: var(--surface); font-size: .875rem; }
+html .squad-assignment-list { display: grid; gap: .75rem; margin-top: 1rem; }
+html .squad-assignment-list > label, html .squad-assignment-list > div { display: grid; grid-template-columns: minmax(75px, .5fr) minmax(0, 1fr); align-items: center; gap: .75rem; padding: .75rem; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); font-size: .8125rem; }
+html .squad-assignment-list select { width: 100%; }
+html .transfer-hub { padding: 1.25rem; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); }
+html .transfer-hub > header p:not(.section-kicker) { font-size: .875rem; }
+html .transfer-hub__grid > section, html .transfer-hub__offers { border-color: var(--line); border-radius: var(--radius-md); background: var(--surface-raised); }
+html .transfer-hub h3 { font-size: 1rem; }
+html .transfer-hub label { font-size: .8125rem; }
+html .transfer-hub select, html .transfer-hub input { border-color: var(--line); background: var(--field-bg); border-radius: var(--radius-sm); color: var(--paper); font-size: .875rem; }
+html .transfer-hub__offers article span { font-size: .8125rem; }
+html .transfer-hub__offers article button { min-height: 44px; border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--paper); background: var(--surface); font-size: .8125rem; }
+html .transfer-player-summary { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: .9rem; background: var(--surface); color: var(--muted); font-size: .8125rem; line-height: 1.6; }
+html .transfer-player-summary strong { color: var(--paper); }
+html .season-table, html .season-fixtures, html .season-replays, html .career-history, html .playoff-bracket { border-color: var(--line); border-radius: var(--radius-md); background: var(--surface); }
+html .season-header { align-items: center; }
+html .season-actions { flex-wrap: wrap; }
+html .season-replays__heading label { font-size: .8125rem; }
+html .season-replays__heading select { background: var(--field-bg); border-radius: var(--radius-sm); }
+html .season-fixtures article, html .season-table__row, html .season-table__head { border-color: var(--line); }
+html .playoff-match { border-color: var(--line); border-radius: var(--radius-sm); background: var(--surface-raised); }
+html .playoff-match p { border-color: var(--line); font-size: .8125rem; }
+html .playoff-match b { color: var(--muted); }
+html .playoff-bracket__rounds h3 { font-size: .75rem; }
+html .career-summary { border-color: var(--primary); border-radius: var(--radius-lg); background: radial-gradient(ellipse at top left, color-mix(in srgb, var(--primary) 15%, transparent), transparent 70%), var(--surface); }
+html .career-summary h2 { font-size: clamp(1.4rem, 3vw, 2.1rem); }
+html .career-summary dt { font-size: .75rem; }
+html .career-summary dl div { border-radius: var(--radius-sm); }
+html .career-scorer, html .career-history p { font-size: .875rem; }
+html .match-finished { border-color: var(--primary); border-radius: var(--radius-sm); background: var(--surface-selected); color: var(--highlight); font-size: .875rem; }
+html .live-scoreboard { border-color: var(--line); border-radius: var(--radius-md); background: var(--surface); }
+html .live-scoreboard__meta { font-size: .75rem; color: var(--muted); }
+html .live-scoreboard__result time { border-radius: var(--radius-sm); color: var(--highlight); background: var(--surface-selected); }
+html .live-scoreboard__result i { color: var(--muted); }
+html .live-team small { font-size: .6875rem; }
+html .match-field-caption { color: var(--muted); background: var(--surface); font-size: .75rem; }
+html .match-current-event { border-radius: 0 0 var(--radius-sm) var(--radius-sm); background: var(--surface-selected); font-size: .875rem; }
+html .live-statistics, html .live-timeline, html .live-pressure, html .live-table, html .live-other-scores { border-color: var(--line); border-radius: var(--radius-md); background: var(--surface); }
+html .live-statistics > div { font-size: .8125rem; }
+html .live-statistics > div b:first-child { color: var(--highlight); }
+html .live-statistics > div b:last-child { color: var(--away); }
+html .live-timeline li { font-size: .8125rem; }
+html .live-timeline li > b, html .live-timeline h3 small { font-size: .6875rem; }
+html .live-pressure h3 small { color: var(--highlight); font-size: .75rem; }
+html .live-pressure h3 small i { color: var(--away); }
+html .live-table p, html .live-other-scores p { font-size: .8125rem; }
+html .live-table table { font-size: .8125rem; }
+html .live-table thead { font-size: .75rem; }
+html .live-table .is-own-club, html .live-other-scores article.is-own-match { background: var(--surface-selected); color: var(--highlight); }
+html .live-other-scores article { font-size: .8125rem; }
+html .live-other-scores > small { font-size: .75rem; }
+html .match-replay__controls button { min-height: 44px; border-color: var(--line); border-radius: var(--radius-sm); padding: .6rem .8rem; background: var(--surface-raised); color: var(--paper); font-size: .8125rem; }
+html .beta-home-facts { display: flex; flex-wrap: wrap; gap: .75rem 1.25rem; padding: 1rem 0; color: var(--muted); font-size: .8125rem; }
+html .beta-home-facts strong { color: var(--highlight); }
+html .room-toolbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: .75rem; margin: 1rem 0; border: 1px solid var(--line); border-radius: var(--radius-md); padding: .75rem 1rem; background: var(--surface); }
+html .room-toolbar strong { font-size: .9375rem; }
+html .room-toolbar small { color: var(--muted); font-size: .75rem; }
+html .room-phase-strip { display: flex; align-items: center; flex-wrap: wrap; gap: .6rem; color: var(--muted); font-size: .75rem; }
+html .room-phase-strip [aria-current="step"] { color: var(--highlight); font-weight: 800; }
+html .session-recovery { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin: 1rem 0; padding: 1rem; border: 1px solid var(--primary); border-radius: var(--radius-md); background: var(--surface-selected); font-size: .875rem; }
+html .session-recovery p { margin: 0; }
+@media (max-width: 1100px) {
+  html .app-shell, html .landing-shell .app-header, html .landing-hero, html .landing-footer { width: calc(100% - 2rem); }
+  html .prototype-badge { display: none; }
+  html .market-layout { grid-template-columns: minmax(0, 1fr) 260px; }
+  html .market-player-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  html .reference-selection .club-selection-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  html .landing-hero { gap: 2rem; }
+  html .squad-layout { grid-template-columns: minmax(0, 1.3fr) minmax(250px, .8fr); }
+}
+@media (max-width: 900px) {
+  html .landing-hero { grid-template-columns: minmax(0, 1fr); min-height: 0; gap: 1.75rem; padding: 1.75rem 0; }
+  html .landing-hero__visual { justify-self: center; max-width: 500px; max-height: 320px; aspect-ratio: 1.55; }
+  html .landing-hero h1 { max-width: 17ch; font-size: clamp(2.2rem, 5.5vw, 3.1rem); }
+  html .home-reference__hero { grid-template-columns: minmax(0, 1.35fr) minmax(0, .65fr); }
+  html .home-reference__hero > div:first-child { padding: 1.75rem; }
+  html .home-reference__trophy { border-top: 0; border-left: 1px solid var(--line); }
+  html .home-reference__trophy strong { font-size: 1.2rem; }
+  html .home-reference__crest-row { gap: .2rem; }
+  html .home-reference__crest-row i { width: 29px; height: 29px; font-size: .5rem; }
+  html .entry-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .75rem; }
+  html .entry-card { padding: 1rem; }
+  html .entry-card--join div { flex-wrap: wrap; }
+  html .entry-card--join button { width: 100%; }
+  html .reference-lobby__grid { grid-template-columns: minmax(0, 1fr); }
+  html .reference-selection .club-selection-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  html .market-layout, html .squad-layout { grid-template-columns: minmax(0, 1fr); }
+  html .market-player-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  html .market-offers { position: static; }
+  html .squad-header { align-items: start; }
+  html .squad-roster { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 1rem; }
+  html .squad-roster > h2, html .squad-roster > p { grid-column: 1 / -1; }
+  html .squad-pitch { min-height: 590px; }
+}
+@media (max-width: 640px) {
+  html .app-shell, html .landing-shell .app-header, html .landing-hero, html .landing-footer { width: calc(100% - 1.5rem); }
+  html .app-header, html .landing-shell .app-header { min-height: 72px; gap: .75rem; }
+  html .brand { font-size: .875rem; }
+  html .brand__crest { width: 31px; height: 39px; }
+  html .brand small { display: none; }
+  html .app-header__nav { display: none; }
+  html .app-header__right { gap: .5rem; margin-left: auto; }
+  html .app-header__profile, html .landing-shell .app-header__profile { max-width: 140px; min-width: 44px; padding: .4rem .55rem; border-radius: var(--radius-sm); }
+  html .app-header__profile strong, html .landing-shell .app-header__profile strong { max-width: 120px; font-size: .75rem; }
+  html .landing-hero { gap: 1.5rem; padding-top: 1.5rem; }
+  html .landing-hero h1 { margin: .75rem 0; font-size: 2.35rem; line-height: 1.1; }
+  html .landing-hero__motto { margin-bottom: 1.1rem; font-size: .9375rem; }
+  html .landing-profile-form > div { grid-template-columns: minmax(0, 1fr); gap: .65rem; }
+  html .landing-profile-form .button-primary { width: 100%; }
+  html .landing-hero__friends { margin-top: 1rem; }
+  html .landing-footer { font-size: .6875rem; line-height: 1.6; }
+  html .home-reference__hero { grid-template-columns: minmax(0, 1fr); min-height: 0; }
+  html .home-reference__hero > div:first-child { padding: 1.5rem; }
+  html .home-reference__hero h1 { font-size: 2rem; line-height: 1.15; }
+  html .home-reference__hero p:not(.section-kicker) { font-size: .875rem; }
+  html .home-reference__trophy { display: none; }
+  html .home-reference__heading { display: grid; gap: .25rem; margin-top: 1.25rem; }
+  html .home-reference__heading h2 { font-size: 1.25rem; }
+  html .home-reference__heading span { margin: 0; font-size: .75rem; }
+  html .entry-grid { grid-template-columns: minmax(0, 1fr); gap: .75rem; }
+  html .entry-card { min-height: 0; padding: 1.1rem; }
+  html .entry-card h3 { margin-top: .6rem; font-size: 1.0625rem; }
+  html .entry-card b { float: right; }
+  html .entry-card p { max-width: 36ch; font-size: .8125rem; }
+  html .entry-card--join div { flex-wrap: nowrap; }
+  html .entry-card--join button { width: auto; flex-shrink: 0; }
+  html .entry-card > strong { margin-top: .65rem; }
+  html .section-heading { align-items: start; flex-wrap: wrap; gap: .5rem; }
+  html .room-row { gap: .75rem; padding: .9rem; }
+  html .room-row strong { font-size: .875rem; }
+  html .room-row span { font-size: .75rem; }
+  html .room-row button { flex-shrink: 0; }
+  html .reference-selection__intro, html .reference-lobby__intro { display: grid; gap: .5rem; margin: 1rem 0; }
+  html .reference-selection__intro h1, html .reference-lobby__intro h1 { font-size: 2rem; }
+  html .reference-selection__intro p, html .reference-lobby__intro p { font-size: .875rem; }
+  html .reference-selection__intro > div:last-child { margin-top: 0; text-align: left; }
+  html .reference-selection .club-selection-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; }
+  html .reference-selection .club-card { min-height: 160px; padding: .85rem .45rem; }
+  html .club-card__copy strong { font-size: .875rem; }
+  html .club-card__copy small { font-size: .75rem; }
+  html .club-card__status { font-size: .625rem; }
+  html .selected-club-panel, html .league-summary { display: block; }
+  html .reference-lobby .lobby-participants, html .reference-lobby .league-summary { padding: 1rem; }
+  html .participant-card strong { font-size: .875rem; }
+  html .reference-lobby .participant-card { grid-template-columns: auto minmax(0, 1fr) auto; gap: .6rem; }
+  html .participant-card small { font-size: .6875rem; }
+  html .dialog-backdrop, html .market-modal { padding: .75rem; }
+  html .dialog, html .market-modal section { max-height: calc(100dvh - 1.5rem); padding: 1.25rem; border-radius: var(--radius-md); }
+  html .dialog h2 { font-size: 1.5rem; }
+  html .dialog__close { top: .65rem; right: .65rem; }
+  html .choice-grid--four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  html .settings-row { grid-template-columns: minmax(0, 1fr); }
+  html .market-page__header { align-items: stretch; flex-wrap: wrap; gap: .75rem; }
+  html .market-page__header h1, html .market-progress > header h1, html .squad-header h1, html .season-header h1 { font-size: 2rem; }
+  html .market-timer { min-width: 0; display: flex; align-items: center; justify-content: space-between; flex: 1 1 100%; text-align: left; padding: .75rem 1rem; }
+  html .market-timer strong { font-size: 1.6rem; }
+  html .market-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; }
+  html .market-summary > div { padding: .85rem; }
+  html .market-summary span { font-size: .625rem; }
+  html .market-summary strong { font-size: .9375rem; overflow-wrap: anywhere; }
+  html .market-filters { gap: .65rem; }
+  html .market-filters input { min-width: 0; width: 100%; flex-basis: 100%; }
+  html .market-filters select { flex: 1; width: 100%; }
+  html .market-player-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; }
+  html .market-player { min-height: 190px; padding: .85rem .7rem; }
+  html .market-player strong { font-size: .9375rem; }
+  html .market-player span, html .market-player small { font-size: .75rem; }
+  html .market-player b { font-size: .75rem; }
+  html .market-player em { font-size: .8125rem; }
+  html .market-right-grid { grid-template-columns: minmax(0, 1fr); }
+  html .market-opportunity, html .market-review__card { padding: 1.25rem; }
+  html .market-review__controls { gap: .65rem; }
+  html .market-review__controls button { flex: 1 1 130px; }
+  html .squad-page, html .season-page { padding: 1.25rem 0 2.5rem; }
+  html .squad-header { display: grid; grid-template-columns: minmax(0, 1fr); gap: .75rem; }
+  html .squad-header dl { width: 100%; }
+  html .squad-header dl div { flex: 1; min-width: 100px; }
+  html .squad-board, html .squad-roster { padding: .85rem; }
+  html .squad-roster { grid-template-columns: minmax(0, 1fr); }
+  html .squad-pitch { min-height: 535px; }
+  html .squad-slot { width: 62px; font-size: .6875rem; }
+  html .squad-slot select { padding: .4rem .1rem; font-size: .6875rem; }
+  html .squad-tactics { grid-template-columns: minmax(0, 1fr); }
+  html .squad-assignment-list > label, html .squad-assignment-list > div { grid-template-columns: minmax(0, .45fr) minmax(0, 1fr); gap: .5rem; padding: .65rem; }
+  html .transfer-hub { padding: .85rem; }
+  html .transfer-hub__grid { grid-template-columns: minmax(0, 1fr); }
+  html .transfer-hub__grid > section, html .transfer-hub__offers { padding: .85rem; }
+  html .transfer-hub__offers article button { flex: 1 1 100px; }
+  html .live-scoreboard__meta { font-size: .625rem; }
+  html .live-team small { font-size: .625rem; }
+  html .match-field-caption { font-size: .6875rem; }
+  html .match-current-event { font-size: .8125rem; }
+  html .live-pressure h3 small { font-size: .6875rem; }
+  html .live-table th, html .live-table td { padding-inline: .35rem; }
+  html .room-toolbar { align-items: flex-start; padding: .75rem; }
+  html .room-toolbar > div { min-width: 0; }
+  html .room-phase-strip { font-size: .6875rem; gap: .4rem; }
+  html .beta-home-facts { gap: .5rem 1rem; padding-block: .75rem; font-size: .75rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  html *, html *::before, html *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+
+/* Shared async feedback, keyboard navigation and late feature integration. */
+html .skip-link { position: fixed; z-index: 100; top: .75rem; left: .75rem; transform: translateY(-180%); padding: .8rem 1rem; border: 2px solid var(--highlight); border-radius: var(--radius-sm); color: var(--bg); background: var(--highlight); font-weight: 800; }
+html .skip-link:focus { transform: none; }
+html .async-state { display: grid; justify-items: start; gap: .8rem; min-height: 170px; margin: 1.5rem 0; border: 1px solid var(--line); border-radius: var(--radius-md); padding: 1.5rem; background: var(--surface); }
+html .async-state p { margin: 0; color: var(--muted); font-size: .9375rem; }
+html .async-state h2 { margin: 0; font-size: 1.25rem; }
+html .async-state--error { border-left: 3px solid var(--danger); }
+html .skeleton { border-radius: var(--radius-sm); background: linear-gradient(90deg, var(--surface-raised), color-mix(in srgb, var(--line) 75%, var(--surface-raised))); }
+html .skeleton--line { width: min(320px, 80%); height: 14px; }
+html .skeleton--line:nth-child(2) { width: min(220px, 65%); }
+html .home-football-mark { display: grid; place-items: center; width: 92px; height: 92px; color: var(--highlight); }
+html .home-football-mark svg { display: block; width: 100%; height: 100%; }
+html .my-leagues { margin: 1.5rem 0; border: 1px solid var(--line); border-radius: var(--radius-md); padding: 1.25rem; background: var(--surface); }
+html .my-leagues h2 { margin-top: 0; font-size: 1.2rem; }
+html .my-leagues .room-list { gap: .75rem; }
+html .my-leagues .room-row { background: var(--surface-raised); }
+html .room-toolbar > div:first-child { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .25rem 1rem; }
+html .room-toolbar .back-link { grid-column: 1 / -1; justify-self: start; margin: -.4rem 0 0; font-size: .8125rem; padding: .2rem 0; }
+html .room-toolbar h2 { grid-column: 1; margin: 0; font-size: 1.15rem; overflow-wrap: anywhere; }
+html .room-toolbar > div:first-child > span:not(.connection) { grid-column: 1; color: var(--muted); font-size: .8125rem; }
+html .room-toolbar .connection { grid-column: 2; grid-row: 2 / 4; align-self: center; font-size: .75rem; }
+html .room-phase-strip { flex-basis: 100%; margin: .4rem 0 0; padding: .65rem 0 0; border-top: 1px solid var(--line); list-style: none; }
+html .room-phase-strip li { display: flex; align-items: center; gap: .45rem; }
+html .room-phase-strip li + li { margin-left: .5rem; }
+html .room-phase-strip li > span { display: inline-grid; place-items: center; width: 24px; height: 24px; border: 1px solid var(--line); border-radius: 50%; color: var(--muted); font-size: .6875rem; }
+html .room-phase-strip li[aria-current="step"] > span { border-color: var(--primary); color: var(--highlight); background: var(--surface-selected); }
+html .invite-code { position: relative; display: flex; align-items: center; flex-wrap: wrap; gap: .65rem; max-width: 100%; }
+html .invite-code label { font-size: .75rem; }
+html .invite-code input { width: 8.5ch; min-height: 44px; padding: .5rem .6rem; color: var(--highlight); background: var(--surface-selected); font-size: 1.1rem; font-weight: 800; letter-spacing: .14em; }
+html .invite-code button { border: 1px solid var(--line); background: var(--surface-raised); color: var(--paper); }
+html .invite-code__status { flex-basis: 100%; margin: 0; color: var(--muted); font-size: .75rem; }
+html .invite-code__status:empty { display: none; }
+html .reference-lobby .invite-code label { display: inline; }
+html .reference-lobby .invite-code__status { display: block; }
+html .reference-lobby .invite-code__status:empty { display: none; }
+html .market-offer-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+html .market-offer-actions button { flex: 1 1 95px; justify-self: stretch; }
+html .market-offer-actions button:last-child { color: var(--danger); }
+html .market-review__card .beta-player-portrait, html .market-opportunity .beta-player-portrait { margin: 1rem auto; width: 88px; height: 104px; font-size: 1.65rem; }
+html .squad-assignment-list > .squad-assignment-row { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; gap: .4rem; }
+html .squad-assignment-row > label { display: grid; grid-template-columns: minmax(85px, .4fr) minmax(0, 1fr); align-items: center; gap: .75rem; }
+html .squad-effective { color: var(--muted); font-size: .75rem; line-height: 1.6; }
+html .squad-effective.is-improvised { color: var(--warning); }
+html .squad-roster > .squad-bench { grid-column: 1 / -1; margin: 0 0 1rem; background: var(--surface-raised); }
+html .squad-bench h2 small { display: inline-grid; place-items: center; min-width: 24px; min-height: 24px; margin-left: .5rem; border: 1px solid var(--line); border-radius: 50%; color: var(--highlight); font-size: .75rem; }
+html .squad-bench article { margin-top: .65rem; }
+html .transfer-search { margin-bottom: 1rem; }
+html .transfer-search input { width: 100%; }
+html .transfer-listings { display: grid; gap: .75rem; margin-top: 1.25rem; border: 1px solid var(--line); border-radius: var(--radius-md); padding: 1rem; background: var(--surface-raised); }
+html .transfer-listings h3 { margin: 0; }
+html .transfer-listings article { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .75rem; border-top: 1px solid var(--line); padding-top: .75rem; font-size: .875rem; }
+html .transfer-listings article p { margin: 0; color: var(--muted); font-size: .8125rem; }
+html .career-panel { display: grid; gap: 1.25rem; margin-top: 1.5rem; border: 1px solid var(--line); border-radius: var(--radius-md); padding: 1.5rem; background: var(--surface); }
+html .career-panel > header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; }
+html .career-panel h2 { margin: .25rem 0; font-size: 1.4rem; }
+html .career-panel h3 { margin: 0 0 .85rem; font-size: 1.1rem; }
+html .career-panel p { color: var(--muted); font-size: .875rem; }
+html .career-balance { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .85rem; margin: 0; }
+html .career-balance > div { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 1rem; background: var(--surface-raised); }
+html .career-balance dt { color: var(--muted); font-size: .75rem; }
+html .career-balance dd { margin: .35rem 0 0; color: var(--highlight); font-size: 1.15rem; font-weight: 800; overflow-wrap: anywhere; }
+html .table-scroll { max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+html .career-ledger table { width: 100%; border-collapse: collapse; font-size: .8125rem; font-variant-numeric: tabular-nums; }
+html .career-ledger th, html .career-ledger td { border-bottom: 1px solid var(--line); padding: .8rem; text-align: left; }
+html .career-ledger th { background: var(--surface-raised); color: var(--muted); font-size: .75rem; }
+html .career-ledger td:last-child { white-space: nowrap; color: var(--paper); }
+html .career-transfer-list { display: grid; gap: .75rem; }
+html .career-transfer-list article { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 1rem; background: var(--surface-raised); font-size: .875rem; }
+html .career-transfer-list article > div { display: grid; gap: .3rem; }
+html .career-transfer-list article small { color: var(--muted); font-size: .75rem; }
+html .empty-copy { color: var(--muted); font-size: .875rem; line-height: 1.6; }
+@media (max-width: 640px) {
+  html .room-toolbar > div:first-child { width: 100%; gap: .25rem .75rem; }
+  html .room-toolbar h2 { font-size: 1.05rem; }
+  html .room-toolbar .connection { font-size: .6875rem; }
+  html .room-toolbar > .invite-code { width: 100%; border-top: 1px solid var(--line); padding-top: .75rem; }
+  html .room-toolbar > .invite-code label { flex: 1; }
+  html .room-phase-strip { gap: .5rem; }
+  html .room-phase-strip li { gap: .3rem; font-size: .6875rem; }
+  html .room-phase-strip li + li { margin-left: 0; }
+  html .room-phase-strip li > span { width: 20px; height: 20px; font-size: .625rem; }
+  html .squad-assignment-row > label { grid-template-columns: minmax(0, 1fr); gap: .4rem; }
+  html .career-panel { gap: 1rem; padding: 1rem; }
+  html .career-balance { grid-template-columns: minmax(0, 1fr); gap: .65rem; }
+  html .career-balance > div { display: flex; justify-content: space-between; align-items: center; gap: .75rem; padding: .85rem; }
+  html .career-balance dd { margin: 0; font-size: 1rem; text-align: right; }
+  html .career-ledger th, html .career-ledger td { padding: .65rem; }
+}
+
+html .club-confirm-dialog .selected-club-panel { position: static; width: 100%; margin: 0; border: 0; padding: 0; }
+
+html table.career-ledger { width: 100%; border-collapse: collapse; font-size: .8125rem; font-variant-numeric: tabular-nums; }
+html .career-ledger caption { text-align: left; padding: .8rem; color: var(--muted); }
+html .career-ledger th small { display: block; margin-top: .25rem; }
+
+html .club-crest--fallback { background-image: none; background-color: var(--surface-selected); color: var(--highlight); border: 1px solid var(--primary); border-radius: var(--radius-sm); font-weight: 800; font-size: .75rem; }
+
+html .reference-lobby .invite-code__status { display: block; }
+
+html .club-confirm-dialog .selected-club-panel { transform: none; max-height: none; overflow: visible; top: auto; right: auto; }
+html .club-selection-help { color: var(--muted); font-size: .875rem; margin-top: 1rem; }

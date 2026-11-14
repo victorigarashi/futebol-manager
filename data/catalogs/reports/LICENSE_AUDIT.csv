@@ -1,0 +1,7 @@
+source,license,use,redistribution,assets
+dcaribou/transfermarkt-datasets,CC0-1.0 (repository dataset license),derived player metadata and valuation history,allowed by stated dataset license; retain source and caveat underlying third-party rights,no photos or crests included
+EAFC26-DataHub / Kaggle dataset,"Attribution 4.0 International (CC BY 4.0), Kaggle dataset rovnez/fc-26-fifa-26-player-data, version 3","ratings/attributes imported to staging only, with attribution",permitted with CC BY attribution; underlying EA/Sofifa rights and identity quality remain caveats,none
+FC Mania patch database,"terms limit patch to personal, individual and non-transferable use",not imported,blocked pending explicit written authorization,none
+CBF 2026 listings,site terms; page says all rights reserved,reference only; no bulk scrape,requires permission/export terms,none
+PlayersDB,terms grant no license to third-party data/IP; access via official download only,not imported (local CSV absent),third-party rights/permission unresolved,none
+Transfermarkt player images,not licensed for redistribution by dataset CC0 alone,URLs excluded,blocked,none

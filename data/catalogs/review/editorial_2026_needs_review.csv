@@ -1,0 +1,187 @@
+id,name,club,age,nationality,position,secondary_positions,overall,potential,pace,shooting,passing,dribbling,defending,physical,gk_diving,gk_handling,gk_reflexes,gk_positioning,market_value_eur,rating_source,review_flags,decision,reason
+BR26-001,Agustín Rossi,Flamengo,31,Argentina,GK,,77,77,45,32,56,41,34,70,79,78,80,75,5000000,EDITORIAL_ESTIMATE,,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-002,Andrew,Flamengo,,Brazil,GK,,66,73,38,20,43,33,22,59,67,65,67,64,1900000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-008,Guillermo Varela,Flamengo,33,Uruguay,DF,RB,75,75,76,50,66,67,69,67,,,,,3550000,EDITORIAL_ESTIMATE,,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-012,Giorgian de Arrascaeta,Flamengo,32,Uruguay,MF,AM,82,82,79,77,87,83,47,72,,,,,12500000,EDITORIAL_ESTIMATE,,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-013,Erick Pulgar,Flamengo,32,Chile,MF,DM,77,77,67,66,78,68,80,76,,,,,5000000,EDITORIAL_ESTIMATE,,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-016,Gonzalo Plata,Flamengo,,Ecuador,FW,RW|LW,74,75,75,71,66,81,39,61,,,,,4950000,EDITORIAL_ESTIMATE,age_missing,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-021,Weverton,Palmeiras,38,Brazil,GK,,78,78,48,35,56,43,31,70,76,77,77,80,3050000,EDITORIAL_ESTIMATE,club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-023,Gustavo Gómez,Palmeiras,33,Paraguay,DF,CB,79,79,71,49,67,63,83,83,,,,,7250000,EDITORIAL_ESTIMATE,club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-025,Vitor Reis,Palmeiras,,Brazil,DF,CB,72,79,64,40,59,52,72,72,,,,,5500000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-026,Joaquín Piquerez,Palmeiras,,Uruguay,DF,LB,76,77,75,54,66,70,74,72,,,,,7250000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-028,Agustín Giay,Palmeiras,,Argentina,DF,RB,72,73,75,48,63,64,70,69,,,,,3450000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-029,Aníbal Moreno,Palmeiras,,Argentina,MF,DM,76,77,68,65,78,70,78,78,,,,,7250000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-030,Raphael Veiga,Palmeiras,31,Brazil,MF,AM,80,80,75,76,84,82,49,72,,,,,8750000,EDITORIAL_ESTIMATE,club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-031,Richard Ríos,Palmeiras,,Colombia,MF,CM,76,77,68,69,76,71,60,74,,,,,7250000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-033,Emiliano Martínez,Palmeiras,,Uruguay,MF,CM,71,72,60,66,77,70,54,68,,,,,2900000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-034,Flaco López,Palmeiras,,Argentina,FW,ST,76,77,71,81,64,76,40,77,,,,,7250000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-037,Facundo Torres,Palmeiras,,Uruguay,FW,RW,75,76,77,74,68,82,39,64,,,,,6000000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-038,Ramón Sosa,Palmeiras,,Paraguay,FW,RW,74,75,80,75,66,77,33,63,,,,,4950000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-040,Matheus Donelli,Corinthians,,Brazil,GK,,68,75,38,23,44,34,24,59,67,69,68,69,2700000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-041,Fagner,Corinthians,37,Brazil,DF,RB,72,72,69,49,62,62,69,66,,,,,1050000,EDITORIAL_ESTIMATE,club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-046,Raul Gustavo,Corinthians,,Brazil,DF,CB,68,75,59,39,58,54,69,72,,,,,2700000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-048,Breno Bidon,Corinthians,,Brazil,MF,CM,70,77,59,65,73,66,59,71,,,,,3850000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-049,André Carrillo,Corinthians,,Peru,MF,RW,72,72,75,71,69,77,31,63,,,,,1050000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-050,Rodrigo Garro,Corinthians,,Argentina,MF,AM,75,76,66,74,75,79,41,62,,,,,6000000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-051,Renato Augusto,Corinthians,38,Brazil,MF,AM,68,68,62,65,71,69,31,59,,,,,500000,EDITORIAL_ESTIMATE,club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-053,Talles Magno,Corinthians,,Brazil,FW,LW,71,78,71,67,64,78,33,62,,,,,4650000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-054,Jô,Corinthians,39,Brazil,FW,ST,66,66,62,66,56,66,26,63,,,,,350000,EDITORIAL_ESTIMATE,club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-056,Felipe Alves,São Paulo,,Brazil,GK,,66,67,36,21,43,32,22,59,69,68,67,67,1200000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-057,Robert Arboleda,São Paulo,,Ecuador,DF,CB,77,78,69,43,68,59,76,78,,,,,8500000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-059,Rafael Tolói,São Paulo,,Brazil,DF,CB,73,73,63,43,59,59,76,72,,,,,1250000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-060,Enzo Díaz,São Paulo,,Argentina,DF,LB,72,73,72,48,62,64,71,66,,,,,3450000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-064,Alisson,São Paulo,,Brazil,MF,CM,72,73,63,62,76,68,58,70,,,,,3450000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-066,Damián Bobadilla,São Paulo,,Paraguay,MF,CM,72,73,64,63,73,68,58,68,,,,,3450000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-067,Oscar,São Paulo,35,Brazil,MF,AM,76,76,70,73,79,82,42,65,,,,,2150000,EDITORIAL_ESTIMATE,club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-069,Jonathan Calleri,São Paulo,33,Argentina,FW,ST,75,75,74,76,66,69,36,72,,,,,3550000,EDITORIAL_ESTIMATE,club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-072,Ferreirinha,São Paulo,,Brazil,FW,RW,70,77,75,65,68,75,32,59,,,,,3850000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-075,Adonis Frías,Santos,,Argentina,DF,CB,71,72,62,41,59,55,76,73,,,,,2900000,EDITORIAL_ESTIMATE,age_missing,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-079,Gonzalo Escobar,Santos,,Argentina,DF,LB|CB,68,69,70,47,61,62,66,60,,,,,1700000,EDITORIAL_ESTIMATE,age_missing,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-081,João Ananias,Santos,,Brazil,DF,CB,64,71,52,31,55,45,64,64,,,,,1300000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-084,Rollheiser,Santos,,Argentina,MF,AM,72,73,67,69,78,78,40,63,,,,,3450000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-085,Álvaro Barreal,Santos,,Argentina,MF,AM,72,73,64,72,77,77,38,61,,,,,3450000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-086,Tomás Rincón,Santos,,Venezuela,MF,DM,70,70,58,58,68,59,73,70,,,,,750000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-088,Lautaro Díaz,Santos,,Argentina,FW,ST,72,73,66,76,64,71,35,74,,,,,3450000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-089,Robinho Jr.,Santos,,Brazil,FW,LW,68,75,74,64,63,75,33,57,,,,,2700000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-090,Tiquinho Soares,Santos,,Brazil,FW,ST,71,71,65,76,59,69,33,73,,,,,850000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-092,Fuzato,Vasco,,Brazil,GK,,66,67,38,20,45,31,22,60,68,68,64,63,1200000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-095,Gabriel Pereira,Vasco,,Brazil,DF,CB,68,75,59,33,55,48,73,67,,,,,2700000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-096,Saldivia,Vasco,,Chile,DF,CB,70,71,61,40,62,51,69,73,,,,,2400000,EDITORIAL_ESTIMATE,age_missing,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-098,Puma Rodríguez,Vasco,,Uruguay,DF,RB|LB,70,71,71,45,61,60,69,66,,,,,2400000,EDITORIAL_ESTIMATE,age_missing,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-101,Ramon Rique,Vasco,,Brazil,MF,DM,68,75,60,56,67,60,69,70,,,,,2700000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-102,Jair,Vasco,,Brazil,MF,CM,68,69,60,58,68,64,54,63,,,,,1700000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-104,Matheus Carvalho,Vasco,,Brazil,MF,AM,68,75,65,67,69,69,34,60,,,,,2700000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-108,Facundo Colidio,Vasco,,Argentina,FW,ST|LW,72,73,70,74,66,68,36,69,,,,,3450000,EDITORIAL_ESTIMATE,age_missing,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-110,Andrés Gómez,Vasco,,Colombia,FW,LW,71,72,73,72,66,75,35,58,,,,,2900000,EDITORIAL_ESTIMATE,age_missing,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-111,Marcos Felipe,Fluminense,,Brazil,GK,,70,71,38,23,48,34,24,64,73,67,68,72,2400000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-112,Vitor Eudes,Fluminense,,Brazil,GK,,64,71,35,20,42,31,20,54,62,66,61,62,1300000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-113,Thiago Silva,Fluminense,42,Brazil,DF,CB,76,76,65,42,65,60,77,81,,,,,2150000,EDITORIAL_ESTIMATE,club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-115,Juan Freytes,Fluminense,,Argentina,DF,CB,70,71,58,41,60,52,74,72,,,,,2400000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-116,Manoel,Fluminense,,Brazil,DF,CB,72,72,63,41,64,52,71,73,,,,,1050000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-120,Jhon Arias,Fluminense,,Colombia,MF,RW|AM,78,79,78,79,73,83,43,67,,,,,10250000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-124,Paulo Henrique Ganso,Fluminense,,Brazil,MF,AM,73,73,68,71,78,77,37,62,,,,,1250000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-125,Kevin Serna,Fluminense,,Colombia,FW,LW,72,73,78,71,68,78,35,61,,,,,3450000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-126,Germán Cano,Fluminense,38,Argentina,FW,ST,75,75,73,75,69,73,38,73,,,,,1800000,EDITORIAL_ESTIMATE,club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-128,Everaldo,Fluminense,,Brazil,FW,ST,70,71,64,74,61,67,31,68,,,,,2400000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-129,Léo Linck,Botafogo,,Brazil,GK,,74,75,43,28,50,38,27,64,74,76,77,76,4950000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-133,Alexander Barboza,Botafogo,31,Argentina,DF,CB,76,76,70,44,68,56,78,76,,,,,4300000,EDITORIAL_ESTIMATE,,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-134,Ferraresi,Botafogo,,Venezuela,DF,CB,74,75,62,43,62,55,75,77,,,,,4950000,EDITORIAL_ESTIMATE,age_missing,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-136,Bastos,Botafogo,,Angola,DF,CB,70,70,62,35,56,55,70,75,,,,,750000,EDITORIAL_ESTIMATE,age_missing,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-137,Justino,Botafogo,,Brazil,DF,CB,66,73,55,35,57,49,70,70,,,,,1900000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-138,Kadu,Botafogo,,Brazil,DF,CB,64,71,56,32,56,50,68,64,,,,,1300000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-142,Cristian Medina,Botafogo,,Argentina,MF,DM,72,73,59,60,69,64,74,73,,,,,3450000,EDITORIAL_ESTIMATE,age_missing,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-143,Danilo,Botafogo,,Brazil,MF,CM,72,73,67,64,74,72,55,71,,,,,3450000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-145,Montoro,Botafogo,,Brazil,MF,AM,69,76,60,66,72,73,38,59,,,,,3250000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-146,Santi Rodríguez,Botafogo,,Uruguay,MF,AM,72,79,63,70,73,72,35,61,,,,,5500000,EDITORIAL_ESTIMATE,age_missing,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-148,Joaquín Correa,Botafogo,32,Argentina,FW,ST,74,74,73,76,68,73,33,71,,,,,3000000,EDITORIAL_ESTIMATE,,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-151,Kadir,Botafogo,,Brazil,FW,LW,66,73,70,61,60,70,30,54,,,,,1900000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-153,João Marcelo,Cruzeiro,,Brazil,GK,,66,73,34,21,45,33,22,58,67,65,67,69,1900000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-154,Jonathan Jesus,Cruzeiro,,Brazil,DF,CB,72,73,63,41,60,54,71,74,,,,,3450000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-155,William,Cruzeiro,,Brazil,DF,RB,70,71,71,45,64,65,69,63,,,,,2400000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-156,Kaiki Bruno,Cruzeiro,,Brazil,DF,LB,70,77,72,43,62,64,70,66,,,,,3850000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-157,Marlon,Cruzeiro,,Brazil,DF,CB,68,69,59,34,60,52,71,70,,,,,1700000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-158,Lucas Romero,Cruzeiro,,Argentina,MF,DM,72,72,61,59,72,61,73,76,,,,,1050000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-163,Dudu,Cruzeiro,,Brazil,FW,RW,74,74,79,71,66,76,38,60,,,,,1500000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-164,Keny Arroyo,Cruzeiro,,Ecuador,FW,LW,72,73,72,67,68,76,32,60,,,,,3450000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-167,Rafael Elias,Cruzeiro,,Brazil,FW,ST,70,71,67,71,62,70,30,70,,,,,2400000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-168,Everson,Atlético-MG,,Brazil,GK,,74,74,45,29,50,39,28,65,71,73,76,72,1500000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-169,Matheus Mendes,Atlético-MG,,Brazil,GK,,66,67,34,21,43,32,20,57,69,66,69,68,1200000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-170,Júnior Alonso,Atlético-MG,,Paraguay,DF,CB,76,77,64,45,67,62,78,79,,,,,7250000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-171,Lyanco,Atlético-MG,,Brazil,DF,CB,74,75,64,39,66,57,79,78,,,,,4950000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-172,Renan Lodi,Atlético-MG,,Brazil,DF,LB,74,75,71,49,64,67,68,67,,,,,4950000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-173,Guilherme Arana,Atlético-MG,,Brazil,DF,LB,76,77,74,54,72,70,73,70,,,,,7250000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-174,Natanael,Atlético-MG,,Brazil,DF,RB,68,69,66,44,64,60,66,63,,,,,1700000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-175,Saravia,Atlético-MG,,Argentina,DF,RB,70,71,69,45,62,60,65,64,,,,,2400000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-176,Alan Franco,Atlético-MG,,Argentina,MF,DM,73,74,63,58,71,68,72,74,,,,,4150000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-177,Rodrigo Battaglia,Atlético-MG,,Argentina,MF,DM,72,72,65,58,73,66,73,73,,,,,1050000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-178,Gustavo Scarpa,Atlético-MG,,Brazil,MF,AM,76,77,68,71,77,81,39,64,,,,,7250000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-179,Igor Gomes,Atlético-MG,,Brazil,MF,CM,70,71,59,62,70,67,55,69,,,,,2400000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-180,Hulk,Atlético-MG,40,Brazil,FW,ST|RW,78,78,75,84,71,72,38,77,,,,,3050000,EDITORIAL_ESTIMATE,club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-181,Rony,Atlético-MG,,Brazil,FW,ST,75,76,70,81,68,69,35,76,,,,,6000000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-182,Deyverson,Atlético-MG,,Brazil,FW,ST,72,73,68,77,62,69,34,72,,,,,3450000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-183,Biel,Atlético-MG,,Brazil,FW,RW,68,75,71,63,64,71,29,57,,,,,2700000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-184,Tiago Volpi,Grêmio,,Brazil,GK,,74,75,45,31,50,41,28,66,76,72,71,77,4950000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-185,Gabriel Grando,Grêmio,,Brazil,GK,,68,69,38,25,44,33,21,61,66,71,65,70,1700000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-187,Jemerson,Grêmio,,Brazil,DF,CB,70,70,62,38,56,53,74,70,,,,,750000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-192,Mathías Villasanti,Grêmio,,Paraguay,MF,DM,77,78,65,60,79,66,76,77,,,,,8500000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-194,Franco Cristaldo,Grêmio,,Argentina,MF,AM,74,75,67,71,76,74,39,64,,,,,4950000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-196,Cristian Pavón,Grêmio,,Argentina,FW,RW,74,75,78,75,71,78,34,65,,,,,4950000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-197,Alexander Aravena,Grêmio,,Chile,FW,LW|ST,74,75,80,74,66,80,33,65,,,,,4950000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-198,Francis Amuzu,Grêmio,,Belgium,FW,RW,73,74,76,69,69,79,33,63,,,,,4150000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-199,Martin Braithwaite,Grêmio,35,Denmark,FW,ST,72,72,71,75,61,71,34,73,,,,,1050000,EDITORIAL_ESTIMATE,club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-200,Sergio Rochet,Internacional,33,Uruguay,GK,,75,75,45,30,51,42,31,69,76,76,78,78,3550000,EDITORIAL_ESTIMATE,,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-202,Kauan Jesus,Internacional,,Brazil,GK,,60,67,29,20,36,23,20,54,60,59,62,57,650000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-203,Alexandro Bernabei,Internacional,,Argentina,DF,LB,72,73,70,49,62,67,68,70,,,,,3450000,EDITORIAL_ESTIMATE,age_missing,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-204,Félix Torres,Internacional,,Ecuador,DF,CB,74,75,65,40,62,56,73,78,,,,,4950000,EDITORIAL_ESTIMATE,age_missing,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-205,Juninho,Internacional,,Brazil,DF,CB,68,69,62,39,54,50,69,67,,,,,1700000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-207,Aguirre,Internacional,,Brazil,DF,RB,66,67,65,40,60,59,65,60,,,,,1200000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-210,Alan Rodríguez,Internacional,,Uruguay,MF,CM,70,71,64,59,75,71,55,68,,,,,2400000,EDITORIAL_ESTIMATE,age_missing,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-213,Bruno Tabata,Internacional,,Brazil,MF,AM,68,69,65,68,74,72,37,55,,,,,1700000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-214,Carbonero,Internacional,,Colombia,FW,RW,72,73,75,71,64,76,36,63,,,,,3450000,EDITORIAL_ESTIMATE,age_missing,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-215,Rafael Borré,Internacional,,Colombia,FW,ST,75,76,71,80,67,71,37,74,,,,,6000000,EDITORIAL_ESTIMATE,age_missing,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-220,Santiago Arias,Bahia,,Colombia,DF,RB,72,72,72,47,62,67,68,65,,,,,1050000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-223,Victor Cuesta,Bahia,,Argentina,DF,CB,71,71,62,42,58,54,73,75,,,,,850000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-226,Rezende,Bahia,,Brazil,MF,DM,74,75,66,61,72,65,74,74,,,,,4950000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-229,Cauly,Bahia,,Brazil,MF,AM,72,73,66,70,72,73,39,65,,,,,3450000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-233,Michel Araújo,Bahia,,Uruguay,MF,CM,72,73,62,64,74,68,55,70,,,,,3450000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-235,Mycael,Athletico-PR,,Brazil,GK,,66,73,37,23,45,32,20,59,69,68,65,63,1900000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-236,Carlos Terán,Athletico-PR,,Colombia,DF,CB,70,71,58,41,60,55,69,71,,,,,2400000,EDITORIAL_ESTIMATE,age_missing,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-237,Aguirre,Athletico-PR,,Brazil,DF,CB,66,73,58,34,56,46,66,67,,,,,1900000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-239,Léo Pelé,Athletico-PR,,Brazil,DF,CB,66,73,59,36,55,51,66,70,,,,,1900000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-240,Gastón Benavídez,Athletico-PR,,Argentina,DF,RB,70,71,70,46,62,62,66,63,,,,,2400000,EDITORIAL_ESTIMATE,age_missing,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-241,Esquivel,Athletico-PR,,Brazil,DF,LB,70,71,67,44,62,62,65,66,,,,,2400000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-242,Léo Derik,Athletico-PR,,Brazil,DF,LB,66,73,66,45,59,60,63,63,,,,,1900000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-243,Madson,Athletico-PR,,Brazil,DF,RB,66,67,69,39,56,58,65,58,,,,,1200000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-244,Gilberto,Athletico-PR,,Brazil,DF,RB,72,73,72,49,64,67,69,64,,,,,3450000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-245,Élan Ricardo,Athletico-PR,,Colombia,MF,DM,66,73,53,49,65,56,68,65,,,,,1900000,EDITORIAL_ESTIMATE,age_missing,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-247,Juan Portilla,Athletico-PR,,Colombia,MF,DM,70,71,57,59,73,59,69,69,,,,,2400000,EDITORIAL_ESTIMATE,age_missing,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-248,Bruno Zapelli,Athletico-PR,,Argentina,MF,AM,72,73,65,69,78,73,37,61,,,,,3450000,EDITORIAL_ESTIMATE,age_missing,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-252,Mastriani,Athletico-PR,,Uruguay,FW,ST,68,69,62,71,59,64,32,65,,,,,1700000,EDITORIAL_ESTIMATE,age_missing,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-253,Bruninho,Athletico-PR,,Brazil,FW,AM,66,73,59,67,66,69,31,59,,,,,1900000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-255,Lucão,Red Bull Bragantino,,Brazil,GK,,64,71,33,20,40,27,20,55,64,61,64,64,1300000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-258,Alix Vinicius,Red Bull Bragantino,,Brazil,DF,CB,68,75,61,33,58,50,72,72,,,,,2700000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-259,Agustín Sant'Anna,Red Bull Bragantino,,Uruguay,DF,CB,70,71,63,37,59,53,71,70,,,,,2400000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-261,Lucas Evangelista,Red Bull Bragantino,,Brazil,MF,CM,74,75,69,68,78,69,57,69,,,,,4950000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-262,Jhon Jhon,Red Bull Bragantino,,Brazil,MF,AM,70,77,67,66,76,72,34,61,,,,,3850000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-264,Jadsom Silva,Red Bull Bragantino,,Brazil,MF,DM,70,71,61,53,72,63,74,69,,,,,2400000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-266,Isidro Pitta,Red Bull Bragantino,,Paraguay,FW,ST,74,75,71,74,67,68,34,70,,,,,4950000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-268,Thiago Borbas,Red Bull Bragantino,,Uruguay,FW,ST,70,71,66,76,61,65,33,72,,,,,2400000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-270,Alex Muralha,Mirassol,,Brazil,GK,,66,66,36,20,45,29,22,56,68,67,68,64,350000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-272,Lucas Ramon,Mirassol,,Brazil,DF,RB,68,69,71,44,58,59,66,63,,,,,1700000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-275,Igor Formiga,Mirassol,,Brazil,MF,DM,66,66,56,51,64,56,66,70,,,,,350000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-276,Neto Moura,Mirassol,,Brazil,MF,CM,68,69,57,62,68,67,53,66,,,,,1700000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-278,Jemmes,Mirassol,,Brazil,MF,CM,68,69,60,61,69,64,53,67,,,,,1700000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-279,Danielzinho,Mirassol,,Brazil,MF,AM,66,67,57,65,72,66,29,53,,,,,1200000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-280,Edson Carioca,Mirassol,,Brazil,MF,CM,66,67,55,56,72,61,53,66,,,,,1200000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-282,Carlos Eduardo,Mirassol,,Brazil,FW,AM|FW,70,71,66,69,76,75,33,58,,,,,2400000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-283,Chico da Costa,Mirassol,,Brazil,FW,ST,66,66,60,72,55,61,29,64,,,,,350000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-284,Léo Gamalho,Mirassol,,Brazil,FW,ST,68,68,63,73,61,68,33,66,,,,,500000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-285,Alesson,Mirassol,,Brazil,FW,ST,66,67,64,72,56,65,25,66,,,,,1200000,EDITORIAL_ESTIMATE,age_missing;club_unconfirmed;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-287,Arthur Moraes,Chapecoense,,Brazil,GK,,62,69,31,20,41,28,20,55,60,59,60,59,900000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-288,Fabrício Bruno,Chapecoense,,Brazil,DF,CB,72,73,66,42,59,53,72,75,,,,,3450000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-291,Eduardo Doma,Chapecoense,,Brazil,DF,CB,66,67,59,35,53,52,65,65,,,,,1200000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-294,Walter Clar,Chapecoense,,Brazil,DF,LB,64,65,62,43,55,59,64,60,,,,,800000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-296,Camilo Reijers,Chapecoense,,Brazil,MF,CM,66,67,56,58,69,66,55,64,,,,,1200000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-303,Yannick Bolasie,Chapecoense,,DR Congo,FW,RW,68,68,74,63,61,70,28,56,,,,,500000,EDITORIAL_ESTIMATE,age_missing,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-305,Garcez,Chapecoense,,Brazil,FW,RW,64,65,66,63,60,66,26,50,,,,,800000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-306,Pedro Morisco,Coritiba,,Brazil,GK,,66,67,36,22,43,30,20,60,64,64,65,69,1200000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-309,Jacy Maranhão,Coritiba,,Brazil,DF,CB,64,65,58,35,50,47,63,63,,,,,800000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-315,Sebastián Gómez,Coritiba,,Colombia,MF,DM,68,69,55,56,69,62,70,72,,,,,1700000,EDITORIAL_ESTIMATE,age_missing,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-322,Joaquín Lavega,Coritiba,,Uruguay,FW,LW,66,67,71,64,60,73,28,58,,,,,1200000,EDITORIAL_ESTIMATE,age_missing,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-326,Yuri,Vitória,,Brazil,GK,,62,69,30,20,41,26,20,56,65,65,65,60,900000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-331,Brítez,Vitória,,Paraguay,DF,CB,66,67,60,34,56,50,69,70,,,,,1200000,EDITORIAL_ESTIMATE,age_missing,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-332,Darlan,Vitória,,Brazil,DF,CB,63,70,53,31,49,44,66,66,,,,,1100000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-333,Baralhas,Vitória,,Brazil,MF,DM,68,69,55,51,67,61,68,68,,,,,1700000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-335,Caíque Gonçalves,Vitória,,Brazil,MF,DM,65,66,58,50,68,56,64,66,,,,,1000000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-336,Walace,Vitória,,Brazil,MF,DM,69,70,60,55,72,63,72,70,,,,,2000000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-338,Renê,Vitória,,Brazil,FW,RW,66,67,69,61,62,71,27,53,,,,,1200000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-341,Nacho Laquintana,Vitória,,Uruguay,FW,LW,68,69,68,65,64,73,33,58,,,,,1700000,EDITORIAL_ESTIMATE,age_missing,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-345,Ygor Vinhas,Remo,,Brazil,GK,,60,67,30,20,39,23,20,50,59,61,61,60,650000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-346,Zé Ivaldo,Remo,,Brazil,DF,CB,66,67,57,36,55,46,71,69,,,,,1200000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-348,Matheus Felipe,Remo,,Brazil,DF,CB,62,63,51,28,50,43,65,61,,,,,550000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-349,Léo Andrade,Remo,,Brazil,DF,CB,62,69,52,29,49,44,64,64,,,,,900000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-352,Marlon,Remo,,Brazil,DF,LB,62,63,64,40,58,51,62,57,,,,,550000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-354,Zé Welison,Remo,,Brazil,MF,DM,63,64,56,50,65,56,62,63,,,,,700000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-356,Leonel Picco,Remo,,,MF,DM,64,65,54,52,63,57,66,69,,,,,800000,EDITORIAL_ESTIMATE,age_missing;nationality_missing,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-357,David Braga,Remo,,Brazil,MF,CM,62,69,54,53,65,62,45,62,,,,,900000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada
+BR26-362,Jajá,Remo,,Brazil,FW,ST,63,64,60,64,55,57,28,60,,,,,700000,EDITORIAL_ESTIMATE,age_missing;nationality_assumed_default_Brazil,NEEDS_REVIEW,clube/identidade sem evidência corroborada

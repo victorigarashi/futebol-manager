@@ -1,0 +1,16 @@
+{
+  "catalog_version": "brasileirao-editorial-2026-11-14",
+  "status": "OPERATIONAL_WITH_EDITORIAL_AND_SYNTHETIC_SUPPLEMENTS",
+  "operational_catalog": "data/catalogs/players.json",
+  "brazilian_players_ready": 176,
+  "brazilian_players_pending": 186,
+  "clubs_complete_5x5": 20,
+  "clubs_complete_11x11": 20,
+  "rating_model": "BRASILEIRAO_MANAGER_RATING_V1",
+  "rating_model_ready_records": 0,
+  "reason": "176 registros editoriais foram corroborados por identidade, clube e posição em duas fontes públicas auditadas. Os 186 restantes continuam em revisão; cada clube é completado por jogadores synthetic-career identificados. Idades e nacionalidades não confirmadas permanecem nulas.",
+  "source_audit": "docs/CATALOG_SOURCE_AUDIT_2026.md",
+  "cross_source_audit": "docs/CATALOG_FBREf_CROSS_AUDIT_2026.md",
+  "editorial_import_report": "data/catalogs/editorial_2026_import_summary.json",
+  "demo_catalog_remains_available": true
+}
