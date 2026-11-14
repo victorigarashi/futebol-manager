@@ -115,7 +115,7 @@ def create_guest(response: Response) -> dict[str, object]:
         samesite="lax",
         max_age=31_536_000,
     )
-    return envelope({"id": identity.id, "display_name": identity.display_name})
+    return envelope({"id": identity.id, "display_name": identity.display_name, "session_token": token})
 
 
 @router.get("/me")
@@ -133,7 +133,7 @@ async def update_me(
     changed_rooms = await room_manager.rename_participant(updated.id, updated.display_name)
     for room in changed_rooms:
         await hub.broadcast(str(room["id"]), {"type": "room.participant_renamed", "revision": room["revision"]})
-    return envelope({"id": updated.id, "display_name": updated.display_name})
+    return envelope({"id": updated.id, "display_name": updated.display_name, "session_token": token})
 
 
 @router.get("/clubs")
@@ -759,7 +759,12 @@ async def room_websocket(websocket: WebSocket, room_id: str) -> None:
             raise HTTPException(status_code=403, detail="Origem não autorizada.")
         if origin and "*" not in settings.cors_origins and origin not in settings.cors_origins:
             raise HTTPException(status_code=403, detail="Origem não autorizada.")
-        identity = identity_from_token(websocket.cookies.get(SESSION_COOKIE))
+        # Native browser WebSocket clients cannot attach an Authorization
+        # header. The HTTPS query fallback is used only when the Render cookie
+        # is unavailable across the static-site/API origins.
+        identity = identity_from_token(
+            websocket.cookies.get(SESSION_COOKIE) or websocket.query_params.get("access_token")
+        )
         if not room_manager.member_of(room_id, identity.id):
             raise HTTPException(status_code=403, detail="Você não participa desta sala.")
     except HTTPException:

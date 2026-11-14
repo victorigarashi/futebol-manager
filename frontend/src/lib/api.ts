@@ -1,3 +1,5 @@
+import { readLocal, writeLocal } from "./storage";
+
 export type Club = { code: string; name: string; sort_order: number };
 export type Room = {
   id: string;
@@ -56,11 +58,20 @@ export class ApiError extends Error {
 
 type Envelope<T> = { data: T; meta: { revision?: number } };
 const baseUrl = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api/v1";
+const SESSION_TOKEN_KEY = "bm_session_token";
+
+type Identity = { id: string; display_name: string; session_token?: string };
+
+function accessToken(): string | null { return readLocal(SESSION_TOKEN_KEY); }
+function rememberToken(identity: Identity): Identity {
+  if (identity.session_token) writeLocal(SESSION_TOKEN_KEY, identity.session_token);
+  return identity;
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${baseUrl}${path}`, {
     credentials: "include",
-    headers: { "content-type": "application/json", ...init?.headers },
+    headers: { "content-type": "application/json", ...(accessToken() ? { authorization: `Bearer ${accessToken()}` } : {}), ...init?.headers },
     ...init,
   });
   if (!response.ok) {
@@ -73,9 +84,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   catalogStatus: () => request<Envelope<{ loaded: boolean; demo: boolean; reason: string | null }>>("/catalog/status"),
-  createGuest: () => request<Envelope<{ id: string; display_name: string }>>("/auth/guest", { method: "POST" }),
-  me: () => request<Envelope<{ id: string; display_name: string }>>("/me"),
-  updateMe: (display_name: string) => request<Envelope<{ id: string; display_name: string }>>("/me", { method: "PUT", body: JSON.stringify({ display_name }) }),
+  createGuest: () => request<Envelope<Identity>>("/auth/guest", { method: "POST" }).then((result) => ({ ...result, data: rememberToken(result.data) })),
+  me: () => request<Envelope<Identity>>("/me"),
+  updateMe: (display_name: string) => request<Envelope<Identity>>("/me", { method: "PUT", body: JSON.stringify({ display_name }) }).then((result) => ({ ...result, data: rememberToken(result.data) })),
   clubs: () => request<Envelope<Club[]>>("/clubs"),
   rooms: () => request<Envelope<Room[]>>("/rooms"),
   myRooms: () => request<Envelope<RoomState[]>>("/rooms/mine"),
@@ -136,5 +147,7 @@ export function roomSocketUrl(roomId: string): string {
   const url = new URL(baseUrl, globalThis.location?.origin ?? "http://localhost");
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
   url.pathname = `/api/v1/ws/rooms/${roomId}`;
+  const token = accessToken();
+  if (token) url.searchParams.set("access_token", token);
   return url.toString();
 }

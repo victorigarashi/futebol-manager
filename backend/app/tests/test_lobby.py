@@ -53,6 +53,17 @@ def test_guest_can_create_join_and_select_an_exclusive_club() -> None:
         )
 
 
+def test_signed_bearer_token_is_accepted_when_cross_origin_cookie_is_unavailable() -> None:
+    app = create_app()
+    with TestClient(app) as client:
+        issued = client.post("/api/v1/auth/guest")
+        token = issued.json()["data"]["session_token"]
+        client.cookies.clear()
+        response = client.get("/api/v1/me", headers={"Authorization": f"Bearer {token}"})
+        assert response.status_code == 200
+        assert response.json()["data"]["id"] == issued.json()["data"]["id"]
+
+
 def test_state_requires_membership() -> None:
     app = create_app()
     with TestClient(app) as host, TestClient(app) as outsider:

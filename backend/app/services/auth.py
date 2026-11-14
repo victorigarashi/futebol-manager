@@ -61,4 +61,14 @@ def identity_from_token(token: str | None) -> GuestIdentity:
 
 
 def current_identity(request: Request) -> GuestIdentity:
+    """Accept the httpOnly cookie locally and a bearer token cross-origin.
+
+    Render gives the static site and API different `*.onrender.com` origins.
+    Browsers can therefore reject the cookie as third-party state. The signed
+    bearer fallback keeps the same server-validated identity without relying
+    on that cross-origin cookie behavior.
+    """
+    authorization = request.headers.get("authorization", "")
+    if authorization.lower().startswith("bearer "):
+        return identity_from_token(authorization[7:].strip())
     return identity_from_token(request.cookies.get(SESSION_COOKIE))
