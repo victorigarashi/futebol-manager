@@ -50,7 +50,10 @@ export function SeasonPage({ roomId, isHost, clubCode }: { roomId: string; isHos
   // the coach's own match as a recovery path while a new deployment or a
   // reconnect catches up with the round broadcast.
   const ownLiveMatchId = live.data?.live_round
-    ? ownMatches.find((match) => live.data?.live_round?.match_ids.includes(match.id))?.id ?? null
+    ? ownMatches.find((match) => live.data?.live_round?.match_ids.includes(match.id))?.id
+      ?? season.data?.fixtures.find((fixture) => (fixture.home === clubCode || fixture.away === clubCode)
+        && live.data?.live_round?.match_ids.includes(fixture.id))?.match_id
+      ?? null
     : null;
   const liveFallback = useQuery({
     queryKey: ["live-match-fallback", roomId, ownLiveMatchId],
@@ -59,10 +62,13 @@ export function SeasonPage({ roomId, isHost, clubCode }: { roomId: string; isHos
     refetchInterval: 1000,
   });
   const matchId = ownMatches.find((match) => match.id === selectedMatch)?.id ?? ownMatches.at(-1)?.id ?? null;
-  const replay = useQuery({ queryKey: ["match", roomId, matchId], queryFn: () => api.match(roomId, matchId!).then(({ data }) => data), enabled: Boolean(matchId) && !season.data?.live_round && !live.data?.live_round });
+  // A replay request also returns the currently released event prefix while a
+  // match is live. Never leave the page in an indefinite loading state just
+  // because a transient live-round response omitted its own-match payload.
+  const replay = useQuery({ queryKey: ["match", roomId, matchId], queryFn: () => api.match(roomId, matchId!).then(({ data }) => data), enabled: Boolean(matchId), refetchInterval: live.data?.live_round ? 1000 : false });
   const recentId = ownMatches.at(-1)?.id;
-  const recent = useQuery({ queryKey: ["match", roomId, recentId], queryFn: () => api.match(roomId, recentId!).then(({ data }) => data), enabled: Boolean(recentId) && !season.data?.live_round && !live.data?.live_round });
-  const liveMatch = live.data?.match ?? liveFallback.data;
+  const recent = useQuery({ queryKey: ["match", roomId, recentId], queryFn: () => api.match(roomId, recentId!).then(({ data }) => data), enabled: Boolean(recentId), refetchInterval: live.data?.live_round ? 1000 : false });
+  const liveMatch = live.data?.match ?? liveFallback.data ?? replay.data;
   if (live.data?.live_round && liveMatch) return <>{(live.error || liveFallback.error) && <p role="status" className="feedback">Reconectando à transmissão… O relógio continua no servidor.</p>}<LiveMatchPage data={{ ...live.data, match: liveMatch }} clubCode={clubCode} /></>;
   if (!season.data) return <section className="season-page" aria-busy={season.isPending}>{season.error ? <div className="feedback feedback--error" role="alert"><p>{season.error.message}</p><button type="button" className="button-secondary" onClick={() => void season.refetch()}>Tentar novamente</button></div> : <p role="status" className="muted">Preparando a rodada e a classificação…</p>}</section>;
   const data = season.data;
