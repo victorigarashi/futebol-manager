@@ -104,6 +104,27 @@ class StrategyUpdate(BaseModel):
     strategy: Literal["BALANCED", "ATTACKING", "DEFENSIVE", "COUNTER", "POSSESSION", "HIGH_PRESS"]
 
 
+Mentality = Literal["VERY_DEFENSIVE", "DEFENSIVE", "BALANCED", "ATTACKING", "VERY_ATTACKING"]
+Pressure = Literal["LOW", "MEDIUM", "HIGH"]
+Style = Literal["POSSESSION", "COUNTER", "DIRECT", "SHORT_BUILDUP", "WIDE"]
+
+
+class TacticsUpdate(BaseModel):
+    mentality: Mentality
+    pressure: Pressure
+    style: Style
+
+
+class LiveCommand(BaseModel):
+    kind: Literal["TACTICS", "SUBSTITUTION"]
+    idempotency_key: str = Field(min_length=8, max_length=80)
+    mentality: Mentality | None = None
+    pressure: Pressure | None = None
+    style: Style | None = None
+    out_player_id: str | None = Field(default=None, min_length=1, max_length=80)
+    in_player_id: str | None = Field(default=None, min_length=1, max_length=80)
+
+
 class TransferBuy(BaseModel):
     incoming_player_id: str = Field(min_length=1)
     replace_player_id: str = Field(min_length=1)

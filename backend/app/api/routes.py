@@ -14,6 +14,7 @@ from app.api.schemas import (
     ClubSelectionRequest,
     JoinByCodeRequest,
     LineupUpdate,
+    LiveCommand,
     MarketOfferCreate,
     MarketOfferUpdate,
     MarketReassignmentDecision,
@@ -23,6 +24,7 @@ from app.api.schemas import (
     RoomCreate,
     RoomUpdate,
     StrategyUpdate,
+    TacticsUpdate,
     TransferBuy,
     TransferCounter,
     TransferListingUpdate,
@@ -368,9 +370,12 @@ async def save_lineup(room_id: str, payload: LineupUpdate, identity: GuestIdenti
         lineup = squad_service.save_lineup(room_id, club, payload.formation_code, payload.assignments)
     except MarketError as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
+    unready = season_service.unready(room_id, club)
     snapshot_room(room_id)
     await hub.broadcast(room_id, {"type": "squad.lineup_changed", "club_code": club})
-    return envelope(lineup)
+    if unready:
+        await hub.broadcast(room_id, {"type": "season.ready_changed", "club_code": club})
+    return envelope({**lineup, "ready_cancelled": unready})
 
 
 @router.put("/rooms/{room_id}/squad/strategy")
@@ -384,9 +389,32 @@ async def save_strategy(room_id: str, payload: StrategyUpdate, identity: GuestId
         strategy = squad_service.save_strategy(room_id, club, payload.strategy)
     except MarketError as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
+    unready = season_service.unready(room_id, club)
     snapshot_room(room_id)
     await hub.broadcast(room_id, {"type": "squad.strategy_changed", "club_code": club})
-    return envelope(strategy)
+    if unready:
+        await hub.broadcast(room_id, {"type": "season.ready_changed", "club_code": club})
+    return envelope({**strategy, "ready_cancelled": unready})
+
+
+@router.put("/rooms/{room_id}/squad/tactics")
+async def save_tactics(room_id: str, payload: TacticsUpdate, identity: GuestIdentity = Depends(current_identity)) -> dict[str, object]:
+    """Starting tactics for the next match (mentality, pressure, style)."""
+    club = market_club(room_id, identity.id)
+    if room_manager._room(room_id).phase not in {"SQUAD_MANAGEMENT", "SEASON_PREPARATION"}:
+        raise HTTPException(status_code=409, detail="Táticas só podem ser alteradas durante a preparação.")
+    if room_id in season_service._seasons and season_service._season(room_id).live_round:
+        raise HTTPException(status_code=409, detail="Durante o jogo, use os comandos ao vivo.")
+    try:
+        result = squad_service.save_tactics(room_id, club, payload.model_dump())
+    except MarketError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    unready = season_service.unready(room_id, club)
+    snapshot_room(room_id)
+    await hub.broadcast(room_id, {"type": "squad.strategy_changed", "club_code": club})
+    if unready:
+        await hub.broadcast(room_id, {"type": "season.ready_changed", "club_code": club})
+    return envelope({**result, "ready_cancelled": unready})
 
 
 @router.post("/rooms/{room_id}/season/start")
@@ -409,9 +437,12 @@ def schedule_round(room_id: str) -> None:
 
 async def broadcast_round(room_id: str) -> None:
     completed = False
+    last_tick_broadcast = 0.0
     try:
         while season_service._season(room_id).live_round:
             async with round_locks.setdefault(room_id, asyncio.Lock()):
+                # The engines advance with the server clock even with nobody watching.
+                season_service.sync_live(room_id)
                 completed = season_service.finish_due(room_id)
                 if completed:
                     season = season_service._season(room_id)
@@ -419,7 +450,11 @@ async def broadcast_round(room_id: str) -> None:
                         room = room_manager._room(room_id)
                         await room_manager.set_phase(room_id, room.host_user_id, "TRANSFER_WINDOW")
                     snapshot_room(room_id)
-            await hub.broadcast(room_id, {"type": "season.round_completed" if completed else "season.tick"})
+            now = season_service.clock()
+            if completed or now - last_tick_broadcast >= 1.0:
+                # Clients stream frames by polling; the socket only nudges state refreshes.
+                await hub.broadcast(room_id, {"type": "season.round_completed" if completed else "season.tick"})
+                last_tick_broadcast = now
             if completed:
                 break
             remaining = season_service._season(room_id).live_round["ends_at"] - season_service.clock()
@@ -479,7 +514,50 @@ async def advance_round(room_id: str, identity: GuestIdentity = Depends(current_
 async def live_round(room_id: str, identity: GuestIdentity = Depends(current_identity)) -> dict[str, object]:
     club = market_club(room_id, identity.id)
     try:
-        return envelope(season_service.live_view(room_id, club))
+        async with round_locks.setdefault(room_id, asyncio.Lock()):
+            return envelope(season_service.live_view(room_id, club))
+    except MarketError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+
+
+@router.get("/rooms/{room_id}/season/live/frames")
+async def live_frames(room_id: str, since: int = -1, identity: GuestIdentity = Depends(current_identity)) -> dict[str, object]:
+    """Authoritative positions of the coach's own match since a tick (for the 2D view)."""
+    club = market_club(room_id, identity.id)
+    try:
+        async with round_locks.setdefault(room_id, asyncio.Lock()):
+            return envelope(season_service.live_frames(room_id, club, since))
+    except MarketError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+
+
+@router.post("/rooms/{room_id}/season/live/commands")
+async def live_command(room_id: str, payload: LiveCommand, identity: GuestIdentity = Depends(current_identity)) -> dict[str, object]:
+    """Tactical change or substitution for the coach's own club, validated by the server."""
+    club = market_club(room_id, identity.id)
+    try:
+        async with round_locks.setdefault(room_id, asyncio.Lock()):
+            result = season_service.command(room_id, club, payload.model_dump())
+            snapshot_room(room_id)
+    except MarketError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    await hub.broadcast(room_id, {"type": "season.live_command", "club_code": club, "kind": payload.kind})
+    return envelope(result)
+
+
+@router.get("/rooms/{room_id}/season/preview")
+async def season_preview(room_id: str, identity: GuestIdentity = Depends(current_identity)) -> dict[str, object]:
+    """Next fixture comparison: both projected lineups, sectors and readiness."""
+    club = market_club(room_id, identity.id)
+    try:
+        room = room_manager._room(room_id)
+        season_service._season(room_id).human_clubs = {p.selected_club_code for p in room.participants.values() if p.selected_club_code}
+        preview = season_service.preview(room_id, market_service._session(room_id).market, club)
+        managers = {p.selected_club_code: p.display_name for p in room.participants.values() if p.selected_club_code}
+        for side in ("home", "away"):
+            if side in preview:
+                preview[side]["manager"] = managers.get(preview[side]["club_code"])
+        return envelope(preview)
     except MarketError as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
 
@@ -647,7 +725,20 @@ async def get_match(room_id: str, match_id: str, identity: GuestIdentity = Depen
         match = season_service.match(room_id, match_id)
         if club not in (match["home"], match["away"]):
             raise HTTPException(status_code=403, detail="Você pode assistir somente à partida do seu clube.")
-        return envelope(match)
+        return envelope(season_service._personal_match(room_id, match_id, club))
+    except MarketError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+@router.get("/rooms/{room_id}/matches/{match_id}/frames")
+async def match_frames(room_id: str, match_id: str, start: int = 0, end: int = 600, identity: GuestIdentity = Depends(current_identity)) -> dict[str, object]:
+    """2D replay window of a finished match, regenerated deterministically by the engine."""
+    club = market_club(room_id, identity.id)
+    try:
+        match = season_service.match(room_id, match_id)
+        if club not in (match["home"], match["away"]):
+            raise HTTPException(status_code=403, detail="Você pode rever somente as partidas do seu clube.")
+        return envelope(season_service.replay_frames(room_id, match_id, start, end))
     except MarketError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
 
