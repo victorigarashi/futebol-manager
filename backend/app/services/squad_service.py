@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from app.domain.market import InitialMarket, MarketError
-from app.domain.simulation import STRATEGIES
 from app.domain.squad import formations, validate_lineup
+from app.domain.tactics import LEGACY_STRATEGIES, Tactics, tactics_catalog, tactics_from_payload
 from app.services.market_service import market_service
 
 
@@ -12,6 +12,7 @@ class SquadService:
     def __init__(self) -> None:
         self._lineups: dict[tuple[str, str], dict[str, object]] = {}
         self._strategies: dict[tuple[str, str], str] = {}
+        self._tactics: dict[tuple[str, str], Tactics] = {}
 
     @staticmethod
     def _current_players(room_id: str, market: InitialMarket):
@@ -41,7 +42,9 @@ class SquadService:
             "formations": formations(market.mode),
             "lineup": lineup,
             "strategy": self.strategy_for(room_id, club_code),
-            "strategies": [{"code": code, "name": name, "effect": self._strategy_effect(code)} for code, name in STRATEGIES.items()],
+            "strategies": [{"code": code, "name": STRATEGY_NAMES[code], "effect": self._strategy_effect(code)} for code in LEGACY_STRATEGIES],
+            "tactics": self.tactics_for(room_id, club_code).view(),
+            "tactics_options": tactics_catalog(),
         }
 
     def save_lineup(self, room_id: str, club_code: str, formation_code: str, assignments: dict[str, str]) -> dict[str, object]:
@@ -67,13 +70,27 @@ class SquadService:
         self._lineups[(room_id, club_code)] = lineup
 
     def save_strategy(self, room_id: str, club_code: str, strategy: str) -> dict[str, str]:
-        if strategy not in STRATEGIES:
+        """Legacy preset: maps onto the three-part tactics used by the engine."""
+        if strategy not in LEGACY_STRATEGIES:
             raise MarketError("Estratégia inválida.")
         self._strategies[(room_id, club_code)] = strategy
-        return {"strategy": strategy, "name": STRATEGIES[strategy], "effect": self._strategy_effect(strategy)}
+        self._tactics[(room_id, club_code)] = LEGACY_STRATEGIES[strategy]
+        return {"strategy": strategy, "name": STRATEGY_NAMES[strategy], "effect": self._strategy_effect(strategy)}
+
+    def save_tactics(self, room_id: str, club_code: str, payload: dict[str, str]) -> dict[str, object]:
+        try:
+            tactics = tactics_from_payload(payload)
+        except ValueError as error:
+            raise MarketError(str(error)) from error
+        self._tactics[(room_id, club_code)] = tactics
+        self._strategies[(room_id, club_code)] = next((code for code, preset in LEGACY_STRATEGIES.items() if preset == tactics), "CUSTOM")
+        return {"tactics": tactics.view(), "strategy": self._strategies[(room_id, club_code)]}
 
     def strategy_for(self, room_id: str, club_code: str) -> str:
         return self._strategies.get((room_id, club_code), "BALANCED")
+
+    def tactics_for(self, room_id: str, club_code: str) -> Tactics:
+        return self._tactics.get((room_id, club_code), Tactics())
 
     def lineup_for(self, room_id: str, club_code: str) -> dict[str, object] | None:
         return self._lineups.get((room_id, club_code))
@@ -82,6 +99,7 @@ class SquadService:
         return {
             "lineups": {club: lineup for (saved_room, club), lineup in self._lineups.items() if saved_room == room_id},
             "strategies": {club: strategy for (saved_room, club), strategy in self._strategies.items() if saved_room == room_id},
+            "tactics": {club: tactics.view() for (saved_room, club), tactics in self._tactics.items() if saved_room == room_id},
         }
 
     def restore_room(self, room_id: str, payload: dict[str, object]) -> None:
@@ -94,12 +112,23 @@ class SquadService:
                 raise ValueError("Snapshot contém escalação inválida.")
             self._lineups[(room_id, str(club))] = lineup
         for club, strategy in strategies.items():
-            if str(strategy) not in STRATEGIES:
+            if str(strategy) not in LEGACY_STRATEGIES and str(strategy) != "CUSTOM":
                 raise ValueError("Snapshot contém estratégia inválida.")
             self._strategies[(room_id, str(club))] = str(strategy)
+            if str(strategy) in LEGACY_STRATEGIES:
+                self._tactics[(room_id, str(club))] = LEGACY_STRATEGIES[str(strategy)]
+        tactics = payload.get("tactics", {})
+        if not isinstance(tactics, dict):
+            raise ValueError("Snapshot contém táticas inválidas.")
+        for club, value in tactics.items():
+            try:
+                self._tactics[(room_id, str(club))] = tactics_from_payload(value)
+            except ValueError as error:
+                raise ValueError("Snapshot contém táticas inválidas.") from error
 
     @staticmethod
     def _strategy_effect(strategy: str) -> str:
+        """Plain-language summary of each legacy preset (the engine uses tactics)."""
         return {
             "BALANCED": "Mantém o equilíbrio entre criação e proteção defensiva.",
             "ATTACKING": "Aumenta a frequência de ataques, com maior exposição atrás.",
@@ -109,5 +138,10 @@ class SquadService:
             "HIGH_PRESS": "Aumenta recuperações no campo rival e abre espaços defensivos.",
         }[strategy]
 
+
+STRATEGY_NAMES = {
+    "BALANCED": "Equilibrada", "ATTACKING": "Ofensiva", "DEFENSIVE": "Defensiva",
+    "COUNTER": "Contra-ataque", "POSSESSION": "Posse de bola", "HIGH_PRESS": "Pressão alta",
+}
 
 squad_service = SquadService()
