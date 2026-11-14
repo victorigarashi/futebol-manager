@@ -177,13 +177,15 @@ def test_real_api_market_to_second_season_and_snapshot(beta_api, mode, starter_c
         assert started["live_round"]["round_number"] == round_number
         assert len(started["live_round"]["match_ids"]) == 10
         live = checked(client, "GET", base + "/season/live", headers=host)
-        assert not live["match"]["events"] or all(e["animation_ms"] == 0 for e in live["match"]["events"])
+        # Nothing is simulated ahead of the server clock: only kick-off has happened.
+        assert all(e["tick"] == 0 for e in live["match"]["events"])
         assert len(seasons._season(room_id).state.results) == (round_number - 1) * 10
         if round_number == 1:
             checked(client, "PUT", base + "/squad/strategy", headers=host, status=409,
                     json={"strategy": "ATTACKING"})
         now[0] = started["live_round"]["ends_at"]
-        deadline = time.monotonic() + 3
+        # Reaching full time makes the server play the rest of all ten matches.
+        deadline = time.monotonic() + 60
         while seasons._season(room_id).live_round and time.monotonic() < deadline:
             time.sleep(.01)
         assert seasons._season(room_id).live_round is None

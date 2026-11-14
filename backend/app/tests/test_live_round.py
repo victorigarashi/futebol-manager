@@ -1,4 +1,4 @@
-"""Public projections, multi-coach authorization, deadlines and snapshot recovery."""
+"""Live round on the incremental engine: shared clock, authority, commands, sync and recovery."""
 
 import copy
 import time
@@ -12,14 +12,21 @@ from app.domain.market import InitialMarket, MarketError
 from app.main import create_app
 from app.services.auth import SESSION_COOKIE, issue_guest_token
 from app.services.market_service import MarketSession
-from app.services.season_service import SeasonService, project_events
+from app.services.season_service import SeasonService
 from app.tests.fixtures.market_catalog import complete_test_market, synthetic_catalog
+
+T0 = 1_900_000_000.0
+
+
+def service_for(now: list[float]) -> SeasonService:
+    # 60 real seconds of play, no half-time break: one second = 1.5 game minutes.
+    return SeasonService(clock=lambda: now[0], play_seconds=60, halftime_seconds=0)
 
 
 @pytest.fixture
 def live():
-    now = [1_900_000_000.0]
-    service = SeasonService(clock=lambda: now[0])
+    now = [T0]
+    service = service_for(now)
     clubs = tuple(c.code for c in CLUBS)
     market = InitialMarket(synthetic_catalog("ELEVEN_A_SIDE", teams=20), "ELEVEN_A_SIDE",
                            dict.fromkeys(clubs, 10_000_000_000))
@@ -34,16 +41,14 @@ def start(service, market, humans=frozenset({"FLA"})):
     return service.advance("room", market, set(humans))
 
 
-def test_ten_streams_share_clock_and_only_commit_at_sixty_seconds(live):
+def test_ten_engines_share_clock_and_only_commit_at_the_deadline(live):
     service, market, now = live
     state = start(service, market)
     assert state["current_round"] == 1
     assert state["match_count"] == len(state["live_round"]["match_ids"]) == 10
     assert not service._season("room").state.results
     assert all(row["played"] == 0 for row in state["table"])
-    original = copy.deepcopy(service._season("room").matches)
     assert service.advance("room", market, {"FLA"})["live_round"] == state["live_round"]
-    assert original == service._season("room").matches
     now[0] += 59.999
     assert not service.finish_due("room")
     assert not service._season("room").state.results
@@ -55,80 +60,114 @@ def test_ten_streams_share_clock_and_only_commit_at_sixty_seconds(live):
     assert all(row["played"] == 1 for row in service.view("room")["table"])
 
 
-def test_no_future_events_scores_xg_stats_or_scorers_and_replay_reconciles(live):
+def test_nothing_is_simulated_ahead_of_the_clock_and_stats_reconcile(live):
     service, market, now = live
     start(service, market)
+    checkpoints = []
     for elapsed in (0, 7.3, 21, 45, 59.9):
-        now[0] = 1_900_000_000 + elapsed
+        now[0] = T0 + elapsed
         view = service.live_view("room", "FLA")
         match = view["match"]
-        assert all(e["animation_ms"] <= elapsed * 1500 + .001 for e in match["events"])
-        assert project_events(match["home"], match["away"], match["events"])["statistics"] == match["statistics"]
-        assert match["home_goals"] == sum(e["kind"] == "GOAL" and e["team"] == match["home"] for e in match["events"])
+        assert match["tick"] == service.target_tick(view["live_round"], now[0])
+        assert all(e["tick"] <= match["tick"] for e in match["events"])
+        goals = [e for e in match["events"] if e["kind"] == "GOAL"]
+        assert match["home_goals"] == sum(e["team"] == match["home"] for e in goals)
+        assert match["statistics"][match["home"]]["goals"] == match["home_goals"]
         assert service.view("room")["top_scorers"] == []
-        assert "probabilities" not in match
-        assert len(view["scores"]) == 10
-        assert all("events" not in other for other in view["scores"])
-    now[0] = 1_900_000_060
-    before = service.live_view("room", "FLA")["match"]
+        assert "probabilities" not in match and "inputs" not in match and "command_log" not in match
+        assert len(view["scores"]) == 10 and all("events" not in other for other in view["scores"])
+        checkpoints.append(copy.deepcopy(match["events"]))
+    now[0] = T0 + 60
     service.finish_due("room")
-    after = service.live_view("room", "FLA")["match"]
-    assert before["events"] == after["events"]
-    for club in (after["home"], after["away"]):
-        for key, count in after["statistics"][club].items():
-            assert before["statistics"][club][key] == count
-    assert before["home_xg"] == after["home_xg"]
-    assert before["away_xg"] == after["away_xg"]
+    final = service.live_view("room", "FLA")["match"]
+    assert final["status"] == "FINISHED"
+    for released in checkpoints:  # the official record extends what was shown live
+        assert final["events"][:len(released)] == released
 
 
-def test_goal_updates_provisional_table_with_previous_results_without_persisting(live):
+def test_goal_updates_provisional_table_without_persisting(live):
     service, market, now = live
     start(service, market)
-    now[0] += 60
-    service.finish_due("room")
-    previous = copy.deepcopy(service._season("room").state.results)
-    start(service, market)
     season = service._season("room")
-    candidates = [(key, e) for key in season.live_round["match_ids"]
-                  for e in season.matches[key]["events"] if e["kind"] == "GOAL"]
-    assert candidates
-    match_id, goal = candidates[0]
-    at_goal = season.live_round["started_at"] + goal["animation_ms"] / 1500
-    now[0] = at_goal - .001
-    before = {r["club_code"]: r for r in service.live_table("room")}
-    now[0] = at_goal + .001
-    after = {r["club_code"]: r for r in service.live_table("room")}
-    club = goal["team"]
-    assert after[club]["goals_for"] == before[club]["goals_for"] + 1
-    assert after[club]["goal_difference"] == before[club]["goal_difference"] + 1
-    assert any(before[c]["points"] != after[c]["points"] for c in after)
-    assert all(row["played"] == 2 for row in after.values())
-    assert season.state.results == previous
-    assert service.match("room", match_id)["status"] == "LIVE"
+    for step in range(1, 61):
+        now[0] = T0 + step
+        service.sync_live("room")
+        if any(sum(engine.score) for engine in season.engines.values()):
+            break
+    scored = next(engine for engine in season.engines.values() if sum(engine.score))
+    table = {row["club_code"]: row for row in service.live_table("room")}
+    home, away = scored.clubs
+    assert table[home]["goals_for"] == scored.score[0] and table[away]["goals_for"] == scored.score[1]
+    assert all(row["played"] == 1 for row in table.values())
+    assert not season.state.results
 
 
-def test_two_coaches_same_match_or_different_matches_and_reconnect(live):
+def test_two_coaches_share_state_commands_and_recovery_replays_exactly(live):
     service, market, now = live
     fixture = service._season("room").state.fixtures[0]
     start(service, market, {fixture.home, fixture.away, "PAL"})
-    now[0] += 27
+    now[0] = T0 + 18
+    service.command("room", fixture.home, {"kind": "TACTICS", "mentality": "ATTACKING", "idempotency_key": "home-press-01"})
     first = service.live_view("room", fixture.home)
-    opponent = service.live_view("room", fixture.away)
+    rival = service.live_view("room", fixture.away)
     different = service.live_view("room", "PAL")
-    assert first["match"] == opponent["match"]
+    # Same events for both coaches; only the content of the rival's tactical change is masked.
+    assert [(e["event_id"], e["kind"], e["tick"]) for e in first["match"]["events"]] == [(e["event_id"], e["kind"], e["tick"]) for e in rival["match"]["events"]]
+    masked = [e for e in rival["match"]["events"] if e["kind"] == "TACTICS" and e["team"] == fixture.home]
+    assert masked and all(e["tactics"] is None and e["outcome"] == "CHANGED" for e in masked)
+    assert first["match"]["home_goals"] == rival["match"]["home_goals"] and first["match"]["tick"] == rival["match"]["tick"]
     assert first["match"]["id"] != different["match"]["id"]
-    assert first["table"] == opponent["table"] == different["table"]
+    assert first["table"] == rival["table"] == different["table"]
+    # Each coach sees only his own plan.
+    assert first["match"]["tactics"]["home"]["mentality"] == "ATTACKING" and first["match"]["tactics"]["away"] is None
+    assert rival["match"]["tactics"]["home"] is None
+    assert [c["command_id"] for c in first["match"]["commands"]] == [f"{fixture.home}:home-press-01"]
+    assert rival["match"].get("commands") == []
+    # Server restart: the snapshot holds inputs, seeds and command logs; replay is exact.
     snapshot = copy.deepcopy(service.export_room("room"))
-    recovered = SeasonService(clock=lambda: now[0])
+    recovered = service_for(now)
     recovered.restore_room("room", snapshot)
-    assert recovered.live_view("room", fixture.home) == first
-    now[0] += 12
-    reconnected = recovered.live_view("room", fixture.home)
-    assert reconnected["match"]["minute"] == 58.5
-    assert reconnected["match"]["events"][:len(first["match"]["events"])] == first["match"]["events"]
-    now[0] += 21
-    assert recovered.finish_due("room")
-    assert not recovered.finish_due("room")
+    assert recovered.live_view("room", fixture.home)["match"] == first["match"]
+    now[0] = T0 + 40
+    assert recovered.live_view("room", fixture.home)["match"] == service.live_view("room", fixture.home)["match"]
+    now[0] = T0 + 60
+    assert recovered.finish_due("room") and service.finish_due("room")
+    assert recovered._season("room").state.results == service._season("room").state.results
+
+
+def test_commands_are_validated_idempotent_and_limited_to_the_own_match(live):
+    service, market, now = live
+    fixture = service._season("room").state.fixtures[0]
+    start(service, market, {fixture.home})
+    now[0] = T0 + 10
+    with pytest.raises(MarketError, match="chave"):
+        service.command("room", fixture.home, {"kind": "TACTICS", "pressure": "HIGH", "idempotency_key": "x"})
+    first = service.command("room", fixture.home, {"kind": "TACTICS", "pressure": "HIGH", "idempotency_key": "press-high-1"})
+    again = service.command("room", fixture.home, {"kind": "TACTICS", "pressure": "LOW", "idempotency_key": "press-high-1"})
+    assert again["command"] == first["command"]
+    engine = service._season("room").engines[fixture.id]
+    assert engine.tactics[0].pressure == "HIGH"
+    with pytest.raises(MarketError):
+        service.command("room", fixture.home, {"kind": "TACTICS", "pressure": "MAXIMUM", "idempotency_key": "bad-value-01"})
+    lineup = first["match"]["lineups"]["home"]
+    out = next(p for p in lineup if p["on_pitch"] and p["role"] == "MF")
+    bench = next(p for p in lineup if p["available"])
+    other_team = first["match"]["lineups"]["away"][0]
+    with pytest.raises(MarketError, match="não pertence"):
+        service.command("room", fixture.home, {"kind": "SUBSTITUTION", "out_player_id": other_team["id"], "in_player_id": bench["id"], "idempotency_key": "steal-player"})
+    with pytest.raises(MarketError, match="não pertence"):
+        service.command("room", fixture.home, {"kind": "SUBSTITUTION", "out_player_id": "ghost", "in_player_id": bench["id"], "idempotency_key": "ghost-player"})
+    sub = service.command("room", fixture.home, {"kind": "SUBSTITUTION", "out_player_id": out["id"], "in_player_id": bench["id"], "idempotency_key": "first-sub-01"})
+    assert sub["command"]["status"] in {"PENDING", "APPLIED"}
+    with pytest.raises(MarketError):
+        service.command("room", fixture.home, {"kind": "SUBSTITUTION", "out_player_id": out["id"], "in_player_id": bench["id"], "idempotency_key": "first-sub-02"})
+    now[0] = T0 + 30
+    applied = service.live_view("room", fixture.home)["match"]
+    assert any(e["kind"] == "SUBSTITUTION" and e["player_id"] == bench["id"] for e in applied["events"])
+    status = next(c for c in applied["commands"] if c["kind"] == "SUBSTITUTION")
+    assert status["status"] == "APPLIED"
+    with pytest.raises(MarketError, match="não está em uma partida"):
+        service.command("room", "ZZZ", {"kind": "TACTICS", "pressure": "LOW", "idempotency_key": "nobody-here"})
 
 
 def test_recovery_refuses_invalid_live_round(live):
@@ -140,16 +179,26 @@ def test_recovery_refuses_invalid_live_round(live):
         SeasonService().restore_room("bad", snapshot)
 
 
-def test_start_requires_all_humans(live):
-    service, market, _ = live
+def test_start_requires_all_humans_and_lineup_change_cancels_ready(live):
+    service, market, now = live
     service.ready("room", "FLA")
     with pytest.raises(MarketError, match="Aguardando"):
         service.advance("room", market, {"FLA", "PAL"})
     assert not service._season("room").matches
+    assert service.unready("room", "FLA")
+    assert "FLA" not in service._season("room").ready_clubs
+
+
+def test_preparation_deadline_starts_the_round_with_saved_plans(live):
+    service, market, now = live
+    assert not service.start_if_preparation_expired("room", market, {"FLA", "PAL"}, 3600)
+    now[0] += 3600
+    assert service.start_if_preparation_expired("room", market, {"FLA", "PAL"}, 3600)
+    assert service._season("room").live_round["round_number"] == 1
 
 
 @pytest.mark.parametrize("guest_club", ["REM", "PAL"])
-def test_http_websocket_automatic_start_authorization_and_reconnection(live, monkeypatch, guest_club):
+def test_http_live_round_commands_frames_authorization_and_reconnection(live, monkeypatch, guest_club):
     service, market, now = live
     monkeypatch.setattr(routes, "season_service", service)
     first, token1 = issue_guest_token()
@@ -171,6 +220,8 @@ def test_http_websocket_automatic_start_authorization_and_reconnection(live, mon
         assert room.host_user_id == first.id
         base = f"/api/v1/rooms/{room_id}"
         try:
+            preview = client.get(base + "/season/preview", headers=headers1).json()["data"]
+            assert preview["fixture"]["round_number"] == 1 and preview["home"]["starters"]
             assert client.post(base + "/season/ready", headers=headers1).json()["data"]["live_round"] is None
             with client.websocket_connect(f"/api/v1/ws/rooms/{room_id}", headers=headers1) as ws1, client.websocket_connect(f"/api/v1/ws/rooms/{room_id}", headers=headers2) as ws2:
                 assert ws1.receive_json()["type"] == ws2.receive_json()["type"] == "season.sync"
@@ -179,32 +230,52 @@ def test_http_websocket_automatic_start_authorization_and_reconnection(live, mon
                 response = client.post(base + "/season/ready", headers=headers2)
                 assert response.status_code == 200
                 assert len(response.json()["data"]["live_round"]["match_ids"]) == 10
+                assert client.put(base + "/squad/tactics", headers=headers1, json={"mentality": "ATTACKING", "pressure": "HIGH", "style": "DIRECT"}).status_code == 409
                 now[0] += 25
+                pushed = None
+                for _ in range(200):  # the round task streams each coach his own match
+                    message = ws1.receive_json()
+                    if message["type"] == "live.frames":
+                        pushed = message
+                        break
+                assert pushed and pushed["frames"] and all(len(f["p"]) % 2 == 0 for f in pushed["frames"])
                 own = client.get(base + "/season/live", headers=headers1).json()["data"]
+                assert pushed["match_id"] == own["match"]["id"]
                 other = client.get(base + "/season/live", headers=headers2).json()["data"]
                 assert (own["match"]["id"] == other["match"]["id"]) == (guest_club == "REM")
                 if guest_club == "REM":
                     assert own["match"]["events"] == other["match"]["events"]
                 forbidden = next(score["id"] for score in own["scores"] if score["id"] != own["match"]["id"])
                 assert client.get(base + f"/matches/{forbidden}", headers=headers1).status_code == 403
+                frames = client.get(base + "/season/live/frames?since=-1", headers=headers1).json()["data"]
+                assert frames["match_id"] == own["match"]["id"] and frames["frames"][-1]["t"] == own["match"]["tick"]
+                resumed = client.get(base + f"/season/live/frames?since={frames['frames'][-5]['t']}", headers=headers1).json()["data"]
+                assert [f["t"] for f in resumed["frames"]] == [f["t"] for f in frames["frames"][-4:]]
+                payload = {"kind": "TACTICS", "style": "WIDE", "idempotency_key": "http-wide-0001"}
+                done = client.post(base + "/season/live/commands", headers=headers1, json=payload)
+                assert done.status_code == 200 and done.json()["data"]["command"]["status"] == "APPLIED"
+                assert client.post(base + "/season/live/commands", headers=headers1, json=payload).json()["data"]["command"] == done.json()["data"]["command"]
+                assert client.post(base + "/season/live/commands", headers=headers1, json={"kind": "SUBSTITUTION", "out_player_id": "x", "in_player_id": "y", "idempotency_key": "http-bad-sub-1"}).status_code == 409
             with client.websocket_connect(f"/api/v1/ws/rooms/{room_id}", headers=headers1) as reconnected:
                 sync = reconnected.receive_json()
-                assert sync["data"]["match"] == own["match"]
+                assert sync["data"]["match"]["id"] == own["match"]["id"]
                 assert sync["data"]["match"]["minute"] == 37.5
             now[0] += 35
-            # Let the actual background task perform finalization (no GET-side commit).
-            deadline = time.monotonic() + 3
+            deadline = time.monotonic() + 60  # the background task finishes the ten engines
             while service._season(room_id).live_round and time.monotonic() < deadline:
-                time.sleep(.02)
+                time.sleep(.05)
             assert len(service._season(room_id).state.results) == 10
-            assert client.get(base + "/season/live", headers=headers1).json()["data"]["match"]["status"] == "FINISHED"
+            finished = client.get(base + "/season/live", headers=headers1).json()["data"]["match"]
+            assert finished["status"] == "FINISHED" and "command_log" not in finished and "inputs" not in finished
+            assert [c["command_id"] for c in finished["commands"]] == ["FLA:http-wide-0001"]
+            replay = client.get(base + f"/matches/{finished['id']}/frames?start=100&end=140", headers=headers1).json()["data"]
+            assert [f["t"] for f in replay["frames"]] == list(range(100, 141))
             assert not service.finish_due(room_id)
         finally:
             routes.market_service.sessions.pop(room_id, None)
             routes.room_manager._rooms.pop(room_id, None)
             routes.room_manager._locks.pop(room_id, None)
             service._seasons.pop(room_id, None)
-
 
 
 def test_next_round_timer_survives_ready_during_completion_notification(live, monkeypatch):

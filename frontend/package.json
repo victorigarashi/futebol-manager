@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:live": "node scripts/verify-live.cjs",
     "typecheck": "tsc -b --pretty false",
-    "test:beta": "node scripts/verify-beta.cjs"
+    "test:beta": "node scripts/verify-beta.cjs",
+    "test:career": "node scripts/verify-career.cjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.62.7",
