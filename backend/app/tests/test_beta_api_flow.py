@@ -76,6 +76,17 @@ def create_two_coach_room(client, identities, mode):
     return room, base, host, guest
 
 
+@pytest.mark.parametrize("duration", [120, 180, 300, 600])
+def test_room_accepts_short_round_preparation_windows(beta_api, duration):
+    client, identities, *_ = beta_api
+    room = checked(client, "POST", "/rooms", headers=identities[0][0], status=201, json={
+        "name": "Resenha rápida", "mode": "FIVE_A_SIDE", "initial_budget_cents": 5_000_000_000,
+        "max_human_participants": 2, "privacy": "PRIVATE", "initial_market_duration_seconds": 120,
+        "round_preparation_duration_seconds": duration,
+    })
+    assert room["round_preparation_duration_seconds"] == duration
+
+
 @pytest.mark.parametrize(("mode", "starter_count", "roster_count"), [
     ("FIVE_A_SIDE", 5, 8), ("ELEVEN_A_SIDE", 11, 16),
 ])

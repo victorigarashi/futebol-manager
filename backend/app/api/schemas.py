@@ -10,7 +10,7 @@ class RoomCreate(BaseModel):
     max_human_participants: int = Field(ge=1, le=20)
     privacy: Literal["PUBLIC", "PRIVATE"] = "PUBLIC"
     initial_market_duration_seconds: int = Field(default=300)
-    round_preparation_duration_seconds: int = Field(default=86_400, ge=3_600, le=604_800)
+    round_preparation_duration_seconds: int = Field(default=300, ge=120, le=604_800)
     withdrawal_penalty_percent: Literal[0, 2, 5, 10] = 5
 
     @field_validator("name")
@@ -34,6 +34,16 @@ class RoomCreate(BaseModel):
         allowed = {120, 180, 300, 600, 900, 1_200, 1_800}
         if value not in allowed:
             raise ValueError("Escolha um tempo de preparação entre as opções disponíveis.")
+        return value
+
+    @field_validator("round_preparation_duration_seconds")
+    @classmethod
+    def validate_round_preparation_duration(cls, value: int) -> int:
+        # Short windows suit a live session. Longer legacy values stay valid so
+        # an existing lobby can still be edited without losing its settings.
+        allowed = {120, 180, 300, 600, 3_600, 21_600, 43_200, 86_400, 172_800, 604_800}
+        if value not in allowed:
+            raise ValueError("Escolha um prazo entre as opções disponíveis.")
         return value
 
 

@@ -19,7 +19,7 @@ import { SeasonPage } from "../season/SeasonPage";
 import { api, ApiError, roomSocketUrl, type Club, type RoomState } from "../../lib/api";
 import { useSession } from "../../stores/session";
 
-const defaultDraft: LeagueDraft = { name: "Liga dos parças", mode: "FIVE_A_SIDE", initial_budget_cents: 5_000_000_000, initial_market_duration_seconds: 300, round_preparation_duration_seconds: 86_400, withdrawal_penalty_percent: 5, max_human_participants: 4, privacy: "PUBLIC" };
+const defaultDraft: LeagueDraft = { name: "Liga dos parças", mode: "FIVE_A_SIDE", initial_budget_cents: 5_000_000_000, initial_market_duration_seconds: 300, round_preparation_duration_seconds: 300, withdrawal_penalty_percent: 5, max_human_participants: 4, privacy: "PUBLIC" };
 type ConnectionState = "connecting" | "online" | "reconnecting" | "offline";
 type LobbyPageProps = { needsProfile: boolean; onEditProfile: () => void; onSaveProfile: (name: string) => Promise<void> };
 

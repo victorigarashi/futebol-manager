@@ -29,7 +29,7 @@ class RoomState:
     privacy: str
     host_user_id: str
     initial_market_duration_seconds: int = 300
-    round_preparation_duration_seconds: int = 86_400
+    round_preparation_duration_seconds: int = 300
     withdrawal_penalty_percent: int = 5
     phase: str = "WAITING"
     market_ends_at: float | None = None
@@ -129,7 +129,7 @@ class RoomManager:
         max_human_participants: int,
         privacy: str,
         initial_market_duration_seconds: int = 300,
-        round_preparation_duration_seconds: int = 86_400,
+        round_preparation_duration_seconds: int = 300,
         withdrawal_penalty_percent: int = 5,
     ) -> dict[str, object]:
         if withdrawal_penalty_percent not in {0, 2, 5, 10}:
