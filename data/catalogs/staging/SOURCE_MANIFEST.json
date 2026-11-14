@@ -1,0 +1,24 @@
+{
+  "source": "dcaribou/transfermarkt-datasets",
+  "license": "CC0-1.0",
+  "snapshot_date": "2026-07-06",
+  "retrieved_at": "2026-11-13",
+  "files": {
+    "players.csv.gz": {
+      "sha256": "d22e407981d5b51a79bf8ff59835729f3526f7dc3495a6d8ed2f852ed2e86403",
+      "source_url": "https://pub-e682421888d945d684bcae8890b0ec20.r2.dev/data/players.csv.gz"
+    },
+    "player_valuations.csv.gz": {
+      "sha256": "608e32e5ad2231074f3505c469ad727be66d7e6efda6af918afd85379439631d",
+      "source_url": "https://pub-e682421888d945d684bcae8890b0ec20.r2.dev/data/player_valuations.csv.gz"
+    },
+    "clubs.csv.gz": {
+      "sha256": "aa57ab56e87faffaea1e8697439a32caf10116d8f2f2dfb3a57193c0bb1d641b",
+      "source_url": "https://pub-e682421888d945d684bcae8890b0ec20.r2.dev/data/clubs.csv.gz"
+    },
+    "appearances.csv.gz": {
+      "sha256": "e096c2b158fc3d52c4550526c4d4850dd62f31007652f4bcae112eadb1646802",
+      "source_url": "https://pub-e682421888d945d684bcae8890b0ec20.r2.dev/data/appearances.csv.gz"
+    }
+  }
+}

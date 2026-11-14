@@ -1,0 +1,8 @@
+{
+  "sameMatch": "r1-1",
+  "differentMatch": "r1-2",
+  "reconnectMinute": 23.149782299995422,
+  "seconds": 60.756,
+  "matchCount": 10,
+  "errors": []
+}

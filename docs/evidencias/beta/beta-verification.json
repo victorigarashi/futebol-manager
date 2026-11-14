@@ -1,0 +1,231 @@
+{
+  "viewports": [
+    [
+      375,
+      812
+    ],
+    [
+      390,
+      844
+    ],
+    [
+      768,
+      1024
+    ],
+    [
+      1280,
+      720
+    ],
+    [
+      1366,
+      768
+    ],
+    [
+      1600,
+      900
+    ],
+    [
+      1920,
+      1080
+    ]
+  ],
+  "screens": [
+    {
+      "name": "home",
+      "viewports": 7
+    },
+    {
+      "name": "lobby",
+      "viewports": 7
+    },
+    {
+      "name": "market",
+      "viewports": 7
+    },
+    {
+      "name": "selection",
+      "viewports": 7
+    },
+    {
+      "name": "reassignment",
+      "viewports": 7
+    },
+    {
+      "name": "review",
+      "viewports": 7
+    },
+    {
+      "name": "squad5",
+      "viewports": 7
+    },
+    {
+      "name": "squad11",
+      "viewports": 7
+    },
+    {
+      "name": "season",
+      "viewports": 7
+    },
+    {
+      "name": "postmatch",
+      "viewports": 7
+    },
+    {
+      "name": "transfers",
+      "viewports": 7
+    },
+    {
+      "name": "champion",
+      "viewports": 7
+    },
+    {
+      "name": "history",
+      "viewports": 7
+    }
+  ],
+  "actions": [
+    "Settings keyboard trap and Escape",
+    "Create real room and select club through accessible confirmation",
+    "Catalog renders 24 players/page",
+    "Real edit secret offer reais -> server cents",
+    "Save real 5x5 lineup",
+    "Real transfer listing",
+    "Real career progression and ledger",
+    "Blocked localStorage recovers server memberships",
+    "503 auth does not create a new guest"
+  ],
+  "accessibility": [
+    {
+      "screen": "home",
+      "width": 390,
+      "violations": []
+    },
+    {
+      "screen": "home",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "screen": "lobby",
+      "width": 390,
+      "violations": []
+    },
+    {
+      "screen": "lobby",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "screen": "market",
+      "width": 390,
+      "violations": []
+    },
+    {
+      "screen": "market",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "screen": "selection",
+      "width": 390,
+      "violations": []
+    },
+    {
+      "screen": "selection",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "screen": "reassignment",
+      "width": 390,
+      "violations": []
+    },
+    {
+      "screen": "reassignment",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "screen": "review",
+      "width": 390,
+      "violations": []
+    },
+    {
+      "screen": "review",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "screen": "squad5",
+      "width": 390,
+      "violations": []
+    },
+    {
+      "screen": "squad5",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "screen": "squad11",
+      "width": 390,
+      "violations": []
+    },
+    {
+      "screen": "squad11",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "screen": "season",
+      "width": 390,
+      "violations": []
+    },
+    {
+      "screen": "season",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "screen": "postmatch",
+      "width": 390,
+      "violations": []
+    },
+    {
+      "screen": "postmatch",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "screen": "transfers",
+      "width": 390,
+      "violations": []
+    },
+    {
+      "screen": "transfers",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "screen": "champion",
+      "width": 390,
+      "violations": []
+    },
+    {
+      "screen": "champion",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "screen": "history",
+      "width": 390,
+      "violations": []
+    },
+    {
+      "screen": "history",
+      "width": 1366,
+      "violations": []
+    }
+  ],
+  "errors": [],
+  "seriousAccessibility": []
+}

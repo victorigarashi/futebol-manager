@@ -1,0 +1,68 @@
+const { chromium } = require('playwright');
+const fs = require('fs');
+const path = require('path');
+const webUrl = process.env.LIVE_WEB_URL || 'http://localhost:5174/';
+const apiUrl = process.env.LIVE_API_URL || 'http://localhost:8000/api/v1';
+const artifacts = process.env.LIVE_ARTIFACTS || '/tmp/brasileirao-live-artifacts';
+fs.mkdirSync(artifacts, { recursive: true });
+(async () => {
+ const setup = JSON.parse(fs.readFileSync(process.env.LIVE_ACCEPTANCE_STATE || '/tmp/brasileirao-acceptance.json','utf8'));
+ const browser = await chromium.launch({executablePath:process.env.CHROMIUM_PATH,headless:true,args:['--no-sandbox']});
+ const contexts = [], pages = [], failures = [];
+ for (let i=0;i<3;i++) {
+  const context = await browser.newContext({viewport:i===2?{width:390,height:844}:{width:1440,height:1000},deviceScaleFactor:1});
+  await context.addCookies([{name:'bm_session',value:setup.tokens[i],domain:'localhost',path:'/',httpOnly:true,sameSite:'Lax'}]);
+  await context.addInitScript(id=>localStorage.setItem('bm_active_room',id),setup.room_id);
+  const page = await context.newPage();
+  page.on('pageerror', e=>failures.push(e.message));
+  page.on('response', r=>{if(r.status()>=400 && !r.url().includes('favicon')) failures.push(`${r.status()} ${r.url()}`)});
+  await page.goto(webUrl);
+  contexts.push(context);pages.push(page);
+ }
+ const base = `${apiUrl}/rooms/${setup.room_id}`;
+ for(const page of pages) await page.getByRole('button',{name:'Estou pronto'}).waitFor();
+ const started=Date.now();
+ for(const page of pages) await page.getByRole('button',{name:'Estou pronto'}).click();
+ for(const page of pages) await page.getByText('● AO VIVO',{exact:true}).waitFor();
+ for(const page of pages) {
+  if(await page.locator('canvas').count()!==1) throw Error('Expected one pitch per coach');
+  const overflow = await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth);
+  if(overflow) throw Error('Horizontal overflow');
+ }
+ const read=async i => (await (await contexts[i].request.get(base+'/season/live')).json()).data;
+ const views = await Promise.all([read(0),read(1),read(2)]);
+ if(views[0].match.id!==views[1].match.id || views[0].match.id===views[2].match.id) throw Error('Coach routing mismatch');
+ console.log('PASS: auto-open, same/opposing fixture selection, one canvas per coach, desktop/mobile no overflow');
+ await pages[0].screenshot({path:path.join(artifacts, 'partida-desktop.png'),fullPage:true});
+ await pages[2].screenshot({path:path.join(artifacts, 'partida-mobile.png'),fullPage:true});
+ await pages[0].waitForTimeout(11000);
+ const before=await read(0);
+ await contexts[0].setOffline(true);
+ await pages[1].waitForTimeout(2200);
+ await contexts[0].setOffline(false);
+ await pages[0].reload();
+ await pages[0].getByText('● AO VIVO',{exact:true}).waitFor();
+ const reconnected=await read(0);
+ if(reconnected.match.minute<=before.match.minute) throw Error('Reconnection restarted clock');
+ const firstEnd=views[0].live_round.ends_at;
+ if(reconnected.live_round.ends_at!==firstEnd) throw Error('Reconnection changed deadline');
+ console.log('PASS: offline/reconnect/page reload resumes server time at '+reconnected.match.minute.toFixed(1)+' minutes');
+ const remaining = Math.max(0,firstEnd*1000-Date.now()-3000);
+ await pages[0].waitForTimeout(remaining);
+ const nearEnd=await read(0);
+ if(!nearEnd.live_round || nearEnd.current_round!==1 || nearEnd.official_table.some(row=>row.played!==0)) throw Error('Premature finalization');
+ if(!nearEnd.table.every(row=>row.played===1)) throw Error('Live table incomplete');
+ if(nearEnd.match.events.some(event=>event.animation_ms>nearEnd.match.minute*1000+.01)) throw Error('Future event leak');
+ console.log('PASS: live results remain provisional before deadline; ten scores and matching replay event prefix');
+ await pages[0].getByText('Os dez resultados da rodada foram oficializados.',{exact:false}).waitFor({timeout:10000});
+ const ended=Date.now();
+ const final=await read(0);
+ if(final.live_round || final.current_round!==2 || !final.table.every(row=>row.played===1)) throw Error('Round did not commit all ten matches');
+ if(Math.abs(ended-firstEnd*1000)>2500) throw Error('Finalization missed 60 second deadline');
+ const season=(await (await contexts[0].request.get(base+'/season')).json()).data;
+ if(season.match_count!==10) throw Error('Duplicate simulation');
+ if(failures.length) throw Error('Browser errors: '+JSON.stringify(failures));
+ console.log('PASS: finalization observed '+((ended-started)/1000).toFixed(2)+'s after ready; ten results committed once; no page errors');
+ fs.writeFileSync(path.join(artifacts, 'browser-verification.json'),JSON.stringify({sameMatch:views[0].match.id,differentMatch:views[2].match.id,reconnectMinute:reconnected.match.minute,seconds:(ended-started)/1000,matchCount:season.match_count,errors:failures},null,2));
+ await browser.close();
+})().catch(e=>{console.error(e);process.exit(1)});

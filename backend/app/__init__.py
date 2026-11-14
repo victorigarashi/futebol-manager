@@ -1,0 +1,1 @@
+"""Brasileirão Manager backend package."""

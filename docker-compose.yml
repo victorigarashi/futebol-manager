@@ -1,0 +1,32 @@
+services:
+  backend:
+    build: ./backend
+    environment:
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5174}
+      APP_SECRET: ${APP_SECRET:-development-only-secret}
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
+      ENABLE_JSON_SNAPSHOTS: ${ENABLE_JSON_SNAPSHOTS:-false}
+      SNAPSHOT_PATH: ${SNAPSHOT_PATH:-data/snapshots/rooms.json}
+      APP_ENVIRONMENT: ${APP_ENVIRONMENT:-development}
+      ENABLE_DEMO_CATALOG: ${ENABLE_DEMO_CATALOG:-false}
+      DEMO_SNAPSHOT_PATH: ${DEMO_SNAPSHOT_PATH:-data/snapshots/demo-rooms.json}
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./backend:/app
+      - ./data:/data:ro
+    ports:
+      - "8001:8000"
+  frontend:
+    build: ./frontend
+    environment:
+      VITE_API_BASE_URL: http://localhost:8001/api/v1
+    command: npm run dev -- --host 0.0.0.0
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+    ports:
+      - "5174:5173"
+    depends_on:
+      - backend
+volumes:
+  frontend_node_modules:

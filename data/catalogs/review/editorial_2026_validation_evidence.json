@@ -1,0 +1,1770 @@
+{
+  "generated_at": "2026-11-14",
+  "method": "No provider ratings or raw statistics are copied. This evidence only corroborates identity, club and macro position. It does not make ratings official.",
+  "sources": [
+    "https://github.com/wiUl/scrapping-brasileirao-sofascore",
+    "https://github.com/glauber-molinari/BRASIM26"
+  ],
+  "players": [
+    {
+      "id": "BR26-003",
+      "status": "CORROBORATED",
+      "club_code": "FLA",
+      "position": "DF",
+      "wiul_player_id": "869643",
+      "wiul_team_id": "5981",
+      "brasim_age": 29,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-004",
+      "status": "CORROBORATED",
+      "club_code": "FLA",
+      "position": "DF",
+      "wiul_player_id": "358548",
+      "wiul_team_id": "5981",
+      "brasim_age": 29,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-005",
+      "status": "CORROBORATED",
+      "club_code": "FLA",
+      "position": "DF",
+      "wiul_player_id": "124992",
+      "wiul_team_id": "5981",
+      "brasim_age": 34,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-006",
+      "status": "CORROBORATED",
+      "club_code": "FLA",
+      "position": "DF",
+      "wiul_player_id": "876625",
+      "wiul_team_id": "5981",
+      "brasim_age": 25,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-007",
+      "status": "CORROBORATED",
+      "club_code": "FLA",
+      "position": "DF",
+      "wiul_player_id": "84854",
+      "wiul_team_id": "5981",
+      "brasim_age": 34,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-009",
+      "status": "CORROBORATED",
+      "club_code": "FLA",
+      "position": "DF",
+      "wiul_player_id": "818473",
+      "wiul_team_id": "5981",
+      "brasim_age": 28,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-010",
+      "status": "CORROBORATED",
+      "club_code": "FLA",
+      "position": "DF",
+      "wiul_player_id": "856123",
+      "wiul_team_id": "5981",
+      "brasim_age": 26,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-011",
+      "status": "CORROBORATED",
+      "club_code": "FLA",
+      "position": "MF",
+      "wiul_player_id": "839981",
+      "wiul_team_id": "5981",
+      "brasim_age": 28,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-014",
+      "status": "CORROBORATED",
+      "club_code": "FLA",
+      "position": "MF",
+      "wiul_player_id": "132874",
+      "wiul_team_id": "5981",
+      "brasim_age": 34,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-015",
+      "status": "CORROBORATED",
+      "club_code": "FLA",
+      "position": "MF",
+      "wiul_player_id": "1145106",
+      "wiul_team_id": "5981",
+      "brasim_age": 22,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-017",
+      "status": "CORROBORATED",
+      "club_code": "FLA",
+      "position": "ST",
+      "wiul_player_id": "840219",
+      "wiul_team_id": "5981",
+      "brasim_age": 28,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-018",
+      "status": "CORROBORATED",
+      "club_code": "FLA",
+      "position": "ST",
+      "wiul_player_id": "795291",
+      "wiul_team_id": "5981",
+      "brasim_age": 35,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-019",
+      "status": "CORROBORATED",
+      "club_code": "FLA",
+      "position": "ST",
+      "wiul_player_id": "874705",
+      "wiul_team_id": "5981",
+      "brasim_age": 26,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-020",
+      "status": "CORROBORATED",
+      "club_code": "FLA",
+      "position": "ST",
+      "wiul_player_id": "840451",
+      "wiul_team_id": "5981",
+      "brasim_age": 29,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-022",
+      "status": "CORROBORATED",
+      "club_code": "PAL",
+      "position": "GK",
+      "wiul_player_id": "973738",
+      "wiul_team_id": "1963",
+      "brasim_age": 27,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-024",
+      "status": "CORROBORATED",
+      "club_code": "PAL",
+      "position": "DF",
+      "wiul_player_id": "874729",
+      "wiul_team_id": "1963",
+      "brasim_age": 28,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-027",
+      "status": "CORROBORATED",
+      "club_code": "PAL",
+      "position": "DF",
+      "wiul_player_id": "984896",
+      "wiul_team_id": "1963",
+      "brasim_age": 24,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-032",
+      "status": "CORROBORATED",
+      "club_code": "PAL",
+      "position": "MF",
+      "wiul_player_id": "285949",
+      "wiul_team_id": "1963",
+      "brasim_age": 29,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-035",
+      "status": "CORROBORATED",
+      "club_code": "PAL",
+      "position": "ST",
+      "wiul_player_id": "1150391",
+      "wiul_team_id": "1963",
+      "brasim_age": 20,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-036",
+      "status": "CORROBORATED",
+      "club_code": "PAL",
+      "position": "ST",
+      "wiul_player_id": "885179",
+      "wiul_team_id": "1963",
+      "brasim_age": 25,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-039",
+      "status": "CORROBORATED",
+      "club_code": "COR",
+      "position": "GK",
+      "wiul_player_id": "950454",
+      "wiul_team_id": "1957",
+      "brasim_age": 26,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-042",
+      "status": "CORROBORATED",
+      "club_code": "COR",
+      "position": "DF",
+      "wiul_player_id": "931540",
+      "wiul_team_id": "1957",
+      "brasim_age": 25,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-043",
+      "status": "CORROBORATED",
+      "club_code": "COR",
+      "position": "DF",
+      "wiul_player_id": "981703",
+      "wiul_team_id": "1957",
+      "brasim_age": 26,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-044",
+      "status": "CORROBORATED",
+      "club_code": "COR",
+      "position": "DF",
+      "wiul_player_id": "148155",
+      "wiul_team_id": "1957",
+      "brasim_age": 33,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-045",
+      "status": "CORROBORATED",
+      "club_code": "COR",
+      "position": "DF",
+      "wiul_player_id": "243181",
+      "wiul_team_id": "1957",
+      "brasim_age": 32,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-047",
+      "status": "CORROBORATED",
+      "club_code": "COR",
+      "position": "MF",
+      "wiul_player_id": "866392",
+      "wiul_team_id": "1957",
+      "brasim_age": 29,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-052",
+      "status": "CORROBORATED",
+      "club_code": "COR",
+      "position": "ST",
+      "wiul_player_id": "905463",
+      "wiul_team_id": "1957",
+      "brasim_age": 24,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-055",
+      "status": "CORROBORATED",
+      "club_code": "SAO",
+      "position": "GK",
+      "wiul_player_id": "33132",
+      "wiul_team_id": "1981",
+      "brasim_age": 36,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-058",
+      "status": "CORROBORATED",
+      "club_code": "SAO",
+      "position": "DF",
+      "wiul_player_id": "975118",
+      "wiul_team_id": "1981",
+      "brasim_age": 29,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-061",
+      "status": "CORROBORATED",
+      "club_code": "SAO",
+      "position": "DF",
+      "wiul_player_id": "335033",
+      "wiul_team_id": "1981",
+      "brasim_age": 32,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-062",
+      "status": "CORROBORATED",
+      "club_code": "SAO",
+      "position": "DF",
+      "wiul_player_id": "2035326",
+      "wiul_team_id": "1981",
+      "brasim_age": 20,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-063",
+      "status": "CORROBORATED",
+      "club_code": "SAO",
+      "position": "MF",
+      "wiul_player_id": "1120721",
+      "wiul_team_id": "1981",
+      "brasim_age": 23,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-065",
+      "status": "CORROBORATED",
+      "club_code": "SAO",
+      "position": "MF",
+      "wiul_player_id": "905453",
+      "wiul_team_id": "1981",
+      "brasim_age": 25,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-068",
+      "status": "CORROBORATED",
+      "club_code": "SAO",
+      "position": "ST",
+      "wiul_player_id": "149710",
+      "wiul_team_id": "1981",
+      "brasim_age": 33,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-070",
+      "status": "CORROBORATED",
+      "club_code": "SAO",
+      "position": "ST",
+      "wiul_player_id": "282557",
+      "wiul_team_id": "1981",
+      "brasim_age": 32,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-071",
+      "status": "CORROBORATED",
+      "club_code": "SAO",
+      "position": "ST",
+      "wiul_player_id": "925072",
+      "wiul_team_id": "1981",
+      "brasim_age": 28,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-073",
+      "status": "CORROBORATED",
+      "club_code": "SAN",
+      "position": "GK",
+      "wiul_player_id": "905448",
+      "wiul_team_id": "1968",
+      "brasim_age": 25,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-074",
+      "status": "CORROBORATED",
+      "club_code": "SAN",
+      "position": "GK",
+      "wiul_player_id": "1128754",
+      "wiul_team_id": "1968",
+      "brasim_age": 24,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-076",
+      "status": "CORROBORATED",
+      "club_code": "SAN",
+      "position": "DF",
+      "wiul_player_id": "273329",
+      "wiul_team_id": "1968",
+      "brasim_age": 33,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-077",
+      "status": "CORROBORATED",
+      "club_code": "SAN",
+      "position": "DF",
+      "wiul_player_id": "840119",
+      "wiul_team_id": "1968",
+      "brasim_age": 28,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-078",
+      "status": "CORROBORATED",
+      "club_code": "SAN",
+      "position": "DF",
+      "wiul_player_id": "826343",
+      "wiul_team_id": "1968",
+      "brasim_age": 30,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-080",
+      "status": "CORROBORATED",
+      "club_code": "SAN",
+      "position": "DF",
+      "wiul_player_id": "842098",
+      "wiul_team_id": "1968",
+      "brasim_age": 31,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-082",
+      "status": "CORROBORATED",
+      "club_code": "SAN",
+      "position": "MF",
+      "wiul_player_id": "244591",
+      "wiul_team_id": "1968",
+      "brasim_age": 32,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-083",
+      "status": "CORROBORATED",
+      "club_code": "SAN",
+      "position": "MF",
+      "wiul_player_id": "329069",
+      "wiul_team_id": "1968",
+      "brasim_age": 32,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-087",
+      "status": "CORROBORATED",
+      "club_code": "SAN",
+      "position": "ST",
+      "wiul_player_id": "124712",
+      "wiul_team_id": "1968",
+      "brasim_age": 33,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-091",
+      "status": "CORROBORATED",
+      "club_code": "VAS",
+      "position": "GK",
+      "wiul_player_id": "595598",
+      "wiul_team_id": "1974",
+      "brasim_age": 30,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-093",
+      "status": "CORROBORATED",
+      "club_code": "VAS",
+      "position": "DF",
+      "wiul_player_id": "1069729",
+      "wiul_team_id": "1974",
+      "brasim_age": 24,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-094",
+      "status": "CORROBORATED",
+      "club_code": "VAS",
+      "position": "DF",
+      "wiul_player_id": "1191278",
+      "wiul_team_id": "1974",
+      "brasim_age": 22,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-097",
+      "status": "CORROBORATED",
+      "club_code": "VAS",
+      "position": "DF",
+      "wiul_player_id": "1021721",
+      "wiul_team_id": "1974",
+      "brasim_age": 29,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-099",
+      "status": "CORROBORATED",
+      "club_code": "VAS",
+      "position": "DF",
+      "wiul_player_id": "982174",
+      "wiul_team_id": "1974",
+      "brasim_age": 25,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-100",
+      "status": "CORROBORATED",
+      "club_code": "VAS",
+      "position": "DF",
+      "wiul_player_id": "1160554",
+      "wiul_team_id": "1974",
+      "brasim_age": 22,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-103",
+      "status": "CORROBORATED",
+      "club_code": "VAS",
+      "position": "MF",
+      "wiul_player_id": "840398",
+      "wiul_team_id": "1974",
+      "brasim_age": 33,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-105",
+      "status": "CORROBORATED",
+      "club_code": "VAS",
+      "position": "ST",
+      "wiul_player_id": "884980",
+      "wiul_team_id": "1974",
+      "brasim_age": 25,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-106",
+      "status": "CORROBORATED",
+      "club_code": "VAS",
+      "position": "ST",
+      "wiul_player_id": "840291",
+      "wiul_team_id": "1974",
+      "brasim_age": 30,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-107",
+      "status": "CORROBORATED",
+      "club_code": "VAS",
+      "position": "ST",
+      "wiul_player_id": "1105970",
+      "wiul_team_id": "1974",
+      "brasim_age": 25,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-109",
+      "status": "CORROBORATED",
+      "club_code": "VAS",
+      "position": "ST",
+      "wiul_player_id": "851285",
+      "wiul_team_id": "1974",
+      "brasim_age": 26,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-114",
+      "status": "CORROBORATED",
+      "club_code": "FLU",
+      "position": "DF",
+      "wiul_player_id": "958382",
+      "wiul_team_id": "1961",
+      "brasim_age": 29,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-117",
+      "status": "CORROBORATED",
+      "club_code": "FLU",
+      "position": "DF",
+      "wiul_player_id": "795773",
+      "wiul_team_id": "1961",
+      "brasim_age": 35,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-118",
+      "status": "CORROBORATED",
+      "club_code": "FLU",
+      "position": "DF",
+      "wiul_player_id": "928134",
+      "wiul_team_id": "1961",
+      "brasim_age": 27,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-119",
+      "status": "CORROBORATED",
+      "club_code": "FLU",
+      "position": "DF",
+      "wiul_player_id": "243113",
+      "wiul_team_id": "1961",
+      "brasim_age": 33,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-121",
+      "status": "CORROBORATED",
+      "club_code": "FLU",
+      "position": "MF",
+      "wiul_player_id": "1067671",
+      "wiul_team_id": "1961",
+      "brasim_age": 24,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-122",
+      "status": "CORROBORATED",
+      "club_code": "FLU",
+      "position": "MF",
+      "wiul_player_id": "922566",
+      "wiul_team_id": "1961",
+      "brasim_age": 27,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-123",
+      "status": "CORROBORATED",
+      "club_code": "FLU",
+      "position": "MF",
+      "wiul_player_id": "1104068",
+      "wiul_team_id": "1961",
+      "brasim_age": 25,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-127",
+      "status": "CORROBORATED",
+      "club_code": "FLU",
+      "position": "ST",
+      "wiul_player_id": "1087399",
+      "wiul_team_id": "1961",
+      "brasim_age": 23,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-130",
+      "status": "CORROBORATED",
+      "club_code": "BOT",
+      "position": "GK",
+      "wiul_player_id": "84844",
+      "wiul_team_id": "1958",
+      "brasim_age": 36,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-131",
+      "status": "CORROBORATED",
+      "club_code": "BOT",
+      "position": "GK",
+      "wiul_player_id": "866736",
+      "wiul_team_id": "1958",
+      "brasim_age": 28,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-132",
+      "status": "CORROBORATED",
+      "club_code": "BOT",
+      "position": "DF",
+      "wiul_player_id": "312110",
+      "wiul_team_id": "1958",
+      "brasim_age": 33,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-135",
+      "status": "CORROBORATED",
+      "club_code": "BOT",
+      "position": "DF",
+      "wiul_player_id": "914477",
+      "wiul_team_id": "1958",
+      "brasim_age": 26,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-139",
+      "status": "CORROBORATED",
+      "club_code": "BOT",
+      "position": "DF",
+      "wiul_player_id": "1069328",
+      "wiul_team_id": "1958",
+      "brasim_age": 23,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-140",
+      "status": "CORROBORATED",
+      "club_code": "BOT",
+      "position": "DF",
+      "wiul_player_id": "143593",
+      "wiul_team_id": "1958",
+      "brasim_age": 36,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-141",
+      "status": "CORROBORATED",
+      "club_code": "BOT",
+      "position": "MF",
+      "wiul_player_id": "158277",
+      "wiul_team_id": "1958",
+      "brasim_age": 34,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-144",
+      "status": "CORROBORATED",
+      "club_code": "BOT",
+      "position": "MF",
+      "wiul_player_id": "221636",
+      "wiul_team_id": "1958",
+      "brasim_age": 36,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-147",
+      "status": "CORROBORATED",
+      "club_code": "BOT",
+      "position": "ST",
+      "wiul_player_id": "870762",
+      "wiul_team_id": "1958",
+      "brasim_age": 27,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-149",
+      "status": "CORROBORATED",
+      "club_code": "BOT",
+      "position": "ST",
+      "wiul_player_id": "922559",
+      "wiul_team_id": "1958",
+      "brasim_age": 31,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-150",
+      "status": "CORROBORATED",
+      "club_code": "BOT",
+      "position": "ST",
+      "wiul_player_id": "1106779",
+      "wiul_team_id": "1958",
+      "brasim_age": 22,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-152",
+      "status": "CORROBORATED",
+      "club_code": "CRU",
+      "position": "GK",
+      "wiul_player_id": "27756",
+      "wiul_team_id": "1954",
+      "brasim_age": 38,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-159",
+      "status": "CORROBORATED",
+      "club_code": "CRU",
+      "position": "MF",
+      "wiul_player_id": "245159",
+      "wiul_team_id": "1954",
+      "brasim_age": 32,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-160",
+      "status": "CORROBORATED",
+      "club_code": "CRU",
+      "position": "MF",
+      "wiul_player_id": "981733",
+      "wiul_team_id": "1954",
+      "brasim_age": 25,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-161",
+      "status": "CORROBORATED",
+      "club_code": "CRU",
+      "position": "MF",
+      "wiul_player_id": "377238",
+      "wiul_team_id": "1954",
+      "brasim_age": 29,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-162",
+      "status": "CORROBORATED",
+      "club_code": "CRU",
+      "position": "ST",
+      "wiul_player_id": "247483",
+      "wiul_team_id": "1954",
+      "brasim_age": 31,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-165",
+      "status": "CORROBORATED",
+      "club_code": "CRU",
+      "position": "ST",
+      "wiul_player_id": "817650",
+      "wiul_team_id": "1954",
+      "brasim_age": 28,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-166",
+      "status": "CORROBORATED",
+      "club_code": "CRU",
+      "position": "ST",
+      "wiul_player_id": "954888",
+      "wiul_team_id": "1954",
+      "brasim_age": 23,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-186",
+      "status": "CORROBORATED",
+      "club_code": "GRE",
+      "position": "DF",
+      "wiul_player_id": "1907760",
+      "wiul_team_id": "5926",
+      "brasim_age": 20,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-188",
+      "status": "CORROBORATED",
+      "club_code": "GRE",
+      "position": "DF",
+      "wiul_player_id": "976235",
+      "wiul_team_id": "5926",
+      "brasim_age": 26,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-189",
+      "status": "CORROBORATED",
+      "club_code": "GRE",
+      "position": "DF",
+      "wiul_player_id": "1105796",
+      "wiul_team_id": "5926",
+      "brasim_age": 23,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-190",
+      "status": "CORROBORATED",
+      "club_code": "GRE",
+      "position": "DF",
+      "wiul_player_id": "931591",
+      "wiul_team_id": "5926",
+      "brasim_age": 27,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-191",
+      "status": "CORROBORATED",
+      "club_code": "GRE",
+      "position": "DF",
+      "wiul_player_id": "605528",
+      "wiul_team_id": "5926",
+      "brasim_age": 29,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-193",
+      "status": "CORROBORATED",
+      "club_code": "GRE",
+      "position": "MF",
+      "wiul_player_id": "794927",
+      "wiul_team_id": "5926",
+      "brasim_age": 29,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-195",
+      "status": "CORROBORATED",
+      "club_code": "GRE",
+      "position": "MF",
+      "wiul_player_id": "870804",
+      "wiul_team_id": "5926",
+      "brasim_age": 29,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-201",
+      "status": "CORROBORATED",
+      "club_code": "INT",
+      "position": "GK",
+      "wiul_player_id": "1106134",
+      "wiul_team_id": "1966",
+      "brasim_age": 23,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-206",
+      "status": "CORROBORATED",
+      "club_code": "INT",
+      "position": "DF",
+      "wiul_player_id": "1106487",
+      "wiul_team_id": "1966",
+      "brasim_age": 21,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-208",
+      "status": "CORROBORATED",
+      "club_code": "INT",
+      "position": "MF",
+      "wiul_player_id": "995071",
+      "wiul_team_id": "1966",
+      "brasim_age": 24,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-209",
+      "status": "CORROBORATED",
+      "club_code": "INT",
+      "position": "MF",
+      "wiul_player_id": "358550",
+      "wiul_team_id": "1966",
+      "brasim_age": 28,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-211",
+      "status": "CORROBORATED",
+      "club_code": "INT",
+      "position": "MF",
+      "wiul_player_id": "824152",
+      "wiul_team_id": "1966",
+      "brasim_age": 29,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-212",
+      "status": "CORROBORATED",
+      "club_code": "INT",
+      "position": "MF",
+      "wiul_player_id": "124997",
+      "wiul_team_id": "1966",
+      "brasim_age": 34,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-216",
+      "status": "CORROBORATED",
+      "club_code": "INT",
+      "position": "ST",
+      "wiul_player_id": "923948",
+      "wiul_team_id": "1966",
+      "brasim_age": 25,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-217",
+      "status": "CORROBORATED",
+      "club_code": "INT",
+      "position": "ST",
+      "wiul_player_id": "982405",
+      "wiul_team_id": "1966",
+      "brasim_age": 26,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-218",
+      "status": "CORROBORATED",
+      "club_code": "BAH",
+      "position": "GK",
+      "wiul_player_id": "840106",
+      "wiul_team_id": "1955",
+      "brasim_age": 29,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-219",
+      "status": "CORROBORATED",
+      "club_code": "BAH",
+      "position": "GK",
+      "wiul_player_id": "166279",
+      "wiul_team_id": "1955",
+      "brasim_age": 35,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-221",
+      "status": "CORROBORATED",
+      "club_code": "BAH",
+      "position": "DF",
+      "wiul_player_id": "871705",
+      "wiul_team_id": "1955",
+      "brasim_age": 28,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-222",
+      "status": "CORROBORATED",
+      "club_code": "BAH",
+      "position": "DF",
+      "wiul_player_id": "1117710",
+      "wiul_team_id": "1955",
+      "brasim_age": 24,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-224",
+      "status": "CORROBORATED",
+      "club_code": "BAH",
+      "position": "DF",
+      "wiul_player_id": "810715",
+      "wiul_team_id": "1955",
+      "brasim_age": 30,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-225",
+      "status": "CORROBORATED",
+      "club_code": "BAH",
+      "position": "DF",
+      "wiul_player_id": "1017264",
+      "wiul_team_id": "1955",
+      "brasim_age": 26,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-227",
+      "status": "CORROBORATED",
+      "club_code": "BAH",
+      "position": "MF",
+      "wiul_player_id": "927975",
+      "wiul_team_id": "1955",
+      "brasim_age": 27,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-228",
+      "status": "CORROBORATED",
+      "club_code": "BAH",
+      "position": "MF",
+      "wiul_player_id": "145063",
+      "wiul_team_id": "1955",
+      "brasim_age": 36,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-230",
+      "status": "CORROBORATED",
+      "club_code": "BAH",
+      "position": "ST",
+      "wiul_player_id": "922546",
+      "wiul_team_id": "1955",
+      "brasim_age": 30,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-231",
+      "status": "CORROBORATED",
+      "club_code": "BAH",
+      "position": "ST",
+      "wiul_player_id": "123223",
+      "wiul_team_id": "1955",
+      "brasim_age": 34,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-232",
+      "status": "CORROBORATED",
+      "club_code": "BAH",
+      "position": "ST",
+      "wiul_player_id": "1104070",
+      "wiul_team_id": "1955",
+      "brasim_age": 25,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-234",
+      "status": "CORROBORATED",
+      "club_code": "CAP",
+      "position": "GK",
+      "wiul_player_id": "166491",
+      "wiul_team_id": "1967",
+      "brasim_age": 35,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-238",
+      "status": "CORROBORATED",
+      "club_code": "CAP",
+      "position": "DF",
+      "wiul_player_id": "2063956",
+      "wiul_team_id": "1967",
+      "brasim_age": 18,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-246",
+      "status": "CORROBORATED",
+      "club_code": "CAP",
+      "position": "MF",
+      "wiul_player_id": "1107060",
+      "wiul_team_id": "1967",
+      "brasim_age": 24,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-249",
+      "status": "CORROBORATED",
+      "club_code": "CAP",
+      "position": "MF",
+      "wiul_player_id": "1485226",
+      "wiul_team_id": "1967",
+      "brasim_age": 19,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-250",
+      "status": "CORROBORATED",
+      "club_code": "CAP",
+      "position": "MF",
+      "wiul_player_id": "243651",
+      "wiul_team_id": "1967",
+      "brasim_age": 32,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-251",
+      "status": "CORROBORATED",
+      "club_code": "CAP",
+      "position": "MF",
+      "wiul_player_id": "29735",
+      "wiul_team_id": "1967",
+      "brasim_age": 38,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-254",
+      "status": "CORROBORATED",
+      "club_code": "RBB",
+      "position": "GK",
+      "wiul_player_id": "844576",
+      "wiul_team_id": "1999",
+      "brasim_age": 28,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-256",
+      "status": "CORROBORATED",
+      "club_code": "RBB",
+      "position": "DF",
+      "wiul_player_id": "1174764",
+      "wiul_team_id": "1999",
+      "brasim_age": 24,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-257",
+      "status": "CORROBORATED",
+      "club_code": "RBB",
+      "position": "DF",
+      "wiul_player_id": "551774",
+      "wiul_team_id": "1999",
+      "brasim_age": 19,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-260",
+      "status": "CORROBORATED",
+      "club_code": "RBB",
+      "position": "DF",
+      "wiul_player_id": "870556",
+      "wiul_team_id": "1999",
+      "brasim_age": 28,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-263",
+      "status": "CORROBORATED",
+      "club_code": "RBB",
+      "position": "MF",
+      "wiul_player_id": "950545",
+      "wiul_team_id": "1999",
+      "brasim_age": 25,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-265",
+      "status": "CORROBORATED",
+      "club_code": "RBB",
+      "position": "ST",
+      "wiul_player_id": "1170680",
+      "wiul_team_id": "1999",
+      "brasim_age": 24,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-267",
+      "status": "CORROBORATED",
+      "club_code": "RBB",
+      "position": "ST",
+      "wiul_player_id": "143846",
+      "wiul_team_id": "1999",
+      "brasim_age": 33,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-269",
+      "status": "CORROBORATED",
+      "club_code": "MIR",
+      "position": "GK",
+      "wiul_player_id": "329055",
+      "wiul_team_id": "21982",
+      "brasim_age": 38,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-271",
+      "status": "CORROBORATED",
+      "club_code": "MIR",
+      "position": "DF",
+      "wiul_player_id": "794874",
+      "wiul_team_id": "21982",
+      "brasim_age": 32,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-273",
+      "status": "CORROBORATED",
+      "club_code": "MIR",
+      "position": "DF",
+      "wiul_player_id": "863297",
+      "wiul_team_id": "21982",
+      "brasim_age": 28,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-274",
+      "status": "CORROBORATED",
+      "club_code": "MIR",
+      "position": "DF",
+      "wiul_player_id": "243109",
+      "wiul_team_id": "21982",
+      "brasim_age": 36,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-277",
+      "status": "CORROBORATED",
+      "club_code": "MIR",
+      "position": "MF",
+      "wiul_player_id": "874723",
+      "wiul_team_id": "21982",
+      "brasim_age": 28,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-281",
+      "status": "CORROBORATED",
+      "club_code": "MIR",
+      "position": "ST",
+      "wiul_player_id": "872007",
+      "wiul_team_id": "21982",
+      "brasim_age": 26,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-286",
+      "status": "CORROBORATED",
+      "club_code": "CHA",
+      "position": "GK",
+      "wiul_player_id": "108480",
+      "wiul_team_id": "21845",
+      "brasim_age": 36,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-289",
+      "status": "CORROBORATED",
+      "club_code": "CHA",
+      "position": "DF",
+      "wiul_player_id": "1105232",
+      "wiul_team_id": "21845",
+      "brasim_age": 30,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-290",
+      "status": "CORROBORATED",
+      "club_code": "CHA",
+      "position": "DF",
+      "wiul_player_id": "942054",
+      "wiul_team_id": "21845",
+      "brasim_age": 28,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-292",
+      "status": "CORROBORATED",
+      "club_code": "CHA",
+      "position": "DF",
+      "wiul_player_id": "840280",
+      "wiul_team_id": "21845",
+      "brasim_age": 29,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-293",
+      "status": "CORROBORATED",
+      "club_code": "CHA",
+      "position": "DF",
+      "wiul_player_id": "863292",
+      "wiul_team_id": "21845",
+      "brasim_age": 28,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-295",
+      "status": "CORROBORATED",
+      "club_code": "CHA",
+      "position": "DF",
+      "wiul_player_id": "870691",
+      "wiul_team_id": "21845",
+      "brasim_age": 34,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-297",
+      "status": "CORROBORATED",
+      "club_code": "CHA",
+      "position": "MF",
+      "wiul_player_id": "1120738",
+      "wiul_team_id": "21845",
+      "brasim_age": 26,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-298",
+      "status": "CORROBORATED",
+      "club_code": "CHA",
+      "position": "MF",
+      "wiul_player_id": "82680",
+      "wiul_team_id": "21845",
+      "brasim_age": 36,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-299",
+      "status": "CORROBORATED",
+      "club_code": "CHA",
+      "position": "MF",
+      "wiul_player_id": "850475",
+      "wiul_team_id": "21845",
+      "brasim_age": 33,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-300",
+      "status": "CORROBORATED",
+      "club_code": "CHA",
+      "position": "MF",
+      "wiul_player_id": "973845",
+      "wiul_team_id": "21845",
+      "brasim_age": 31,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-301",
+      "status": "CORROBORATED",
+      "club_code": "CHA",
+      "position": "ST",
+      "wiul_player_id": "870329",
+      "wiul_team_id": "21845",
+      "brasim_age": 30,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-302",
+      "status": "CORROBORATED",
+      "club_code": "CHA",
+      "position": "ST",
+      "wiul_player_id": "1546812",
+      "wiul_team_id": "21845",
+      "brasim_age": 23,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-304",
+      "status": "CORROBORATED",
+      "club_code": "CHA",
+      "position": "ST",
+      "wiul_player_id": "992025",
+      "wiul_team_id": "21845",
+      "brasim_age": 31,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-307",
+      "status": "CORROBORATED",
+      "club_code": "CFC",
+      "position": "GK",
+      "wiul_player_id": "1092614",
+      "wiul_team_id": "1982",
+      "brasim_age": 25,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-308",
+      "status": "CORROBORATED",
+      "club_code": "CFC",
+      "position": "DF",
+      "wiul_player_id": "44691",
+      "wiul_team_id": "1982",
+      "brasim_age": 37,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-310",
+      "status": "CORROBORATED",
+      "club_code": "CFC",
+      "position": "DF",
+      "wiul_player_id": "378590",
+      "wiul_team_id": "1982",
+      "brasim_age": 36,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-311",
+      "status": "CORROBORATED",
+      "club_code": "CFC",
+      "position": "DF",
+      "wiul_player_id": "1124329",
+      "wiul_team_id": "1982",
+      "brasim_age": 21,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-312",
+      "status": "CORROBORATED",
+      "club_code": "CFC",
+      "position": "DF",
+      "wiul_player_id": "72080",
+      "wiul_team_id": "1982",
+      "brasim_age": 38,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-313",
+      "status": "CORROBORATED",
+      "club_code": "CFC",
+      "position": "DF",
+      "wiul_player_id": "330057",
+      "wiul_team_id": "1982",
+      "brasim_age": 32,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-314",
+      "status": "CORROBORATED",
+      "club_code": "CFC",
+      "position": "DF",
+      "wiul_player_id": "870851",
+      "wiul_team_id": "1982",
+      "brasim_age": 33,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-316",
+      "status": "CORROBORATED",
+      "club_code": "CFC",
+      "position": "MF",
+      "wiul_player_id": "295167",
+      "wiul_team_id": "1982",
+      "brasim_age": 32,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-317",
+      "status": "CORROBORATED",
+      "club_code": "CFC",
+      "position": "MF",
+      "wiul_player_id": "931479",
+      "wiul_team_id": "1982",
+      "brasim_age": 31,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-318",
+      "status": "CORROBORATED",
+      "club_code": "CFC",
+      "position": "MF",
+      "wiul_player_id": "1111139",
+      "wiul_team_id": "1982",
+      "brasim_age": 24,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-319",
+      "status": "CORROBORATED",
+      "club_code": "CFC",
+      "position": "MF",
+      "wiul_player_id": "77726",
+      "wiul_team_id": "1982",
+      "brasim_age": 35,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-320",
+      "status": "CORROBORATED",
+      "club_code": "CFC",
+      "position": "ST",
+      "wiul_player_id": "1172056",
+      "wiul_team_id": "1982",
+      "brasim_age": 21,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-321",
+      "status": "CORROBORATED",
+      "club_code": "CFC",
+      "position": "ST",
+      "wiul_player_id": "937552",
+      "wiul_team_id": "1982",
+      "brasim_age": 29,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-323",
+      "status": "CORROBORATED",
+      "club_code": "CFC",
+      "position": "ST",
+      "wiul_player_id": "787607",
+      "wiul_team_id": "1982",
+      "brasim_age": 36,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-324",
+      "status": "CORROBORATED",
+      "club_code": "CFC",
+      "position": "ST",
+      "wiul_player_id": "794930",
+      "wiul_team_id": "1982",
+      "brasim_age": 31,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-325",
+      "status": "CORROBORATED",
+      "club_code": "VIT",
+      "position": "GK",
+      "wiul_player_id": "982558",
+      "wiul_team_id": "1962",
+      "brasim_age": 27,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-327",
+      "status": "CORROBORATED",
+      "club_code": "VIT",
+      "position": "DF",
+      "wiul_player_id": "972373",
+      "wiul_team_id": "1962",
+      "brasim_age": 27,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-328",
+      "status": "CORROBORATED",
+      "club_code": "VIT",
+      "position": "DF",
+      "wiul_player_id": "980761",
+      "wiul_team_id": "1962",
+      "brasim_age": 24,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-329",
+      "status": "CORROBORATED",
+      "club_code": "VIT",
+      "position": "DF",
+      "wiul_player_id": "929200",
+      "wiul_team_id": "1962",
+      "brasim_age": 26,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-330",
+      "status": "CORROBORATED",
+      "club_code": "VIT",
+      "position": "DF",
+      "wiul_player_id": "905459",
+      "wiul_team_id": "1962",
+      "brasim_age": 24,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-334",
+      "status": "CORROBORATED",
+      "club_code": "VIT",
+      "position": "MF",
+      "wiul_player_id": "1188028",
+      "wiul_team_id": "1962",
+      "brasim_age": 25,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-337",
+      "status": "CORROBORATED",
+      "club_code": "VIT",
+      "position": "MF",
+      "wiul_player_id": "795266",
+      "wiul_team_id": "1962",
+      "brasim_age": 28,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-339",
+      "status": "CORROBORATED",
+      "club_code": "VIT",
+      "position": "ST",
+      "wiul_player_id": "895650",
+      "wiul_team_id": "1962",
+      "brasim_age": 28,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-340",
+      "status": "CORROBORATED",
+      "club_code": "VIT",
+      "position": "ST",
+      "wiul_player_id": "814723",
+      "wiul_team_id": "1962",
+      "brasim_age": 29,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-342",
+      "status": "CORROBORATED",
+      "club_code": "VIT",
+      "position": "ST",
+      "wiul_player_id": "798127",
+      "wiul_team_id": "1962",
+      "brasim_age": 35,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-343",
+      "status": "CORROBORATED",
+      "club_code": "REM",
+      "position": "GK",
+      "wiul_player_id": "870902",
+      "wiul_team_id": "2012",
+      "brasim_age": 37,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-344",
+      "status": "CORROBORATED",
+      "club_code": "REM",
+      "position": "GK",
+      "wiul_player_id": "795029",
+      "wiul_team_id": "2012",
+      "brasim_age": 28,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-347",
+      "status": "CORROBORATED",
+      "club_code": "REM",
+      "position": "DF",
+      "wiul_player_id": "221206",
+      "wiul_team_id": "2012",
+      "brasim_age": 33,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-350",
+      "status": "CORROBORATED",
+      "club_code": "REM",
+      "position": "DF",
+      "wiul_player_id": "986868",
+      "wiul_team_id": "2012",
+      "brasim_age": 27,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-351",
+      "status": "CORROBORATED",
+      "club_code": "REM",
+      "position": "DF",
+      "wiul_player_id": "953736",
+      "wiul_team_id": "2012",
+      "brasim_age": 26,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-353",
+      "status": "CORROBORATED",
+      "club_code": "REM",
+      "position": "MF",
+      "wiul_player_id": "943044",
+      "wiul_team_id": "2012",
+      "brasim_age": 26,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-355",
+      "status": "CORROBORATED",
+      "club_code": "REM",
+      "position": "MF",
+      "wiul_player_id": "1015291",
+      "wiul_team_id": "2012",
+      "brasim_age": 26,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-358",
+      "status": "CORROBORATED",
+      "club_code": "REM",
+      "position": "MF",
+      "wiul_player_id": "808785",
+      "wiul_team_id": "2012",
+      "brasim_age": 31,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-359",
+      "status": "CORROBORATED",
+      "club_code": "REM",
+      "position": "ST",
+      "wiul_player_id": "954719",
+      "wiul_team_id": "2012",
+      "brasim_age": 31,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-360",
+      "status": "CORROBORATED",
+      "club_code": "REM",
+      "position": "ST",
+      "wiul_player_id": "363688",
+      "wiul_team_id": "2012",
+      "brasim_age": 33,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    },
+    {
+      "id": "BR26-361",
+      "status": "CORROBORATED",
+      "club_code": "REM",
+      "position": "ST",
+      "wiul_player_id": "933955",
+      "wiul_team_id": "2012",
+      "brasim_age": 28,
+      "method": "exact normalized name + same 2026 club in wiUl and BRASIM26 + matching macro position"
+    }
+  ]
+}
