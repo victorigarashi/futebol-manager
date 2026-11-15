@@ -245,6 +245,10 @@ async def start_room(room_id: str, identity: GuestIdentity = Depends(current_ide
         raise HTTPException(status_code=409, detail="Escolha um clube antes de iniciar a temporada.")
     if room.phase != "WAITING":
         raise HTTPException(status_code=409, detail="A temporada já foi iniciada.")
+    # Custom leagues have an exact fixture list. Complete their unclaimed slots here
+    # so a host can start a 4/6/8… club league without an invisible manual bot step.
+    await room_manager.complete_with_bots(room_id, identity.id)
+    room = room_manager._room(room_id)
     settings = get_settings()
     try:
         catalog = create_demo_catalog() if settings.enable_demo_catalog else load_catalog(settings.player_catalog_path)

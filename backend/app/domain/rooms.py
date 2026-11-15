@@ -342,6 +342,37 @@ class RoomManager:
             self._rooms[room_id] = draft
             return self._state(draft)
 
+    async def complete_with_bots(self, room_id: str, user_id: str) -> dict[str, object]:
+        """Fill a custom league's remaining club slots with deterministic system bots.
+
+        The 20-club legacy lobby still represents unclaimed teams implicitly. Smaller
+        leagues need explicit teams because their fixture list is defined by exactly
+        the selected clubs.
+        """
+        self._room(room_id)
+        async with self._locks[room_id]:
+            room = self._room(room_id)
+            if room.host_user_id != user_id:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Apenas o anfitrião pode completar a liga com bots.")
+            if room.phase != "WAITING":
+                raise HTTPException(status_code=409, detail="Bots só podem ser adicionados antes do início.")
+            if room.team_count == 20:
+                return self._state(room)
+            draft = copy.deepcopy(room)
+            claimed = {member.selected_club_code for member in draft.participants.values() if member.selected_club_code}
+            available = [club.code for club in CLUBS if club.code not in claimed]
+            while len(draft.participants) < draft.team_count:
+                selected = available.pop(0) if available else None
+                if selected is None:
+                    raise HTTPException(status_code=409, detail="Não há clubes suficientes para completar a liga.")
+                number = sum(member.role == "BOT" for member in draft.participants.values()) + 1
+                bot_id = f"bot:{number}:{selected}"
+                draft.participants[bot_id] = Participant(bot_id, f"Bot {selected}", "BOT", selected)
+            if draft.participants != room.participants:
+                draft.revision += 1
+                self._rooms[room_id] = draft
+            return self._state(draft)
+
     async def remove_bot(self, room_id: str, user_id: str, club_code: str) -> dict[str, object]:
         self._room(room_id)
         async with self._locks[room_id]:

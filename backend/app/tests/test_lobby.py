@@ -143,6 +143,24 @@ def test_market_api_starts_and_keeps_offers_private_with_test_catalog(monkeypatc
         assert state["offers"] == [offer.json()["data"]]
 
 
+def test_starting_custom_league_completes_open_slots_with_bots(monkeypatch) -> None:
+    monkeypatch.setattr("app.api.routes.load_catalog", lambda _path: synthetic_catalog("FIVE_A_SIDE", teams=4))
+    app = create_app()
+    with TestClient(app) as host:
+        guest(host)
+        payload = {**room_payload(), "team_count": 4, "max_human_participants": 1, "market_mode": "COINS"}
+        room_id = host.post("/api/v1/rooms", json=payload).json()["data"]["id"]
+        assert host.put(f"/api/v1/rooms/{room_id}/participants/me/club", json={"club_code": "SAO"}).status_code == 200
+        started = host.post(f"/api/v1/rooms/{room_id}/start")
+        assert started.status_code == 200
+        state = started.json()["data"]
+        assert state["phase"] == "INITIAL_MARKET"
+        assert state["bot_count"] == 3
+        clubs = {member["selected_club_code"] for member in state["participants"]}
+        assert len(clubs) == 4
+        assert "SAO" in clubs
+
+
 def test_market_two_coaches_selection_reassignment_and_review(monkeypatch) -> None:
     monkeypatch.setattr("app.api.routes.load_catalog", lambda _path: synthetic_catalog("FIVE_A_SIDE", teams=20))
     app = create_app()
