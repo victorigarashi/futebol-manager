@@ -1,5 +1,6 @@
-import type { CSSProperties } from "react";
+import { useState, type CSSProperties } from "react";
 import type { Club } from "../lib/api";
+import { CLUB_CREST_URLS } from "../lib/clubMedia";
 
 type ClubCrestProps = {
   club: Club;
@@ -16,6 +17,9 @@ const crestPositions: Record<Club["code"], { x: number; y: number }> = {
 };
 
 export function ClubCrest({ club, size = "md" }: ClubCrestProps) {
+  const [imageFailed, setImageFailed] = useState(false);
+  const crestUrl = CLUB_CREST_URLS[club.code];
+  if (crestUrl && !imageFailed) return <span className={`club-crest club-crest--${size} club-crest--image`} role="img" aria-label={`Escudo do ${club.name}`}><img src={crestUrl} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={() => setImageFailed(true)} /></span>;
   const position = crestPositions[club.code];
   if (!position) return <span className={`club-crest club-crest--${size} club-crest--fallback`} role="img" aria-label={`Identidade provisória do ${club.name}; escudo autorizado indisponível`} title="Escudo correto indisponível nos recursos fornecidos">{club.code}</span>;
   return <span className={`club-crest club-crest--${size}`} role="img" aria-label={`Escudo do ${club.name}`} style={{ "--crest-x": `${position.x}px`, "--crest-y": `${position.y}px` } as CSSProperties}><span className="sr-only">Escudo do {club.name}</span></span>;

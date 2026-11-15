@@ -61,9 +61,10 @@ def test_market_completes_valid_rosters_and_distributes_remaining_players() -> N
 
 
 def test_viability_explains_missing_position_and_insufficient_budget() -> None:
+    # Own players and free generics complete any roster, so only a negative budget is refused.
     catalog = synthetic_catalog("FIVE_A_SIDE")
     catalog.players = [player for player in catalog.players if player.position != "GK"]
-    game = InitialMarket(catalog, "FIVE_A_SIDE", {"FLA": 1})
+    game = InitialMarket(catalog, "FIVE_A_SIDE", {"FLA": -1})
     viability = game.viable()
     assert not viability.viable
     assert any("GK" in reason for reason in viability.reasons)

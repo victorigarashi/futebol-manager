@@ -1,0 +1,184 @@
+{
+  "clubs": [
+    {
+      "code": "BAH",
+      "name": "Bahia",
+      "formation": "4-3-3",
+      "crest_url": "https://patchfcm.fcmania.com.br/imagens/fcm27/escudos/l1598.webp",
+      "source_ids": {
+        "fcmania": "1598"
+      }
+    },
+    {
+      "code": "BOT",
+      "name": "Botafogo",
+      "formation": "4-2-3-1",
+      "crest_url": "https://patchfcm.fcmania.com.br/imagens/fcm27/escudos/l517.webp",
+      "source_ids": {
+        "fcmania": "517"
+      }
+    },
+    {
+      "code": "CAM",
+      "name": "Atlético-MG",
+      "formation": "4-3-3",
+      "crest_url": "https://patchfcm.fcmania.com.br/imagens/fcm27/escudos/l1035.webp",
+      "source_ids": {
+        "fcmania": "1035"
+      }
+    },
+    {
+      "code": "CAP",
+      "name": "Athletico-PR",
+      "formation": "3-4-2-1",
+      "crest_url": "https://patchfcm.fcmania.com.br/imagens/fcm27/escudos/l1039.webp",
+      "source_ids": {
+        "fcmania": "1039"
+      }
+    },
+    {
+      "code": "CFC",
+      "name": "Coritiba",
+      "formation": "4-3-3",
+      "crest_url": "https://patchfcm.fcmania.com.br/imagens/fcm27/escudos/l111044.webp",
+      "source_ids": {
+        "fcmania": "111044"
+      }
+    },
+    {
+      "code": "CHA",
+      "name": "Chapecoense",
+      "formation": "4-2-3-1",
+      "crest_url": "https://patchfcm.fcmania.com.br/imagens/fcm27/escudos/l112476.webp",
+      "source_ids": {
+        "fcmania": "112476"
+      }
+    },
+    {
+      "code": "COR",
+      "name": "Corinthians",
+      "formation": "4-1-2-1",
+      "crest_url": "https://patchfcm.fcmania.com.br/imagens/fcm27/escudos/l1041.webp",
+      "source_ids": {
+        "fcmania": "1041"
+      }
+    },
+    {
+      "code": "CRU",
+      "name": "Cruzeiro",
+      "formation": "4-2-3-1",
+      "crest_url": "https://patchfcm.fcmania.com.br/imagens/fcm27/escudos/l568.webp",
+      "source_ids": {
+        "fcmania": "568"
+      }
+    },
+    {
+      "code": "FLA",
+      "name": "Flamengo",
+      "formation": "4-2-3-1",
+      "crest_url": "https://patchfcm.fcmania.com.br/imagens/fcm27/escudos/l1043.webp",
+      "source_ids": {
+        "fcmania": "1043"
+      }
+    },
+    {
+      "code": "FLU",
+      "name": "Fluminense",
+      "formation": "4-2-3-1",
+      "crest_url": "https://patchfcm.fcmania.com.br/imagens/fcm27/escudos/l567.webp",
+      "source_ids": {
+        "fcmania": "567"
+      }
+    },
+    {
+      "code": "GRE",
+      "name": "Grêmio",
+      "formation": "4-1-4-1",
+      "crest_url": "https://patchfcm.fcmania.com.br/imagens/fcm27/escudos/l1629.webp",
+      "source_ids": {
+        "fcmania": "1629"
+      }
+    },
+    {
+      "code": "INT",
+      "name": "Internacional",
+      "formation": "5-4-1",
+      "crest_url": "https://patchfcm.fcmania.com.br/imagens/fcm27/escudos/l1048.webp",
+      "source_ids": {
+        "fcmania": "1048"
+      }
+    },
+    {
+      "code": "MIR",
+      "name": "Mirassol",
+      "formation": "4-3-3",
+      "crest_url": "https://patchfcm.fcmania.com.br/imagens/fcm27/escudos/l111975.webp",
+      "source_ids": {
+        "fcmania": "111975"
+      }
+    },
+    {
+      "code": "PAL",
+      "name": "Palmeiras",
+      "formation": "3-4-2-1",
+      "crest_url": "https://patchfcm.fcmania.com.br/imagens/fcm27/escudos/l383.webp",
+      "source_ids": {
+        "fcmania": "383"
+      }
+    },
+    {
+      "code": "RBB",
+      "name": "RB Bragantino",
+      "formation": "4-2-3-1",
+      "crest_url": "https://patchfcm.fcmania.com.br/imagens/fcm27/escudos/l112472.webp",
+      "source_ids": {
+        "fcmania": "112472"
+      }
+    },
+    {
+      "code": "REM",
+      "name": "Remo",
+      "formation": "4-3-3",
+      "crest_url": "https://patchfcm.fcmania.com.br/imagens/fcm27/escudos/l115458.webp",
+      "source_ids": {
+        "fcmania": "115458"
+      }
+    },
+    {
+      "code": "SAN",
+      "name": "Santos",
+      "formation": "4-2-3-1",
+      "crest_url": "https://patchfcm.fcmania.com.br/imagens/fcm27/escudos/l1053.webp",
+      "source_ids": {
+        "fcmania": "1053"
+      }
+    },
+    {
+      "code": "SAO",
+      "name": "São Paulo",
+      "formation": "3-4-2-1",
+      "crest_url": "https://patchfcm.fcmania.com.br/imagens/fcm27/escudos/l598.webp",
+      "source_ids": {
+        "fcmania": "598"
+      }
+    },
+    {
+      "code": "VAS",
+      "name": "Vasco da Gama",
+      "formation": "4-3-3",
+      "crest_url": "https://patchfcm.fcmania.com.br/imagens/fcm27/escudos/l569.webp",
+      "source_ids": {
+        "fcmania": "569"
+      }
+    },
+    {
+      "code": "VIT",
+      "name": "Vitória",
+      "formation": "4-2-3-1",
+      "crest_url": "https://patchfcm.fcmania.com.br/imagens/fcm27/escudos/l1719.webp",
+      "source_ids": {
+        "fcmania": "1719"
+      }
+    }
+  ]
+}

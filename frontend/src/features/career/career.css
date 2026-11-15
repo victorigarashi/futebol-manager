@@ -410,3 +410,8 @@
 .possession-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 0 3px rgb(144 252 163 / 25%); animation: pulse-dot 1.2s ease-in-out infinite; }
 @keyframes pulse-dot { 50% { box-shadow: 0 0 0 6px rgb(144 252 163 / 0%); } }
 @media (prefers-reduced-motion: reduce) { .possession-dot, .pitch-cut, .pitch-banner { animation: none; } }
+
+/* Player faces in squad lists. */
+.bench-item, .top-players li { grid-template-columns: auto auto 1fr auto; }
+.bench-item .player-photo, .top-players .player-photo { margin-right: 0; }
+.player-sheet header { grid-template-columns: auto auto 1fr auto; }

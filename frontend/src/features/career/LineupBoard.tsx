@@ -5,6 +5,7 @@ import { api, type Formation, type Squad, type SquadPlayer } from "../../lib/api
 import { formatMoney } from "../../lib/format";
 import { ATTRIBUTE_LABEL, POSITION_LABEL, POSITION_NAME } from "./labels";
 import { autoPick, carryOver, fit, teamStrength } from "./lineup";
+import { PlayerPhoto } from "../../components/PlayerPhoto";
 
 type Pick = { kind: "slot"; id: string } | { kind: "player"; id: string } | null;
 
@@ -128,7 +129,7 @@ export function LineupBoard({ roomId, locked, onSaved }: { roomId: string; locke
           const target = pick?.kind === "slot" ? formation.slots.find((s) => s.id === pick.id) : undefined;
           const targetFit = target ? fit(player, target.position) : null;
           return <li key={player.id}><button type="button" className={`bench-item ${active ? "is-picked" : ""}`} draggable={!disabled} onDragStart={(event) => event.dataTransfer.setData("text/plain", `player:${player.id}`)} onClick={() => choose({ kind: "player", id: player.id })} aria-pressed={active}>
-            <span className="pos">{POSITION_LABEL[player.position]}</span><b>{player.name}</b><span className="ovr">{player.overall}</span>
+            <PlayerPhoto name={player.name} photoUrl={player.photo_url} size="xs" /><span className="pos">{POSITION_LABEL[player.position]}</span><b>{player.name}</b><span className="ovr">{player.overall}</span>
             {targetFit && <small className={`fit fit--${targetFit.kind}`}>{targetFit.kind === "natural" ? "Posição ideal" : targetFit.kind === "secondary" ? "Posição secundária" : `Improvisado (${targetFit.rating})`}</small>}
           </button></li>;
         })}</ul>
@@ -151,7 +152,7 @@ function PlayerSheet({ player, other, slotPosition, players, onCompare, compareI
   const otherAttributes = other ? other.match_attributes ?? other.attributes ?? {} : {};
   const positionFit = slotPosition ? fit(player, slotPosition) : null;
   return <>
-    <header><span className="pos">{POSITION_LABEL[player.position]}</span><h3>{player.name}</h3><b className="ovr ovr--big">{player.overall}</b></header>
+    <header><PlayerPhoto name={player.name} photoUrl={player.photo_url} size="md" /><span className="pos">{POSITION_LABEL[player.position]}</span><h3>{player.name}</h3><b className="ovr ovr--big">{player.overall}</b></header>
     <dl className="mini-stats"><div><dt>Idade</dt><dd>{player.age ?? "—"}</dd></div><div><dt>Potencial</dt><dd>{player.potential}</dd></div><div><dt>Valor</dt><dd>{formatMoney(player.internal_market_value_cents ?? player.market_value_cents)}</dd></div>{player.overall_delta ? <div><dt>Evolução</dt><dd>{player.overall_delta > 0 ? "+" : ""}{player.overall_delta}</dd></div> : null}</dl>
     {positionFit && <p className={`fit fit--${positionFit.kind}`}>{positionFit.kind === "natural" ? "Jogando na posição ideal" : positionFit.kind === "secondary" ? "Posição secundária, sem perda" : `Improvisado: rende como ${positionFit.rating}`}</p>}
     <label className="field field--inline"><span>Comparar com</span><select value={compareId ?? ""} onChange={(event) => onCompare(event.target.value || null)}><option value="">—</option>{players.filter((p) => p.id !== player.id).map((p) => <option key={p.id} value={p.id}>{POSITION_LABEL[p.position]} · {p.name} ({p.overall})</option>)}</select></label>

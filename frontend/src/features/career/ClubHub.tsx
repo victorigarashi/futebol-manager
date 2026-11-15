@@ -4,6 +4,7 @@ import { api, type Club, type RoomState, type SeasonView } from "../../lib/api";
 import { ClubCrest } from "../../components/ClubCrest";
 import { formatMoney } from "../../lib/format";
 import { POSITION_LABEL } from "./labels";
+import { PlayerPhoto } from "../../components/PlayerPhoto";
 
 export type CareerTab = "hub" | "squad" | "tactics" | "market" | "season" | "table" | "stats" | "next";
 type Props = { roomId: string; room: RoomState; season: SeasonView; clubCode: string; clubs: Club[]; onGo: (tab: CareerTab) => void; onOpenMatch: (id: string) => void };
@@ -72,7 +73,7 @@ export function ClubHub({ roomId, room, season, clubCode, clubs, onGo, onOpenMat
     <section className="hub-card hub-news"><h3>Resenha do campeonato</h3><ul>{news.map((item, index) => <li key={index}><em>{item.tag}</em><p>{item.text}</p></li>)}</ul></section>
 
     <section className="hub-card hub-squad"><h3>Elenco</h3><div className="big-number"><b>{average ? average.toFixed(1) : "—"}</b><span>OVR médio · {players.length} atletas</span></div>
-      <ul className="top-players">{best.map((p) => <li key={p.id}><span className="pos">{POSITION_LABEL[p.position]}</span><b>{p.name}</b><span className="ovr">{p.overall}</span></li>)}</ul>
+      <ul className="top-players">{best.map((p) => <li key={p.id}><PlayerPhoto name={p.name} photoUrl={p.photo_url} size="xs" /><span className="pos">{POSITION_LABEL[p.position]}</span><b>{p.name}</b><span className="ovr">{p.overall}</span></li>)}</ul>
       <div className="hub-links"><button type="button" className="link" onClick={() => onGo("squad")}>Escalação →</button><button type="button" className="link" onClick={() => onGo("tactics")}>Táticas →</button></div></section>
 
     <section className="hub-card hub-market"><h3>Finanças e mercado</h3><div className="big-number"><b>{squad.data ? formatMoney(squad.data.budget_cents) : "—"}</b><span>em caixa</span></div><p className="hint">{season.transfer_window_open ? "Janela aberta: propostas e trocas liberadas." : "A janela de transferências abre após a rodada 19."}</p><button type="button" className="link" onClick={() => onGo("market")}>Mercado →</button></section>

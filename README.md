@@ -6,7 +6,7 @@ Beta de futebol multiplayer para jogar com amigos: ligas de 20 clubes, mercado s
 
 ## Início rápido em demonstração
 
-O catálogo autorizado real ainda não foi fornecido. Para testar com dados sintéticos claramente identificados:
+O jogo usa o catálogo real em `data/catalogs/players.json`. Para testar com dados sintéticos claramente identificados:
 
 ```sh
 APP_ENVIRONMENT=development ENABLE_DEMO_CATALOG=true docker compose up --build
@@ -14,7 +14,7 @@ APP_ENVIRONMENT=development ENABLE_DEMO_CATALOG=true docker compose up --build
 
 Abra `http://localhost:5174`. Crie o nome do técnico e a liga, escolha um clube e compartilhe o código. Use navegadores/perfis separados para cada técnico. O anfitrião inicia o mercado depois que todos escolhem seus clubes.
 
-O demo está desligado por padrão e é recusado em produção. Sem demo, configure um catálogo autorizado antes de iniciar o mercado. Fotos licenciadas de atletas não estão incluídas.
+O demo está desligado por padrão e é recusado em produção. Sem demo, configure um catálogo autorizado antes de iniciar o mercado. O catálogo operacional (`data/catalogs/players.json`) traz 320 atletas reais com foto e os 20 escudos; veja [Catálogo FCM](docs/CATALOGO_FCM.md).
 
 ## O que a beta inclui
 
@@ -36,6 +36,7 @@ O demo está desligado por padrão e é recusado em produção. Sem demo, config
 - [Modo demo e pendências de dados reais](docs/DEMO.md)
 - [Entrega parcial de dados reais e auditoria de fontes](docs/CATALOG_DATA_DELIVERY.md)
 - [Pipeline de importação e promoção do catálogo](data/importers/README.md)
+- [Catálogo de jogadores e clubes com fotos (lista FCM 27)](docs/CATALOGO_FCM.md)
 - [Testes e reprodução dos scripts de navegador](docs/TESTING.md)
 - [Auditoria de UI e correções](docs/FINAL_UI_AUDIT.md)
 - [Auditoria do backend](docs/BACKEND_AUDIT.md)

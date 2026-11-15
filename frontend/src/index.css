@@ -210,3 +210,18 @@ body { overflow-x: hidden; }
 .match-settings--compact { margin: .8rem 0 0; }
 @keyframes match-settings-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 @media (max-width: 640px) { .choice-grid--three { grid-template-columns: 1fr; } .match-settings__choices { width: 100%; } }
+
+/* Player faces and club crests from the supplied squad list (fallbacks stay local). */
+.player-photo { display: inline-block; flex: 0 0 auto; object-fit: cover; object-position: top center; border-radius: 50%; background: linear-gradient(160deg, #243241, #121a22); border: 1px solid var(--line); vertical-align: middle; }
+.player-photo--fallback { display: inline-grid; place-items: center; color: var(--lime); font-weight: 800; }
+.player-photo--xs { width: 28px; height: 28px; font-size: .62rem; margin-right: .45rem; }
+.player-photo--sm { width: 40px; height: 40px; font-size: .78rem; }
+.player-photo--md { width: 60px; height: 60px; font-size: 1.05rem; }
+.player-photo--lg { width: 96px; height: 96px; font-size: 1.6rem; }
+.market-player .player-photo.beta-player-portrait { width: 60px; height: 72px; border-radius: var(--radius-sm, .4rem); }
+.transfer-player-summary .player-photo, .player-sheet header .player-photo { margin-bottom: .35rem; }
+.transfer-listings article { display: flex; align-items: center; gap: .6rem; }
+.transfer-listings article > div { flex: 1; min-width: 0; }
+.career-ledger th .player-photo { margin-right: .5rem; }
+.club-crest.club-crest--image { background-image: none !important; background-color: transparent; clip-path: none; display: inline-grid; place-items: center; }
+.club-crest--image img { width: 100%; height: 100%; object-fit: contain; }

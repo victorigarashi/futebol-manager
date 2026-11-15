@@ -272,6 +272,11 @@ def test_http_live_round_commands_frames_authorization_and_reconnection(live, mo
                 frames = client.get(base + "/season/live/frames?since=-1", headers=headers1).json()["data"]
                 assert frames["match_id"] == own["match"]["id"] and frames["frames"][-1]["t"] <= own["match"]["tick"]
                 assert frames["broadcast"] and frames["broadcast"][0]["r0"] <= now[0]
+                for _ in range(8):  # the screen may sit exactly on a cut landing (one frame): let it play on
+                    if len(frames["frames"]) >= 2:
+                        break
+                    now[0] += 0.5
+                    frames = client.get(base + "/season/live/frames?since=-1", headers=headers1).json()["data"]
                 assert len(frames["frames"]) >= 2
                 cursor = frames["frames"][-2]["t"]  # a client that already holds everything up to here
                 resumed = client.get(base + f"/season/live/frames?since={cursor}", headers=headers1).json()["data"]

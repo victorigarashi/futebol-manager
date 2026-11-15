@@ -116,9 +116,10 @@ class InitialMarket:
         required_count = sum(self.slots.values()) * total_teams
         if len(self.catalog) < required_count:
             reasons.append(f"Faltam {required_count - len(self.catalog)} atletas para completar os elencos.")
-        minimum_roster_cost = sum(sorted(player.market_value_cents for player in self.catalog.values())[:sum(self.slots.values())])
+        # No budget floor: a club that buys nobody keeps its own catalog players for free and
+        # finalize_rosters completes any gap with free generics, so every budget >= 0 is playable.
         for team in self.teams.values():
-            if team.budget_cents < minimum_roster_cost:
+            if team.budget_cents < 0:
                 reasons.append(f"{team.club_code} não possui orçamento para o elenco mínimo.")
         return MarketViability(viable=not reasons, reasons=reasons)
 

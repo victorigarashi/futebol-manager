@@ -39,6 +39,11 @@ class CatalogPlayer(BaseModel):
     market_value_cents: int = Field(ge=0)
     source: str = Field(min_length=1)
     source_version: str = Field(min_length=1)
+    # Optional presentation metadata from the supplied squad list (absent on legacy entries).
+    source_ids: dict[str, str] = Field(default_factory=dict)
+    shirt_number: int | None = Field(default=None, ge=0, le=99)
+    squad_role: str | None = None
+    photo_url: str | None = Field(default=None, pattern=r"^https://")
 
     @field_validator("id", "name", "source", "source_version", "nationality", "verification_status")
     @classmethod

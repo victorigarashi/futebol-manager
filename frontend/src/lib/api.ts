@@ -27,7 +27,7 @@ export type Participant = {
   selected_club_code: string | null;
 };
 export type RoomState = Room & { participants: Participant[] };
-export type MarketPlayer = { for_sale?: boolean; base_overall?: number; overall_delta?: number; internal_market_value_cents?: number; id: string; name: string; club_code: string; age: number; position: string; overall: number; potential: number; market_value_cents: number };
+export type MarketPlayer = { for_sale?: boolean; base_overall?: number; overall_delta?: number; internal_market_value_cents?: number; id: string; name: string; club_code: string; age: number; position: string; overall: number; potential: number; market_value_cents: number; photo_url?: string | null; shirt_number?: number | null; squad_role?: "STARTER" | "RESERVE" | null };
 export type MarketOffer = { id: string; player_id: string; amount_cents: number; status: string };
 export type TransferOffer = { id: string; idempotency_key: string; buyer_club: string; seller_club: string; incoming_player_id: string; offered_player_id: string; amount_cents: number; status: string; counter_cents: number | null };
 export type TransferClub = { club_code: string; players: MarketPlayer[] };

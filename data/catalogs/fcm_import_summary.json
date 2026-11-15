@@ -1,0 +1,43 @@
+{
+  "catalog_version": "brasileirao-fcm27-2026-11-15",
+  "players": 320,
+  "clubs": 20,
+  "players_per_club": {
+    "BAH": 16,
+    "BOT": 16,
+    "CAM": 16,
+    "CAP": 16,
+    "CFC": 16,
+    "CHA": 16,
+    "COR": 16,
+    "CRU": 16,
+    "FLA": 16,
+    "FLU": 16,
+    "GRE": 16,
+    "INT": 16,
+    "MIR": 16,
+    "PAL": 16,
+    "RBB": 16,
+    "REM": 16,
+    "SAN": 16,
+    "SAO": 16,
+    "VAS": 16,
+    "VIT": 16
+  },
+  "kept_existing_ids": 116,
+  "new_ids": 204,
+  "previous_real_players_not_in_list": 60,
+  "synthetic_players_removed": 144,
+  "positions": {
+    "GK": 40,
+    "DF": 138,
+    "MF": 82,
+    "ST": 60
+  },
+  "with_photo": 320,
+  "attacking_midfielders_on_st_line": [
+    "Hakim Ziyech",
+    "Cristian Medina",
+    "Memphis Depay"
+  ]
+}
