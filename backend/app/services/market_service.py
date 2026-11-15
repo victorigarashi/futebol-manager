@@ -50,10 +50,10 @@ class MarketService:
         self._clock = clock
         self._sleep = sleep
 
-    def start(self, room_id: str, catalog: PlayerCatalog, mode: str, teams: dict[str, int], duration_seconds: int, notify: Notify, on_resolved: Resolved | None = None, *, withdrawal_penalty_percent: int = 5, on_progressed: Progressed | None = None) -> MarketSession:
+    def start(self, room_id: str, catalog: PlayerCatalog, mode: str, teams: dict[str, int], duration_seconds: int, notify: Notify, on_resolved: Resolved | None = None, *, withdrawal_penalty_percent: int = 5, on_progressed: Progressed | None = None, market_mode: str = "TRADITIONAL") -> MarketSession:
         if room_id in self.sessions:
             return self.sessions[room_id]
-        market = InitialMarket(catalog, mode, teams, withdrawal_penalty_percent)
+        market = InitialMarket(catalog, mode, teams, withdrawal_penalty_percent, market_mode)
         viability = market.viable()
         if not viability.viable:
             raise MarketError("Mercado inviável: " + " ".join(viability.reasons))
@@ -69,6 +69,7 @@ class MarketService:
         market = session.market
         return {
             "room_id": room_id, "ends_at": session.ends_at, "finalized": session.finalized,
+            "market_mode": market.market_mode, "currency": market.currency,
             "catalog": market.catalog_payload, "mode": market.mode, "resolved": market.resolved,
             "penalty_percent": market.penalty_percent, "commitments": market.commitments,
             "excess_offers": market.excess_offers, "confirmed_clubs": sorted(market.confirmed_clubs),
@@ -92,7 +93,7 @@ class MarketService:
             raise ValueError("Snapshot do mercado não contém clubes válidos.")
         mode = str(payload["mode"])
         penalty = int(payload.get("penalty_percent", 5))
-        market = InitialMarket(catalog, mode, {str(code): int(team["budget_cents"]) for code, team in teams_payload.items()}, penalty)
+        market = InitialMarket(catalog, mode, {str(code): int(team["budget_cents"]) for code, team in teams_payload.items()}, penalty, str(payload.get("market_mode", "TRADITIONAL")))
         self.registry._markets[room_id] = market
         self.registry._locks[room_id] = asyncio.Lock()
         for code, team_payload in teams_payload.items():
@@ -378,7 +379,7 @@ class MarketService:
         team = market.teams[club_code]
         mine = [offer for offer in market.offers.values() if offer.club_code == club_code]
         current_time = self._clock()
-        return {"phase": session.market_phase, "ends_at": session.ends_at, "remaining_seconds": max(0, int(session.ends_at - current_time)) if not market.resolved else max(0, int(((session.selection_ends_at if session.market_phase == "MARKET_SELECTION" else session.reassignment_ends_at) or current_time) - current_time)), "resolved": market.resolved, "total_budget_cents": team.total_budget_cents, "budget_cents": team.budget_cents, "spent_cents": team.spent_cents, "reserved_cents": team.reserved_cents, "available_cents": team.available_cents, "offer_limit": market.offer_limit, "active_offer_count": sum(offer.status == OfferStatus.ACTIVE for offer in mine), "withdrawal_penalty_percent": market.penalty_percent, "roster": list(team.roster), "offers": [self._offer_view(offer) for offer in mine]}
+        return {"phase": session.market_phase, "ends_at": session.ends_at, "remaining_seconds": max(0, int(session.ends_at - current_time)) if not market.resolved else max(0, int(((session.selection_ends_at if session.market_phase == "MARKET_SELECTION" else session.reassignment_ends_at) or current_time) - current_time)), "resolved": market.resolved, "market_mode": market.market_mode, "currency": market.currency, "total_budget_cents": team.total_budget_cents, "budget_cents": team.budget_cents, "spent_cents": team.spent_cents, "reserved_cents": team.reserved_cents, "available_cents": team.available_cents, "offer_limit": market.offer_limit, "active_offer_count": sum(offer.status == OfferStatus.ACTIVE for offer in mine), "withdrawal_penalty_percent": market.penalty_percent, "roster": list(team.roster), "offers": [self._offer_view(offer) for offer in mine]}
 
     def result_for(self, room_id: str, club_code: str) -> dict[str, object]:
         session = self._session(room_id)

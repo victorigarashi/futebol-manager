@@ -56,6 +56,7 @@ class RoomSeason:
     human_clubs: set[str] = field(default_factory=set)
     # When the current round became available for preparation (server clock).
     preparation_opened_at: float | None = None
+    double_round_robin: bool = True
 
 
 class SeasonService:
@@ -69,9 +70,9 @@ class SeasonService:
         self.intro_seconds = intro_seconds
         self._seasons: dict[str, RoomSeason] = {}
 
-    def create(self, room_id: str, market: InitialMarket) -> RoomSeason:
+    def create(self, room_id: str, market: InitialMarket, *, double_round_robin: bool = True) -> RoomSeason:
         if room_id not in self._seasons:
-            self._seasons[room_id] = RoomSeason(SeasonState(generate_calendar(tuple(market.teams))), market.mode, current_overalls={player_id: player.overall for player_id, player in market.catalog.items()},
+            self._seasons[room_id] = RoomSeason(SeasonState(generate_calendar(tuple(market.teams), double_round_robin=double_round_robin)), market.mode, current_overalls={player_id: player.overall for player_id, player in market.catalog.items()},
                                                 preparation_opened_at=self.clock())
         return self._seasons[room_id]
 
@@ -81,21 +82,21 @@ class SeasonService:
             raise MarketError("A temporada atual precisa terminar antes de começar outra.")
         summary = {"season_number": previous.season_number, "champion": previous.playoffs.champion, "table": standings(tuple(market.teams), previous.state.fixtures, previous.state.results), "playoffs": previous.playoffs.view(), "top_scorers": self._top_scorers(previous)}
         history = [*previous.season_history, summary]
-        self._seasons[room_id] = RoomSeason(SeasonState(generate_calendar(tuple(market.teams))), market.mode, season_number=previous.season_number + 1, current_overalls=dict(previous.current_overalls), development_records=list(previous.development_records), season_history=history)
+        self._seasons[room_id] = RoomSeason(SeasonState(generate_calendar(tuple(market.teams), double_round_robin=previous.double_round_robin)), market.mode, season_number=previous.season_number + 1, current_overalls=dict(previous.current_overalls), development_records=list(previous.development_records), season_history=history, double_round_robin=previous.double_round_robin)
         return self.view(room_id)
 
     def ready(self, room_id: str, club_code: str) -> dict[str, object]:
         season = self._season(room_id)
         if season.live_round:
             return self.view(room_id)
-        if self.current_round(room_id) > 38:
+        if self.current_round(room_id) > self._regular_round_count(season):
             raise MarketError("A temporada regular já terminou.")
         season.ready_clubs.add(club_code)
         return self.view(room_id)
 
     def preparation_deadline(self, room_id: str, duration_seconds: int) -> float | None:
         season = self._season(room_id)
-        if season.live_round or season.transfer_window_open or self.current_round(room_id) > 38 or season.preparation_opened_at is None:
+        if season.live_round or season.transfer_window_open or self.current_round(room_id) > self._regular_round_count(season) or season.preparation_opened_at is None:
             return None
         return season.preparation_opened_at + duration_seconds
 
@@ -120,9 +121,9 @@ class SeasonService:
             return self.view(room_id)
         season.human_clubs = set(human_clubs)
         round_number = self.current_round(room_id)
-        if round_number > 38:
+        if round_number > self._regular_round_count(season):
             return self._advance_playoffs(room_id, market, season)
-        if round_number == 20 and season.transfer_window_open:
+        if round_number == self._transfer_resume_round(season) and season.transfer_window_open:
             raise MarketError("A janela de transferências precisa ser encerrada antes da rodada 20.")
         if not human_clubs.issubset(season.ready_clubs):
             raise MarketError("Aguardando confirmação dos técnicos para esta rodada.")
@@ -220,7 +221,7 @@ class SeasonService:
             match = season.matches[match_id]
             results[match_id] = MatchResult(match_id, int(match["home_goals"]), int(match["away_goals"]))
         season.state.results.update(results)
-        season.transfer_window_open = live["round_number"] == 19
+        season.transfer_window_open = live["round_number"] == self._transfer_open_after_round(season)
         season.live_round = None
         season.preparation_opened_at = self.clock()
         return True
@@ -453,16 +454,24 @@ class SeasonService:
 
     def close_transfer_window(self, room_id: str) -> dict[str, object]:
         season = self._season(room_id)
-        if self.current_round(room_id) != 20:
+        if self.current_round(room_id) != self._transfer_resume_round(season):
             if not season.transfer_window_open:
                 return self.view(room_id)
-            raise MarketError("A janela só pode ser encerrada entre as rodadas 19 e 20.")
+            raise MarketError("A janela só pode ser encerrada entre as metades do campeonato.")
         season.transfer_window_open = False
         season.ready_clubs.clear()
         season.preparation_opened_at = self.clock()
         return self.view(room_id)
 
     def _advance_playoffs(self, room_id: str, market: InitialMarket, season: RoomSeason) -> dict[str, object]:
+        # A four- or six-club league ends on the table: eight qualifiers do not
+        # exist, so silently fabricating a knockout would be incorrect.
+        if len(market.teams) < 8:
+            if not season.playoffs:
+                champion = standings(tuple(market.teams), season.state.fixtures, season.state.results)[0]["club_code"]
+                season.playoffs = PlayoffState((), champion=str(champion), next_stage="COMPLETE")
+                self._apply_progression(room_id, market, season)
+            return self.view(room_id)
         if season.playoffs is None:
             season.playoffs = create_bracket(standings(tuple(market.teams), season.state.fixtures, season.state.results))
             for club in season.playoffs.qualifiers:
@@ -548,6 +557,10 @@ class SeasonService:
 
     @staticmethod
     def _pay_award(market: InitialMarket, club: str, award_id: str, amount_cents: int, description: str) -> None:
+        # Coin rooms are closed virtual economies: neither a new 100-coin grant
+        # nor legacy cash prizes may alter the balance between transfer windows.
+        if market.market_mode == "COINS":
+            return
         team = market.teams[club]
         operation_id = f"season-award:{award_id}:{club}"
         if operation_id in team.paid_operation_ids:
@@ -560,7 +573,8 @@ class SeasonService:
         season = self._season(room_id)
         clubs = tuple(sorted({club for fixture in season.state.fixtures for club in (fixture.home, fixture.away)}))
         current = self.current_round(room_id)
-        return {"live_round": season.live_round, "server_now": self.clock(), "preparation_opened_at": season.preparation_opened_at, "live_table": self.live_table(room_id), "season_number": season.season_number, "current_round": current, "regular_season_complete": current > 38, "season_complete": bool(season.playoffs and season.playoffs.champion), "progression_applied": season.progression_applied, "champion": season.playoffs.champion if season.playoffs else None, "playoffs": season.playoffs.view() if season.playoffs else None, "transfer_window_open": season.transfer_window_open, "ready_clubs": sorted(season.ready_clubs), "table": standings(clubs, season.state.fixtures, season.state.results), "fixtures": [{"id": fixture.id, "round_number": fixture.round_number, "home": fixture.home, "away": fixture.away, "result": self._result_view(season.state.results.get(fixture.id)), "match_id": fixture.id if fixture.id in season.matches else None} for fixture in season.state.fixtures if fixture.round_number == min(current, 38)], "matches": [{"id": match_id, "round_number": next((f.round_number for f in season.state.fixtures if f.id == match_id), 39), "home": match["home"], "away": match["away"], "home_goals": projected["home_goals"], "away_goals": projected["away_goals"]} for match_id, match in season.matches.items() for projected in [self._score(season, match_id)]], "match_count": len(season.matches), "schedule": [{"id": f.id, "round_number": f.round_number, "home": f.home, "away": f.away, "result": self._result_view(season.state.results.get(f.id))} for f in season.state.fixtures], "season_history": season.season_history, "development_records": season.development_records, "top_scorers": self._top_scorers(season)}
+        total_rounds = self._regular_round_count(season)
+        return {"live_round": season.live_round, "server_now": self.clock(), "preparation_opened_at": season.preparation_opened_at, "live_table": self.live_table(room_id), "season_number": season.season_number, "current_round": current, "total_rounds": total_rounds, "double_round_robin": season.double_round_robin, "regular_season_complete": current > total_rounds, "season_complete": bool(season.playoffs and season.playoffs.champion), "progression_applied": season.progression_applied, "champion": season.playoffs.champion if season.playoffs else None, "playoffs": season.playoffs.view() if season.playoffs else None, "transfer_window_open": season.transfer_window_open, "ready_clubs": sorted(season.ready_clubs), "table": standings(clubs, season.state.fixtures, season.state.results), "fixtures": [{"id": fixture.id, "round_number": fixture.round_number, "home": fixture.home, "away": fixture.away, "result": self._result_view(season.state.results.get(fixture.id)), "match_id": fixture.id if fixture.id in season.matches else None} for fixture in season.state.fixtures if fixture.round_number == min(current, total_rounds)], "matches": [{"id": match_id, "round_number": next((f.round_number for f in season.state.fixtures if f.id == match_id), total_rounds + 1), "home": match["home"], "away": match["away"], "home_goals": projected["home_goals"], "away_goals": projected["away_goals"]} for match_id, match in season.matches.items() for projected in [self._score(season, match_id)]], "match_count": len(season.matches), "schedule": [{"id": f.id, "round_number": f.round_number, "home": f.home, "away": f.away, "result": self._result_view(season.state.results.get(f.id))} for f in season.state.fixtures], "season_history": season.season_history, "development_records": season.development_records, "top_scorers": self._top_scorers(season)}
 
     @staticmethod
     def _top_scorers(season: RoomSeason) -> list[dict[str, object]]:
@@ -740,11 +754,23 @@ class SeasonService:
 
     def current_round(self, room_id: str) -> int:
         season = self._season(room_id)
-        for round_number in range(1, 39):
+        for round_number in range(1, self._regular_round_count(season) + 1):
             fixtures = [fixture for fixture in season.state.fixtures if fixture.round_number == round_number]
             if any(fixture.id not in season.state.results for fixture in fixtures):
                 return round_number
-        return 39
+        return self._regular_round_count(season) + 1
+
+    @staticmethod
+    def _regular_round_count(season: RoomSeason) -> int:
+        return max((fixture.round_number for fixture in season.state.fixtures), default=0)
+
+    @classmethod
+    def _transfer_open_after_round(cls, season: RoomSeason) -> int:
+        return max(1, cls._regular_round_count(season) // 2)
+
+    @classmethod
+    def _transfer_resume_round(cls, season: RoomSeason) -> int:
+        return cls._transfer_open_after_round(season) + 1
 
     @staticmethod
     def _result_view(result: MatchResult | None) -> dict[str, int] | None:

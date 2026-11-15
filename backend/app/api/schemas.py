@@ -1,13 +1,16 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class RoomCreate(BaseModel):
     name: str = Field(min_length=3, max_length=80)
     mode: Literal["FIVE_A_SIDE", "ELEVEN_A_SIDE"]
-    initial_budget_cents: int
+    initial_budget_cents: int = 10_000_000_000
     max_human_participants: int = Field(ge=1, le=20)
+    team_count: Literal[4, 6, 8, 10, 12, 16, 20] = 20
+    double_round_robin: bool = True
+    market_mode: Literal["TRADITIONAL", "COINS"] = "TRADITIONAL"
     privacy: Literal["PUBLIC", "PRIVATE"] = "PUBLIC"
     initial_market_duration_seconds: int = Field(default=300)
     round_preparation_duration_seconds: int = Field(default=300, ge=120, le=604_800)
@@ -29,6 +32,12 @@ class RoomCreate(BaseModel):
         if value not in {5_000_000_000, 10_000_000_000, 15_000_000_000, 20_000_000_000}:
             raise ValueError("Orçamento inicial inválido.")
         return value
+
+    @model_validator(mode="after")
+    def validate_capacity(self) -> "RoomCreate":
+        if self.max_human_participants > self.team_count:
+            raise ValueError("A quantidade de técnicos humanos não pode exceder a de clubes.")
+        return self
 
     @field_validator("initial_market_duration_seconds")
     @classmethod
@@ -88,6 +97,15 @@ class RoomUpdate(RoomCreate):
 
 class MatchSettingsUpdate(BaseModel):
     match_duration_seconds: Literal[90, 120, 180]
+
+
+class BotChange(BaseModel):
+    club_code: str | None = Field(default=None, min_length=3, max_length=3)
+
+    @field_validator("club_code")
+    @classmethod
+    def normalize_optional_club(cls, value: str | None) -> str | None:
+        return value.upper() if value else value
 
 
 class MarketOfferCreate(BaseModel):

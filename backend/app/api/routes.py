@@ -11,6 +11,7 @@ from fastapi import (
 )
 
 from app.api.schemas import (
+    BotChange,
     ClubSelectionRequest,
     JoinByCodeRequest,
     LineupUpdate,
@@ -85,15 +86,15 @@ def snapshot_room(room_id: str) -> None:
 
 async def finalize_market(completed_room_id: str) -> None:
     room = room_manager._room(completed_room_id)
-    human_clubs = {member.selected_club_code for member in room.participants.values() if member.selected_club_code}
-    managers = {member.selected_club_code: member.display_name for member in room.participants.values() if member.selected_club_code}
+    human_clubs = {member.selected_club_code for member in room.participants.values() if member.role != "BOT" and member.selected_club_code}
+    managers = {member.selected_club_code: member.display_name for member in room.participants.values() if member.role != "BOT" and member.selected_club_code}
     await market_service.start_selection(completed_room_id, set(human_clubs), managers, room.initial_market_duration_seconds, progress_market)
 
 
 async def progress_market(room_id: str, phase: str) -> None:
     state = await room_manager.set_market_phase(room_id, phase)
     if phase == "SQUAD_MANAGEMENT" and room_id not in season_service._seasons:
-        season_service.create(room_id, market_service._session(room_id).market)
+        season_service.create(room_id, market_service._session(room_id).market, double_round_robin=room_manager._room(room_id).double_round_robin)
     snapshot_room(room_id)
     await hub.broadcast(room_id, {"type": f"market.{phase.lower()}", "revision": state["revision"]})
 
@@ -166,6 +167,9 @@ async def create_room(
         mode=payload.mode,
         initial_budget_cents=payload.initial_budget_cents,
         max_human_participants=payload.max_human_participants,
+        team_count=payload.team_count,
+        double_round_robin=payload.double_round_robin,
+        market_mode=payload.market_mode,
         privacy=payload.privacy,
         initial_market_duration_seconds=payload.initial_market_duration_seconds,
         round_preparation_duration_seconds=payload.round_preparation_duration_seconds,
@@ -184,6 +188,22 @@ async def update_room(
     state = await room_manager.update(room_id, identity.id, **payload.model_dump(exclude_none=True))
     snapshot_room(room_id)
     await hub.broadcast(room_id, {"type": "room.updated", "revision": state["revision"]})
+    return envelope(state, int(state["revision"]))
+
+
+@router.post("/rooms/{room_id}/bots", status_code=status.HTTP_201_CREATED)
+async def add_room_bot(room_id: str, payload: BotChange, identity: GuestIdentity = Depends(current_identity)) -> dict[str, object]:
+    state = await room_manager.add_bot(room_id, identity.id, payload.club_code)
+    snapshot_room(room_id)
+    await hub.broadcast(room_id, {"type": "room.bot_added", "revision": state["revision"]})
+    return envelope(state, int(state["revision"]))
+
+
+@router.delete("/rooms/{room_id}/bots/{club_code}")
+async def remove_room_bot(room_id: str, club_code: str, identity: GuestIdentity = Depends(current_identity)) -> dict[str, object]:
+    state = await room_manager.remove_bot(room_id, identity.id, club_code.upper())
+    snapshot_room(room_id)
+    await hub.broadcast(room_id, {"type": "room.bot_removed", "revision": state["revision"]})
     return envelope(state, int(state["revision"]))
 
 
@@ -225,9 +245,14 @@ async def start_room(room_id: str, identity: GuestIdentity = Depends(current_ide
     if not catalog:
         raise HTTPException(status_code=409, detail="O mercado exige um catálogo autorizado de atletas.")
     current = await room_manager.state_for(room_id, identity.id)
-    teams = {club.code: int(current["initial_budget_cents"]) for club in CLUBS}
+    selected = [member.selected_club_code for member in room.participants.values() if member.selected_club_code]
+    budget = 100 if room.market_mode == "COINS" else int(current["initial_budget_cents"])
+    # Preserve the former 20-club lobby behaviour: unclaimed clubs become bots.
+    active_clubs = selected if len(selected) == room.team_count else [club.code for club in CLUBS]
+    teams = {str(club): budget for club in active_clubs}
     try:
-        session = market_service.start(room_id, catalog, str(current["mode"]), teams, int(current["initial_market_duration_seconds"]), hub.broadcast, finalize_market, withdrawal_penalty_percent=int(current["withdrawal_penalty_percent"]), on_progressed=progress_market)
+        session = market_service.start(room_id, catalog, str(current["mode"]), teams, int(current["initial_market_duration_seconds"]), hub.broadcast, finalize_market, withdrawal_penalty_percent=int(current["withdrawal_penalty_percent"]), on_progressed=progress_market, market_mode=room.market_mode)
+        session.market.place_bot_offers({str(member.selected_club_code) for member in room.participants.values() if member.role == "BOT" and member.selected_club_code})
     except MarketError as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
     state = await room_manager.start(room_id, identity.id)

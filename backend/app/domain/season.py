@@ -43,15 +43,20 @@ class Standing:
         return {"position": position, "club_code": self.club_code, "points": self.points, "played": self.played, "wins": self.wins, "draws": self.draws, "losses": self.losses, "goals_for": self.goals_for, "goals_against": self.goals_against, "goal_difference": self.goal_difference, "percentage": self.percentage}
 
 
-def generate_calendar(clubs: list[str] | tuple[str, ...]) -> list[Fixture]:
-    """Circle method: 20 clubs -> 38 rounds, each pair home and away exactly once."""
-    if len(clubs) != 20 or len(set(clubs)) != 20:
-        raise ValueError("O Brasileirão exige exatamente 20 clubes distintos.")
+def generate_calendar(clubs: list[str] | tuple[str, ...], *, double_round_robin: bool = True) -> list[Fixture]:
+    """Circle method for an even-sized league, with one or two legs.
+
+    The supported room sizes are deliberately even so each club plays once in
+    every round.  Keeping this rule in the domain makes the API, bots and
+    snapshots share the exact same schedule contract.
+    """
+    if len(clubs) not in {4, 6, 8, 10, 12, 16, 20} or len(set(clubs)) != len(clubs):
+        raise ValueError("O campeonato exige 4, 6, 8, 10, 12, 16 ou 20 clubes distintos.")
     rotating = list(clubs)
     first_half: list[list[tuple[str, str]]] = []
-    for round_index in range(19):
+    for round_index in range(len(rotating) - 1):
         games: list[tuple[str, str]] = []
-        for index in range(10):
+        for index in range(len(rotating) // 2):
             left, right = rotating[index], rotating[-(index + 1)]
             games.append((left, right) if (round_index + index) % 2 == 0 else (right, left))
         first_half.append(games)
@@ -59,8 +64,9 @@ def generate_calendar(clubs: list[str] | tuple[str, ...]) -> list[Fixture]:
     fixtures: list[Fixture] = []
     for round_index, games in enumerate(first_half, start=1):
         fixtures.extend(Fixture(f"r{round_index}-{game_index}", round_index, home, away) for game_index, (home, away) in enumerate(games, start=1))
-    for round_index, games in enumerate(first_half, start=20):
-        fixtures.extend(Fixture(f"r{round_index}-{game_index}", round_index, away, home) for game_index, (home, away) in enumerate(games, start=1))
+    if double_round_robin:
+        for round_index, games in enumerate(first_half, start=len(first_half) + 1):
+            fixtures.extend(Fixture(f"r{round_index}-{game_index}", round_index, away, home) for game_index, (home, away) in enumerate(games, start=1))
     return fixtures
 
 

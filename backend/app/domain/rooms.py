@@ -10,6 +10,7 @@ from fastapi import HTTPException, status
 from app.domain.clubs import CLUBS
 
 MATCH_DURATIONS = (90, 120, 180)
+TEAM_COUNTS = (4, 6, 8, 10, 12, 16, 20)
 
 
 @dataclass
@@ -30,6 +31,9 @@ class RoomState:
     max_human_participants: int
     privacy: str
     host_user_id: str
+    team_count: int = 20
+    double_round_robin: bool = True
+    market_mode: str = "TRADITIONAL"
     initial_market_duration_seconds: int = 300
     round_preparation_duration_seconds: int = 300
     withdrawal_penalty_percent: int = 5
@@ -75,6 +79,10 @@ class RoomManager:
             "mode": room.mode,
             "initial_budget_cents": room.initial_budget_cents,
             "max_human_participants": room.max_human_participants,
+            "team_count": room.team_count,
+            "double_round_robin": room.double_round_robin,
+            "market_mode": room.market_mode,
+            "coin_starting_balance": 100 if room.market_mode == "COINS" else None,
             "privacy": room.privacy,
             "initial_market_duration_seconds": room.initial_market_duration_seconds,
             "round_preparation_duration_seconds": room.round_preparation_duration_seconds,
@@ -83,8 +91,10 @@ class RoomManager:
             "phase": room.phase,
             "market_ends_at": room.market_ends_at,
             "revision": room.revision,
-            "participant_count": len(room.participants),
-            "bot_count": len(CLUBS) - sum(bool(member.selected_club_code) for member in room.participants.values()),
+            "participant_count": sum(member.role != "BOT" for member in room.participants.values()),
+            "bot_count": sum(member.role == "BOT" for member in room.participants.values()),
+            "selected_club_count": sum(bool(member.selected_club_code) for member in room.participants.values()),
+            "available_slots": room.team_count - sum(bool(member.selected_club_code) for member in room.participants.values()),
         }
 
     @staticmethod
@@ -109,6 +119,8 @@ class RoomManager:
             id=str(payload["id"]), code=str(payload["code"]), name=str(payload["name"]),
             mode=str(payload["mode"]), initial_budget_cents=int(payload["initial_budget_cents"]),
             max_human_participants=int(payload["max_human_participants"]), privacy=str(payload["privacy"]),
+            team_count=int(payload.get("team_count", 20)), double_round_robin=bool(payload.get("double_round_robin", True)),
+            market_mode=str(payload.get("market_mode", "TRADITIONAL")),
             host_user_id=str(payload.get("host_user_id") or next((member.user_id for member in participants.values() if member.role == "HOST"), "")),
             initial_market_duration_seconds=int(payload.get("initial_market_duration_seconds", 300)),
             round_preparation_duration_seconds=int(payload.get("round_preparation_duration_seconds", 86_400)),
@@ -119,7 +131,7 @@ class RoomManager:
         )
         selected_clubs = [member.selected_club_code for member in participants.values() if member.selected_club_code]
         known_clubs = {club.code for club in CLUBS}
-        if room.mode not in {"FIVE_A_SIDE", "ELEVEN_A_SIDE"} or room.withdrawal_penalty_percent not in {0, 2, 5, 10} or room.match_duration_seconds not in MATCH_DURATIONS or room.host_user_id not in participants or len(selected_clubs) != len(set(selected_clubs)) or not set(selected_clubs).issubset(known_clubs):
+        if room.mode not in {"FIVE_A_SIDE", "ELEVEN_A_SIDE"} or room.market_mode not in {"TRADITIONAL", "COINS"} or room.team_count not in TEAM_COUNTS or room.max_human_participants > room.team_count or room.withdrawal_penalty_percent not in {0, 2, 5, 10} or room.match_duration_seconds not in MATCH_DURATIONS or room.host_user_id not in participants or len(selected_clubs) != len(set(selected_clubs)) or len(selected_clubs) > room.team_count or not set(selected_clubs).issubset(known_clubs):
             raise ValueError("Snapshot de sala viola invariantes de identidade ou modo.")
         self._rooms[room.id] = room
         self._locks[room.id] = asyncio.Lock()
@@ -133,12 +145,19 @@ class RoomManager:
         mode: str,
         initial_budget_cents: int,
         max_human_participants: int,
+        team_count: int = 20,
+        double_round_robin: bool = True,
+        market_mode: str = "TRADITIONAL",
         privacy: str,
         initial_market_duration_seconds: int = 300,
         round_preparation_duration_seconds: int = 300,
         withdrawal_penalty_percent: int = 5,
         match_duration_seconds: int = 90,
     ) -> dict[str, object]:
+        if team_count not in TEAM_COUNTS or max_human_participants > team_count:
+            raise HTTPException(status_code=422, detail="Escolha uma quantidade válida de clubes e técnicos.")
+        if market_mode not in {"TRADITIONAL", "COINS"}:
+            raise HTTPException(status_code=422, detail="Modo de mercado inválido.")
         if withdrawal_penalty_percent not in {0, 2, 5, 10}:
             raise HTTPException(status_code=422, detail="A multa deve ser 0%, 2%, 5% ou 10%.")
         if match_duration_seconds not in MATCH_DURATIONS:
@@ -151,6 +170,9 @@ class RoomManager:
                 mode=mode,
                 initial_budget_cents=initial_budget_cents,
                 max_human_participants=max_human_participants,
+                team_count=team_count,
+                double_round_robin=double_round_robin,
+                market_mode=market_mode,
                 privacy=privacy,
                 initial_market_duration_seconds=initial_market_duration_seconds,
                 round_preparation_duration_seconds=round_preparation_duration_seconds,
@@ -216,6 +238,8 @@ class RoomManager:
                     status_code=409, detail="Este clube já foi escolhido por outro participante."
                 )
             participant.selected_club_code = club_code
+            if sum(bool(member.selected_club_code) for member in draft.participants.values()) > draft.team_count:
+                raise HTTPException(status_code=409, detail="A sala já atingiu a quantidade configurada de clubes.")
             draft.revision += 1
             self._rooms[room_id] = draft
             return self._state(draft)
@@ -234,8 +258,15 @@ class RoomManager:
                 raise HTTPException(status_code=422, detail="Duração da partida deve ser 1:30, 2:00 ou 3:00.")
             if changes.get("withdrawal_penalty_percent", room.withdrawal_penalty_percent) not in {0, 2, 5, 10}:
                 raise HTTPException(status_code=422, detail="A multa deve ser 0%, 2%, 5% ou 10%.")
-            if int(changes["max_human_participants"]) < len(room.participants):
+            if int(changes["max_human_participants"]) < sum(member.role != "BOT" for member in room.participants.values()):
                 raise HTTPException(status_code=409, detail="A liga já possui mais participantes que esse limite.")
+            team_count = int(changes.get("team_count", room.team_count))
+            if team_count not in TEAM_COUNTS or int(changes.get("max_human_participants", room.max_human_participants)) > team_count:
+                raise HTTPException(status_code=422, detail="Quantidade de clubes ou técnicos inválida.")
+            if sum(bool(member.selected_club_code) for member in room.participants.values()) > team_count:
+                raise HTTPException(status_code=409, detail="Reduza bots ou clubes escolhidos antes de diminuir a liga.")
+            if changes.get("market_mode", room.market_mode) not in {"TRADITIONAL", "COINS"}:
+                raise HTTPException(status_code=422, detail="Modo de mercado inválido.")
             draft = copy.deepcopy(room)
             for field_name, value in changes.items():
                 setattr(draft, field_name, value)
@@ -275,8 +306,48 @@ class RoomManager:
                 raise HTTPException(status_code=409, detail="Escolha um clube antes de iniciar a temporada.")
             if any(not member.selected_club_code for member in room.participants.values()):
                 raise HTTPException(status_code=409, detail="Todos os técnicos precisam escolher um clube antes de iniciar.")
+            # Legacy 20-club rooms have always filled unspecified clubs with
+            # system bots. Smaller custom leagues require the host to make the
+            # composition explicit before the market starts.
+            if room.team_count != 20 and len(room.participants) != room.team_count:
+                raise HTTPException(status_code=409, detail="Complete as vagas com bots até atingir a quantidade configurada de clubes.")
             draft = copy.deepcopy(room)
             draft.phase = "INITIAL_MARKET"
+            draft.revision += 1
+            self._rooms[room_id] = draft
+            return self._state(draft)
+
+    async def add_bot(self, room_id: str, user_id: str, club_code: str | None = None) -> dict[str, object]:
+        self._room(room_id)
+        async with self._locks[room_id]:
+            room = self._room(room_id)
+            if room.host_user_id != user_id or room.phase != "WAITING":
+                raise HTTPException(status_code=409, detail="Bots só podem ser alterados pelo anfitrião antes do início.")
+            if len(room.participants) >= room.team_count:
+                raise HTTPException(status_code=409, detail="A sala já está completa.")
+            claimed = {member.selected_club_code for member in room.participants.values() if member.selected_club_code}
+            available = [club.code for club in CLUBS if club.code not in claimed]
+            selected = club_code or (available[0] if available else None)
+            if selected not in available:
+                raise HTTPException(status_code=409, detail="Clube indisponível para bot.")
+            draft = copy.deepcopy(room)
+            bot_id = f"bot:{len([p for p in draft.participants.values() if p.role == 'BOT']) + 1}:{selected}"
+            draft.participants[bot_id] = Participant(bot_id, f"Bot {selected}", "BOT", selected)
+            draft.revision += 1
+            self._rooms[room_id] = draft
+            return self._state(draft)
+
+    async def remove_bot(self, room_id: str, user_id: str, club_code: str) -> dict[str, object]:
+        self._room(room_id)
+        async with self._locks[room_id]:
+            room = self._room(room_id)
+            if room.host_user_id != user_id or room.phase != "WAITING":
+                raise HTTPException(status_code=409, detail="Bots só podem ser alterados pelo anfitrião antes do início.")
+            bot_id = next((key for key, member in room.participants.items() if member.role == "BOT" and member.selected_club_code == club_code), None)
+            if not bot_id:
+                raise HTTPException(status_code=404, detail="Bot não encontrado para este clube.")
+            draft = copy.deepcopy(room)
+            del draft.participants[bot_id]
             draft.revision += 1
             self._rooms[room_id] = draft
             return self._state(draft)

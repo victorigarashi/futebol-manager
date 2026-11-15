@@ -73,7 +73,7 @@ class MarketViability:
 class InitialMarket:
     """Pure rules: callers serialize mutations with their per-room async lock."""
 
-    def __init__(self, catalog: PlayerCatalog, mode: str, teams: dict[str, int], withdrawal_penalty_percent: int = 5) -> None:
+    def __init__(self, catalog: PlayerCatalog, mode: str, teams: dict[str, int], withdrawal_penalty_percent: int = 5, market_mode: str = "TRADITIONAL") -> None:
         if mode not in FORMATION_SLOTS:
             raise MarketError("Modo de jogo inválido.")
         self.catalog = {player.id: player for player in catalog.players}
@@ -81,6 +81,10 @@ class InitialMarket:
         if len(self.catalog) != len(catalog.players):
             raise MarketError("Catálogo contém identificadores duplicados.")
         self.mode = mode
+        if market_mode not in {"TRADITIONAL", "COINS"}:
+            raise MarketError("Modo de mercado inválido.")
+        self.market_mode = market_mode
+        self.currency = "COINS" if market_mode == "COINS" else "CENTS"
         self.slots = FORMATION_SLOTS[mode]
         self.max_roster_size = 8 if mode == "FIVE_A_SIDE" else 16
         self.offer_limit = 16 if mode == "FIVE_A_SIDE" else 48
@@ -101,7 +105,9 @@ class InitialMarket:
         self.selection_complete = False
         if withdrawal_penalty_percent not in {0, 2, 5, 10}:
             raise MarketError("Percentual de multa inválido.")
-        self.penalty_percent = withdrawal_penalty_percent
+        # Coin rooms settle exactly at the secret bid; there is no monetary
+        # withdrawal penalty hidden behind the virtual-currency rules.
+        self.penalty_percent = 0 if market_mode == "COINS" else withdrawal_penalty_percent
 
     def viable(self) -> MarketViability:
         reasons: list[str] = []
@@ -146,6 +152,27 @@ class InitialMarket:
             players = [player for player in players if player.market_value_cents <= max_price_cents]
         return sorted(players, key=lambda player: (-player.overall, player.name, player.id))
 
+    def place_bot_offers(self, clubs: set[str]) -> None:
+        """Small deterministic bot policy for the opening auction.
+
+        It uses the same submission and reserve rules as humans.  Bids are
+        intentionally conservative: missing positions are still completed by
+        the existing roster finalizer, rather than granting bots hidden funds.
+        """
+        available = sorted(self.catalog.values(), key=lambda player: (-player.overall, player.id))
+        for club in sorted(clubs):
+            team = self._team(club)
+            wanted = ["GK", "DF", "MF", "ST"]
+            for position in wanted:
+                candidate = next((player for player in available if player.position == position and player.id not in self._assigned_players()
+                                  and not any(offer.player_id == player.id and offer.status == OfferStatus.ACTIVE for offer in self.offers.values())), None)
+                if candidate is None:
+                    continue
+                amount = max(1, min(team.available_cents, 6 + max(0, candidate.overall - 60) // 4)) if self.market_mode == "COINS" else candidate.market_value_cents
+                if amount <= 0 or amount > team.available_cents:
+                    continue
+                self.submit_offer(club, candidate.id, amount, f"bot:{club}:{candidate.id}")
+
     def submit_offer(self, club_code: str, player_id: str, amount_cents: int, idempotency_key: str) -> Offer:
         if self.resolved:
             raise MarketError("O mercado já foi resolvido.")
@@ -156,7 +183,7 @@ class InitialMarket:
         if active_count >= self.offer_limit:
             raise MarketError(f"Limite de {self.offer_limit} propostas ativas atingido.")
         player = self._player(player_id)
-        if amount_cents < player.market_value_cents:
+        if self.market_mode == "TRADITIONAL" and amount_cents < player.market_value_cents:
             raise MarketError("A proposta precisa atingir o valor-base do atleta.")
         if player_id in self._assigned_players():
             raise MarketError("Atleta já contratado.")
@@ -174,7 +201,7 @@ class InitialMarket:
         if offer.status != OfferStatus.ACTIVE:
             raise MarketError("Somente propostas ativas podem ser alteradas.")
         player = self._player(offer.player_id)
-        if amount_cents < player.market_value_cents:
+        if self.market_mode == "TRADITIONAL" and amount_cents < player.market_value_cents:
             raise MarketError("A proposta precisa atingir o valor-base do atleta.")
         team = self._team(club_code)
         delta = amount_cents - offer.amount_cents
