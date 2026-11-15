@@ -8,6 +8,10 @@ export type Room = {
   name: string;
   mode: "FIVE_A_SIDE" | "ELEVEN_A_SIDE";
   initial_budget_cents: number;
+  /** Traditional BRL-budget market or the equal 100-coin draft market. */
+  market_mode: "TRADITIONAL" | "COINS";
+  team_count: 4 | 6 | 8 | 10 | 12 | 16 | 20;
+  double_round_robin: boolean;
   max_human_participants: number;
   privacy: "PUBLIC" | "PRIVATE";
   initial_market_duration_seconds: number;
@@ -31,7 +35,7 @@ export type MarketPlayer = { for_sale?: boolean; base_overall?: number; overall_
 export type MarketOffer = { id: string; player_id: string; amount_cents: number; status: string };
 export type TransferOffer = { id: string; idempotency_key: string; buyer_club: string; seller_club: string; incoming_player_id: string; offered_player_id: string; amount_cents: number; status: string; counter_cents: number | null };
 export type TransferClub = { club_code: string; players: MarketPlayer[] };
-export type MarketState = { phase: string; ends_at: number; remaining_seconds: number; resolved: boolean; budget_cents: number; spent_cents: number; reserved_cents: number; available_cents: number; offer_limit: number; active_offer_count: number; withdrawal_penalty_percent: 0 | 2 | 5 | 10; roster: string[]; offers: MarketOffer[] };
+export type MarketState = { phase: string; ends_at: number; remaining_seconds: number; resolved: boolean; market_mode: "TRADITIONAL" | "COINS"; currency: "CENTS" | "COINS"; budget_cents: number; spent_cents: number; reserved_cents: number; available_cents: number; offer_limit: number; active_offer_count: number; withdrawal_penalty_percent: 0 | 2 | 5 | 10; roster: string[]; offers: MarketOffer[] };
 export type MarketRight = { offer_id: string; classification: "COMPROMISSADA" | "EXCEDENTE SEM MULTA"; amount_cents: number; player: MarketPlayer };
 export type MarketSelection = { phase: string; ends_at: number; remaining_seconds: number; confirmed: boolean; club_code: string; budget_cents: number; reserved_cents: number; available_cents: number; withdrawal_penalty_percent: 0 | 2 | 5 | 10; max_roster_size: number; committed: MarketRight[]; excess: MarketRight[] };
 export type MarketSelectionPreview = { selected_offer_ids: string[]; purchase_cents: number; penalties: { offer_id: string; player_id: string; amount_cents: number; penalty_cents: number; percent: number; reason: string }[]; penalty_cents: number; reserved_release_cents: number; debit_cents: number; balance_after_cents: number; generic_players_needed: number; missing_positions: Record<string, number>; withdrawal_penalty_percent: number };
@@ -119,11 +123,13 @@ export const api = {
   state: (roomId: string) => request<Envelope<RoomState>>(`/rooms/${roomId}/state`),
   createRoom: (payload: {
     name: string; mode: "FIVE_A_SIDE" | "ELEVEN_A_SIDE"; initial_budget_cents: number;
+    market_mode: "TRADITIONAL" | "COINS"; team_count: 4 | 6 | 8 | 10 | 12 | 16 | 20; double_round_robin: boolean;
     initial_market_duration_seconds: number; round_preparation_duration_seconds: number;
     max_human_participants: number; privacy: "PUBLIC" | "PRIVATE"; withdrawal_penalty_percent: 0 | 2 | 5 | 10; match_duration_seconds?: MatchDuration;
   }) => request<Envelope<RoomState>>("/rooms", { method: "POST", body: JSON.stringify(payload) }),
   updateRoom: (roomId: string, payload: {
     name: string; mode: "FIVE_A_SIDE" | "ELEVEN_A_SIDE"; initial_budget_cents: number;
+    market_mode: "TRADITIONAL" | "COINS"; team_count: 4 | 6 | 8 | 10 | 12 | 16 | 20; double_round_robin: boolean;
     initial_market_duration_seconds: number; round_preparation_duration_seconds: number;
     max_human_participants: number; privacy: "PUBLIC" | "PRIVATE"; withdrawal_penalty_percent: 0 | 2 | 5 | 10; match_duration_seconds?: MatchDuration;
   }) => request<Envelope<RoomState>>(`/rooms/${roomId}`, { method: "PUT", body: JSON.stringify(payload) }),
