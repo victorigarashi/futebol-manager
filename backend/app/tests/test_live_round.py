@@ -309,6 +309,8 @@ def test_http_live_round_commands_frames_authorization_and_reconnection(live, mo
                 assert done.status_code == 200 and done.json()["data"]["command"]["status"] == "APPLIED"
                 assert client.post(base + "/season/live/commands", headers=headers1, json=payload).json()["data"]["command"] == done.json()["data"]["command"]
                 assert client.post(base + "/season/live/commands", headers=headers1, json={"kind": "SUBSTITUTION", "out_player_id": "x", "in_player_id": "y", "idempotency_key": "http-bad-sub-1"}).status_code == 409
+            # Same instant on both paths: the fake clock may have moved inside the loops above.
+            own = client.get(base + "/season/live", headers=headers1).json()["data"]
             with client.websocket_connect(f"/api/v1/ws/rooms/{room_id}", headers=headers1) as reconnected:
                 sync = reconnected.receive_json()
                 assert sync["data"]["match"]["id"] == own["match"]["id"]

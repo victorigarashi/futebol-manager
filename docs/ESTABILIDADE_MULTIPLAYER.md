@@ -141,11 +141,17 @@ Mesmo teste, cota de 10% de CPU, 1 sala, 2 técnicos, 1:30:
 
 Sem limite de CPU, a rodada dura 94,9 a 95,0 s, e o pré-jogo e o mercado respondem em 5 a 14 ms.
 
-**Capacidade no plano Free (0,1 CPU).**
+**Capacidade no plano Free (0,1 CPU).** Medido com 3 salas jogando ao mesmo tempo (6 técnicos, 60 s de preparação), sob a cota de 10%:
 
-- **1 sala jogando** cabe com folga quando a preparação dura algum tempo, porque as partidas de bots são pré-simuladas.
-- **3 salas jogando ao mesmo tempo:** o servidor continua estável (0 erros, 0 quedas, health máximo de 0,9 s), mas **não há CPU para as três transmissões**. As rodadas de 1:30 levam cerca de 3,5 min.
-- Isso é um limite do plano, não um travamento: a mesma rodada custa cerca de 3,6 s de CPU num núcleo de desktop por sala, e o plano oferece 9 s de CPU a cada 90 s.
+| Métrica | Primeira versão da correção | Versão final (push otimizado) |
+|---|---|---|
+| Duração das três rodadas de 1:30 | 212 a 264 s | **92,9 a 93,2 s** |
+| CPU do push de frames | 14 a 19,8 s | **2,9 s** |
+| Latência p95 / máxima | 1,05 s / 2,1 s | 0,45 s / 1,4 s |
+| Health check máximo / erros / quedas do WebSocket | 0,9 s / 0 / 0 | 1,2 s / 0 / 0 |
+| CPU média do processo | 0,095 | 0,083 |
+
+Com mais salas simultâneas, a CPU de 0,1 se esgota e as transmissões passam a atrasar aos poucos (sem travar o servidor). A rodada custa cerca de 3,6 s de CPU de desktop por sala, e boa parte disso é antecipada na preparação.
 
 Comandos para reproduzir: veja `backend/tools/load_test.py` e `backend/tools/load_server.py`.
 
