@@ -26,8 +26,13 @@ FULL_TIME_TICK = TICKS_PER_HALF * 2
 SNAPSHOT_EVERY = 3
 
 PITCH = {
-    "ELEVEN_A_SIDE": {"length": 105.0, "width": 68.0, "goal": 7.32, "box": 16.5, "shot_range": 30.0, "xg_scale": 1.0, "max_subs": 5, "windows": 3},
-    "FIVE_A_SIDE": {"length": 40.0, "width": 22.0, "goal": 3.0, "box": 6.0, "shot_range": 15.0, "xg_scale": 1.6, "max_subs": 3, "windows": 99},
+    # ``finish_scale`` calibrates the generated chances to the duration and pitch
+    # of each game mode.  The old five-a-side values let a 90-minute simulation
+    # create futsal-like scorelines (more than ten goals per match).  It is applied
+    # before xG is recorded, so the displayed xG always remains the probability
+    # actually used by the goal resolution.
+    "ELEVEN_A_SIDE": {"length": 105.0, "width": 68.0, "goal": 7.32, "box": 16.5, "shot_range": 30.0, "xg_scale": 1.0, "finish_scale": 0.86, "max_subs": 5, "windows": 3},
+    "FIVE_A_SIDE": {"length": 40.0, "width": 22.0, "goal": 3.0, "box": 6.0, "shot_range": 15.0, "xg_scale": 1.6, "finish_scale": 0.55, "max_subs": 3, "windows": 99},
 }
 
 # Real engine parameters per tactic. Every number is consumed below.
@@ -901,7 +906,10 @@ class MatchEngine:
         if set_piece:
             xg = min(xg, 0.07)
         shooting = shooter.skill(shooter.shooting if not header else (shooter.physical + shooter.shooting) / 2)
-        xg = max(0.005, min(0.85, xg * (0.80 + shooting / 250)))
+        # Keep the event's xG aligned with the conversion probability.  Applying
+        # this after contextual modifiers preserves relative effects of player
+        # finishing, goalkeeper quality, pressure, blocked lanes and tactics.
+        xg = max(0.003, min(0.85, xg * (0.80 + shooting / 250) * self.cfg["finish_scale"]))
         stats = self.team_stats[side]
         shooter.stats["shots"] += 1
         stats["shots"] += 1

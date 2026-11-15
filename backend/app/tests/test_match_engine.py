@@ -95,7 +95,12 @@ def test_halftime_substitutions_do_not_spend_a_window():
     engine = MatchEngine("m", "FIVE_A_SIDE", team("AAA", "FIVE_A_SIDE"), team("BBB", "FIVE_A_SIDE"), 5)
     engine.advance_to(TICKS_PER_HALF)
     assert engine.phase == "HALF_TIME"
-    status = engine.queue_substitution(0, "AAA-2", "AAA-b2", "AAA:h")
+    # A deterministic match can still send off a particular shirt number before
+    # half time.  The rule under test is the window accounting, not that a fixed
+    # player remains available.
+    outgoing = next(player for player in engine.active(0) if player.role != "GK")
+    incoming = next(player for player in engine.team_agents[0] if not player.active and player.entered_tick is None)
+    status = engine.queue_substitution(0, outgoing.id, incoming.id, "AAA:h")
     assert status["status"] == "APPLIED" and engine.windows_used[0] == 0
 
 
