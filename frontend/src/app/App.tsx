@@ -6,6 +6,7 @@ import { useSession } from "../stores/session";
 import { LobbyPage } from "../features/rooms/LobbyPage";
 import { ProfileDialog } from "../components/ProfileDialog";
 import { LoadingState, ErrorState } from "../components/ui/AsyncState";
+import { ServerStatusBanner } from "../components/ServerStatusBanner";
 
 export function App() {
   const queryClient = useQueryClient();
@@ -33,5 +34,5 @@ export function App() {
   };
   const displayName = identity.data.display_name;
   const needsProfile = !displayName || displayName.startsWith("Técnico ");
-  return <>{catalog.data?.demo && <div className="demo-banner" role="status">MODO DEMONSTRAÇÃO — atletas e valores sintéticos, exclusivo para testes.</div>}<LobbyPage needsProfile={needsProfile} onSaveProfile={saveProfile} onEditProfile={() => setEditingProfile(true)} />{editingProfile && !needsProfile && <ProfileDialog currentName={displayName} onClose={() => setEditingProfile(false)} onSave={saveProfile} />}</>;
+  return <><ServerStatusBanner />{catalog.data?.demo && <div className="demo-banner" role="status">MODO DEMONSTRAÇÃO — atletas e valores sintéticos, exclusivo para testes.</div>}<LobbyPage needsProfile={needsProfile} onSaveProfile={saveProfile} onEditProfile={() => setEditingProfile(true)} />{editingProfile && !needsProfile && <ProfileDialog currentName={displayName} onClose={() => setEditingProfile(false)} onSave={saveProfile} />}</>;
 }

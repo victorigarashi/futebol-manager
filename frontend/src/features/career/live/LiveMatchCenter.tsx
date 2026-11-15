@@ -31,6 +31,7 @@ export function LiveMatchCenter({ roomId, data, clubCode, clubs }: { roomId: str
   const [shown, setShown] = useState<BroadcastView>({ tick: 0, kind: "WAIT", label: "", cut: null });
   const [holder, setHolder] = useState<"home" | "away" | null>(null);
   const [lagging, setLagging] = useState(false);
+  const [offline, setOffline] = useState(false);
   useEffect(() => {
     const homeCount = match.lineups.home.length;
     const timer = window.setInterval(() => {
@@ -38,7 +39,10 @@ export function LiveMatchCenter({ roomId, data, clubCode, clubs }: { roomId: str
       setShown((previous) => previous.tick === current.tick && previous.kind === current.kind && previous.cut?.progress === current.cut?.progress ? previous : { ...current });
       const owner = current.cut ? -1 : buffer.sample(current.tick)?.ball.owner ?? -1;
       setHolder(owner < 0 ? null : owner < homeCount ? "home" : "away");
-      setLagging(Date.now() - status.current.lastData > 4000);
+      // Behind only when the screen has really run out of broadcast (not during a
+      // half-time break or a cut, when the server legitimately sends no new frames).
+      setLagging(status.current.starvedSeconds > 1.5);
+      setOffline(!status.current.online);
     }, 200);
     return () => window.clearInterval(timer);
   }, [playback, buffer, status, match.lineups.home.length]);
@@ -166,7 +170,7 @@ export function LiveMatchCenter({ roomId, data, clubCode, clubs }: { roomId: str
         {goal && <GoalCelebrationOverlay goal={goal} onDone={closeGoal} />}
         {shown.cut && !goal && <div className="pitch-cut" aria-live="polite"><span className="pitch-cut__clock">⏩ {Math.floor(shown.cut.from / 60)}′ <i>→</i> {Math.floor(shown.cut.to / 60)}′</span>{cutEvents.length > 0 && <ul>{cutEvents.map((e) => <li key={e.event_id}><b>{e.minute}′</b> {eventText(e, clubName).title}</li>)}</ul>}</div>}
         {banner && !goal && <div className={`pitch-banner pitch-banner--${banner.tone}`} role="status">{banner.text}</div>}
-        {lagging && !finished && <div className="pitch-banner pitch-banner--warn" role="status">Conexão lenta — retomando a transmissão…</div>}
+        {lagging && !finished && <div className="pitch-banner pitch-banner--warn" role="status">{offline ? "Conexão perdida — reconectando…" : "Aguardando o servidor — a transmissão continua em instantes…"}</div>}
         {phase === "PRESENTATION" && <div className="pitch-overlay pitch-overlay--intro"><p className="kicker">A BOLA VAI ROLAR</p><div className="intro-crests"><ClubCrest club={club(match.home)} size="md" /><b>×</b><ClubCrest club={club(match.away)} size="md" /></div><h2>{clubName(match.home)} × {clubName(match.away)}</h2><p>{match.formations.home} contra {match.formations.away} · Pontapé inicial em <strong>{countdown(clock?.kickoff_at)}s</strong></p><p className="muted">Você ainda pode ajustar a orientação do time no painel do técnico.</p></div>}
         {phase === "HALF_TIME" && <div className="pitch-overlay pitch-overlay--half"><p className="kicker">INTERVALO · {score.home} × {score.away}</p><h2>Hora da conversa no vestiário</h2><div className="half-stats">{statRows.slice(0, 4).map(([label, h, a]) => <div key={label}><b>{h}</b><span>{label}</span><b>{a}</b></div>)}</div><p>Substituições no intervalo <strong>não gastam janela</strong>. Segundo tempo em <strong>{countdown(clock?.halftime_ends_at)}s</strong>.</p></div>}
         <div className="pitch-legend" aria-hidden="true"><span><i style={{ background: kits.home }} />{match.home} ataca para a direita (no celular, para cima)</span><span><i style={{ background: kits.away }} />{match.away}</span></div>

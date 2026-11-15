@@ -147,9 +147,23 @@ def test_two_coaches_share_state_commands_and_recovery_replays_exactly(live):
     snapshot = copy.deepcopy(service.export_room("room"))
     recovered = service_for(now)
     recovered.restore_room("room", snapshot)
+    # Engines are rebuilt in slices by the round task; until then the view says so.
+    recovering = recovered.live_view("room", fixture.home)
+    assert recovering["recovering"] is True and recovering["match"] is None and recovering["round_state"] == "RECOVERING"
+    with pytest.raises(MarketError, match="recuperada"):
+        recovered.command("room", fixture.home, {"kind": "TACTICS", "mentality": "DEFENSIVE", "idempotency_key": "during-recovery"})
+    slices = 0
+    while recovered._season("room").recovering:
+        urgent, _more = recovered.simulate_slice("room", now[0])
+        assert urgent
+        slices += 1
+    assert slices > 1  # rebuilt in several bounded steps, never in one long call
     assert recovered.live_view("room", fixture.home)["match"] == first["match"]
     for moment in (40, 47.5, 61, 75):
         now[0] = T0 + moment
+        # Requests never simulate: the round task (here: sync_live) advances the engines.
+        recovered.sync_live("room")
+        service.sync_live("room")
         assert recovered.live_view("room", fixture.home)["match"] == service.live_view("room", fixture.home)["match"]
     assert recovered._season("room").directors[fixture.id].segments == service._season("room").directors[fixture.id].segments
     now[0] = T0 + 90
@@ -184,6 +198,7 @@ def test_commands_are_validated_idempotent_and_limited_to_the_own_match(live):
     with pytest.raises(MarketError):
         service.command("room", fixture.home, {"kind": "SUBSTITUTION", "out_player_id": out["id"], "in_player_id": bench["id"], "idempotency_key": "first-sub-02"})
     now[0] = T0 + 60
+    service.sync_live("room")  # the round task's job; requests never simulate
     applied = service.live_view("room", fixture.home)["match"]
     assert any(e["kind"] == "SUBSTITUTION" and e["player_id"] == bench["id"] for e in applied["events"])
     status = next(c for c in applied["commands"] if c["kind"] == "SUBSTITUTION")
@@ -269,7 +284,15 @@ def test_http_live_round_commands_frames_authorization_and_reconnection(live, mo
                     assert own["match"]["events"] == other["match"]["events"]
                 forbidden = next(score["id"] for score in own["scores"] if score["id"] != own["match"]["id"])
                 assert client.get(base + f"/matches/{forbidden}", headers=headers1).status_code == 403
-                frames = client.get(base + "/season/live/frames?since=-1", headers=headers1).json()["data"]
+                # The clock jumped 25 s: the round task catches up in slices in the background.
+                for _ in range(100):
+                    frames = client.get(base + "/season/live/frames?since=-1", headers=headers1).json()["data"]
+                    if frames.get("broadcast") and frames.get("frames"):
+                        break
+                    if frames.get("broadcast"):
+                        now[0] += 0.5  # planned, but the screen sits inside a cut (no frames to send)
+                    time.sleep(0.05)
+                own = client.get(base + "/season/live", headers=headers1).json()["data"]
                 assert frames["match_id"] == own["match"]["id"] and frames["frames"][-1]["t"] <= own["match"]["tick"]
                 assert frames["broadcast"] and frames["broadcast"][0]["r0"] <= now[0]
                 for _ in range(8):  # the screen may sit exactly on a cut landing (one frame): let it play on

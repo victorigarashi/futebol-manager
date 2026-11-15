@@ -1,8 +1,11 @@
 import asyncio
+import time
 from collections import defaultdict
 from collections.abc import Callable
 
 from fastapi import WebSocket, WebSocketDisconnect
+
+HEARTBEAT_SECONDS = 1.0
 
 
 class RoomConnectionHub:
@@ -30,32 +33,37 @@ class RoomConnectionHub:
                 await self.disconnect(room_id, websocket)
         await asyncio.gather(*(deliver(ws) for ws in self._connections.get(room_id, set()).copy()))
 
-    async def push_frames(self, room_id: str, frames_for: Callable[[str, int], dict[str, object]]) -> None:
+    async def push_frames(self, room_id: str, frames_for: Callable[[str, int, object], dict[str, object]]) -> None:
         """Incremental 2D frames over the socket: each coach receives only his own match.
 
-        The broadcast timeline (which ticks play when) rides along whenever a new
-        segment has started, so the client can pace playback on the server's clock."""
+        The broadcast timeline (which ticks play when) rides along only when it changed,
+        so the client can pace playback on the server's clock."""
         async def deliver(websocket: WebSocket) -> None:
             meta = self._meta.get(websocket)
             if not meta or not meta["club"]:
                 return
-            view = frames_for(str(meta["club"]), int(meta["tick"]) if meta["match_id"] else -1)
-            rows = view.get("frames") or []
+            known = meta["timeline"] if meta["match_id"] else None
+            view = frames_for(str(meta["club"]), int(meta["tick"]) if meta["match_id"] else -1, known)
             if view.get("match_id") != meta["match_id"]:
                 meta.update(match_id=view.get("match_id"), tick=-1, timeline=None)
-            segments = view.get("broadcast") or []
-            timeline = (len(segments), segments[-1]["r0"]) if segments else None
-            if not rows and timeline == meta.get("timeline"):
+                view = frames_for(str(meta["club"]), -1, None)
+            rows = view.get("frames") or []
+            timeline = view.get("timeline")
+            now = time.monotonic()
+            # Nothing new: stay silent, except for a heartbeat every second so the
+            # client's server-clock estimate stays fresh through breaks and cuts.
+            if not rows and timeline == meta.get("timeline") and now - float(meta.get("sent_at") or 0) < HEARTBEAT_SECONDS:
                 return
             message: dict[str, object] = {"type": "live.frames", "match_id": view.get("match_id"), "frames": rows,
                                           "server_now": view.get("server_now"), "tick": view.get("tick")}
-            if timeline != meta.get("timeline"):
-                message["broadcast"] = segments
+            if "broadcast" in view and timeline != meta.get("timeline"):
+                message["broadcast"] = view["broadcast"]
             try:
                 await asyncio.wait_for(websocket.send_json(message), timeout=.5)
                 if rows:
                     meta["tick"] = rows[-1]["t"]
                 meta["timeline"] = timeline
+                meta["sent_at"] = now
             except (RuntimeError, OSError, WebSocketDisconnect, TimeoutError):
                 await self.disconnect(room_id, websocket)
         await asyncio.gather(*(deliver(ws) for ws in self._connections.get(room_id, set()).copy()))

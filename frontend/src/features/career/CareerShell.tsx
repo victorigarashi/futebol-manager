@@ -28,8 +28,10 @@ export function CareerShell({ roomId, room, isHost, clubCode }: { roomId: string
   const [openMatch, setOpenMatch] = useState<string | null>(null);
   const baseline = useRef<SeasonTableRow[] | undefined>(undefined);
   useEffect(() => { writeLocal(`bm_tab_${roomId}`, tab); }, [roomId, tab]);
-  const season = useQuery({ queryKey: ["season", roomId], queryFn: () => api.season(roomId).then((r) => r.data), refetchInterval: 5000 });
-  const live = useQuery({ queryKey: ["live", roomId], queryFn: () => api.live(roomId).then((r) => r.data), refetchInterval: (query) => query.state.data?.live_round ? 4000 : 6000 }); // the socket nudges every second
+  // The socket nudges refreshes when something changes; these intervals are only the
+  // fallback. The (large) season view is barely needed while a match is on screen.
+  const live = useQuery({ queryKey: ["live", roomId], queryFn: () => api.live(roomId).then((r) => r.data), refetchInterval: (query) => query.state.data?.live_round ? 4000 : 6000 });
+  const season = useQuery({ queryKey: ["season", roomId], queryFn: () => api.season(roomId).then((r) => r.data), refetchInterval: live.data?.live_round ? 15000 : 5000 });
   const clubs = useQuery({ queryKey: ["clubs"], queryFn: () => api.clubs().then((r) => r.data), staleTime: Infinity });
   const refresh = () => void client.invalidateQueries({ predicate: (q) => q.queryKey.includes(roomId) });
   const advance = useMutation({ mutationFn: () => api.advanceRound(roomId), onSuccess: refresh });
@@ -54,6 +56,9 @@ export function CareerShell({ roomId, room, isHost, clubCode }: { roomId: string
   }, [live.data?.live_round, liveMatchId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const data = season.data;
+  if (live.data?.live_round && live.data.recovering) {
+    return <div className="career career--live"><div className="panel-loading panel-loading--recovering" role="status"><b>Recuperando a partida…</b><span>O servidor foi reiniciado e está reconstruindo a rodada exatamente como estava (mesmos lances, placar e ordens). A transmissão volta sozinha em instantes.</span></div></div>;
+  }
   if (live.data?.live_round && live.data.match && clubList.length) {
     return <div className="career career--live"><LiveMatchCenter roomId={roomId} data={live.data} clubCode={clubCode} clubs={clubList} /></div>;
   }

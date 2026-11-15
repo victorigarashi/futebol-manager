@@ -18,6 +18,8 @@ import { SquadPage } from "../squad/SquadPage";
 import { SeasonPage } from "../season/SeasonPage";
 import { api, ApiError, roomSocketUrl, type Club, type RoomState } from "../../lib/api";
 import { useSession } from "../../stores/session";
+import { ALL_ROOM_QUERIES, InvalidationBatcher, queriesForEvent } from "../../lib/roomEvents";
+import { backoffDelay } from "../../lib/serverHealth";
 
 const defaultDraft: LeagueDraft = { name: "Liga dos parças", mode: "FIVE_A_SIDE", initial_budget_cents: 5_000_000_000, market_mode: "TRADITIONAL", team_count: 20, double_round_robin: true, initial_market_duration_seconds: 300, round_preparation_duration_seconds: 300, withdrawal_penalty_percent: 5, max_human_participants: 4, privacy: "PUBLIC", match_duration_seconds: 90 };
 type ConnectionState = "connecting" | "online" | "reconnecting" | "offline";
@@ -82,11 +84,19 @@ export function LobbyPage({ needsProfile, onEditProfile, onSaveProfile }: LobbyP
       void queryClient.invalidateQueries({ queryKey: ["rooms"] });
       void queryClient.invalidateQueries({ queryKey: ["my-rooms"] });
     };
+    // Each event refreshes only what it changes, and bursts become one refresh.
+    const batcher = new InvalidationBatcher((keys) => {
+      if (keys.has(ALL_ROOM_QUERIES)) { refresh(); return; }
+      void queryClient.invalidateQueries({ predicate: (query) => keys.has(String(query.queryKey[0])) && (query.queryKey.includes(activeRoomId) || query.queryKey.length === 1) });
+    });
     const connect = () => {
       if (stopped) return;
+      // A single socket per tab and room: never open a second one while one is alive.
+      if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) return;
       setConnection(attempts ? "reconnecting" : "connecting");
       socket = new WebSocket(roomSocketUrl(activeRoomId));
       socket.onopen = () => {
+        // After a reconnection the server may have moved on: resynchronise everything once.
         attempts = 0; setConnection("online"); refresh();
         heartbeat = window.setInterval(() => {
           if (socket?.readyState === WebSocket.OPEN) socket.send("ping");
@@ -98,9 +108,9 @@ export function LobbyPage({ needsProfile, onEditProfile, onSaveProfile }: LobbyP
           if (event.type === "live.frames") {
             // 2D frames go straight to the canvas buffer, never through React state.
             window.dispatchEvent(new CustomEvent("bm:frames", { detail: event }));
-          } else if (event.type === "season.tick" || event.type === "season.sync") {
-            void queryClient.invalidateQueries({ queryKey: ["live", activeRoomId] });
-          } else if (event.type) refresh();
+          } else {
+            batcher.add(queriesForEvent(event.type));
+          }
         } catch { /* A malformed notification must not crash the current game. */ }
       };
       socket.onerror = () => socket?.close();
@@ -108,10 +118,11 @@ export function LobbyPage({ needsProfile, onEditProfile, onSaveProfile }: LobbyP
         if (heartbeat) window.clearInterval(heartbeat);
         heartbeat = undefined;
         if (stopped) return;
-        setConnection("offline");
+        setConnection(attempts ? "reconnecting" : "offline");
         if (event.code === 1008) { setError("Não foi possível autenticar a conexão da sala. Tente retomar a liga ou recarregar a sessão."); return; }
+        // Exponential backoff with jitter: clients do not reconnect in lockstep after a restart.
+        retry = window.setTimeout(connect, backoffDelay(attempts, 800, 15_000));
         attempts += 1;
-        retry = window.setTimeout(connect, Math.min(15000, 900 * 2 ** Math.min(attempts, 4)));
       };
     };
     const online = () => {
@@ -123,7 +134,7 @@ export function LobbyPage({ needsProfile, onEditProfile, onSaveProfile }: LobbyP
     document.addEventListener("visibilitychange", visible);
     connect();
     return () => {
-      stopped = true; window.clearTimeout(retry); if (heartbeat) window.clearInterval(heartbeat); socket?.close();
+      stopped = true; batcher.cancel(); window.clearTimeout(retry); if (heartbeat) window.clearInterval(heartbeat); socket?.close();
       window.removeEventListener("online", online); document.removeEventListener("visibilitychange", visible);
     };
   }, [activeRoomId, queryClient]);

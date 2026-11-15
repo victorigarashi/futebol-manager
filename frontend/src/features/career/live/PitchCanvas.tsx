@@ -46,10 +46,18 @@ export function PitchCanvas({ buffer, driver, players, kits, pitch, events, home
     let lastPaint = 0;
     let grass: HTMLCanvasElement | null = null;
     let grassKey = "";
+    // Adaptive quality: a slow device drops HiDPI, gradients and the ball trail (only the
+    // drawing - never the simulation or the timeline), and gets them back when it copes.
+    let lowQuality = false;
+    let costAvg = 4;
+    let intervalAvg = 16;
+    let lastSwitch = 0;
 
     const draw = (now: number) => {
+      const began = performance.now();
       const delta = Math.min(200, now - last);
       last = now;
+      intervalAvg = intervalAvg * 0.95 + delta * 0.05;
       const { driver: drive, players: roster, kits: colours, pitch: dims, events: list, homeCode: home, ownSide: own, selectedIndex: selected } = props.current;
       const raw = drive(delta);
       const view: BroadcastView = typeof raw === "number" ? { tick: raw, kind: "PLAY", label: "", cut: null } : raw;
@@ -57,7 +65,7 @@ export function PitchCanvas({ buffer, driver, players, kits, pitch, events, home
       lastPaint = now;
       const width = canvas.clientWidth;
       const height = canvas.clientHeight;
-      const ratio = Math.min(2, window.devicePixelRatio || 1);
+      const ratio = lowQuality ? 1 : Math.min(2, window.devicePixelRatio || 1);
       if (canvas.width !== Math.round(width * ratio) || canvas.height !== Math.round(height * ratio)) {
         canvas.width = Math.round(width * ratio);
         canvas.height = Math.round(height * ratio);
@@ -164,10 +172,14 @@ export function PitchCanvas({ buffer, driver, players, kits, pitch, events, home
           context.globalAlpha = markerAlpha;
           const kit = player.side === "home" ? colours.home : colours.away;
           const fill = player.role === "GK" ? keeperKit(kit, player.side) : kit;
-          const body = context.createRadialGradient(px - radius * 0.35, py - radius * 0.4, radius * 0.1, px, py, radius);
-          body.addColorStop(0, lighten(fill, 0.3));
-          body.addColorStop(1, fill);
-          context.fillStyle = body;
+          if (lowQuality) {
+            context.fillStyle = fill;
+          } else {
+            const body = context.createRadialGradient(px - radius * 0.35, py - radius * 0.4, radius * 0.1, px, py, radius);
+            body.addColorStop(0, lighten(fill, 0.3));
+            body.addColorStop(1, fill);
+            context.fillStyle = body;
+          }
           context.beginPath(); context.arc(px, py, radius, 0, Math.PI * 2); context.fill();
           context.lineWidth = player.side === own ? 2 : 1.2;
           context.strokeStyle = player.side === own ? "rgba(248, 250, 252, 0.95)" : "rgba(10, 14, 20, 0.75)";
@@ -207,7 +219,7 @@ export function PitchCanvas({ buffer, driver, players, kits, pitch, events, home
       const ball = main.ball;
       const [bx, by] = at(ball.x, ball.y);
       const layerAlpha = layers[layers.length - 1].alpha;
-      if (!reduced && !view.cut && ball.state === 2) trail.push({ x: bx, y: by, t: now });
+      if (!reduced && !lowQuality && !view.cut && ball.state === 2) trail.push({ x: bx, y: by, t: now });
       while (trail.length && (now - trail[0].t > 260 || ball.state !== 2)) trail.shift();
       for (let index = 1; index < trail.length; index += 1) {
         context.strokeStyle = `rgba(255, 255, 255, ${(index / trail.length) * 0.45 * layerAlpha})`;
@@ -222,6 +234,11 @@ export function PitchCanvas({ buffer, driver, players, kits, pitch, events, home
       context.beginPath(); context.fillStyle = "#FFFFFF"; context.arc(bx, by, ballRadius, 0, Math.PI * 2); context.fill();
       context.lineWidth = 1; context.strokeStyle = "#0D1117"; context.stroke();
       context.restore();
+      costAvg = costAvg * 0.9 + (performance.now() - began) * 0.1;
+      if (now - lastSwitch > 3000) {
+        if (!lowQuality && (costAvg > 12 || intervalAvg > 34)) { lowQuality = true; lastSwitch = now; }
+        else if (lowQuality && costAvg < 5 && intervalAvg < 20) { lowQuality = false; lastSwitch = now; }
+      }
       frame = requestAnimationFrame(draw);
     };
     frame = requestAnimationFrame(draw);

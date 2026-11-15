@@ -415,3 +415,6 @@
 .bench-item, .top-players li { grid-template-columns: auto auto 1fr auto; }
 .bench-item .player-photo, .top-players .player-photo { margin-right: 0; }
 .player-sheet header { grid-template-columns: auto auto 1fr auto; }
+.panel-loading--recovering { display: grid; gap: .5rem; max-width: 40rem; margin: 3rem auto; text-align: center; }
+.panel-loading--recovering b { font-size: 1.2rem; }
+.btn.is-confirmed { background: #2f8f4e; border-color: #2f8f4e; color: #fff; opacity: 1; }

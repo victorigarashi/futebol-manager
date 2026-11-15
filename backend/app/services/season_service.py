@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import time
 import zlib
 from collections.abc import Callable
@@ -9,7 +10,7 @@ from dataclasses import asdict, dataclass, field
 
 from app.core.config import get_settings
 from app.domain.bot_coach import advance_with_bots, choose_lineup
-from app.domain.broadcast import DEFAULT_DURATION, DURATIONS, Director
+from app.domain.broadcast import DEFAULT_DURATION, DURATIONS, Director, LinearClock, clock_from_dict
 from app.domain.catalog import CatalogPlayer
 from app.domain.market import InitialMarket, MarketError
 from app.domain.match_engine import (
@@ -34,6 +35,60 @@ from app.domain.squad import formation_slots
 from app.domain.tactics import tactics_from_payload
 from app.services.squad_service import squad_service
 
+# Cooperative simulation budget. One slice simulates at most this many ticks of one
+# match (~5-8 ms of CPU on a desktop core, ~10x more on a 0.1 CPU host), so the event
+# loop always gets back control quickly (health check, other requests, sockets).
+SLICE_TICKS = 40
+# Watched matches are simulated this far beyond the broadcast cursor in slices, so
+# the planner rarely has to simulate inline.
+PRESIM_LEAD = 150
+# Unwatched matches stay at least this far ahead of their score-ticker clock.
+LINEAR_LEAD = 120
+
+
+@dataclass
+class PrebuiltMatch:
+    fingerprint: str
+    engine: MatchEngine
+
+
+class ReplayJob:
+    """Deterministic rebuild of a live engine from its command log, done in slices.
+
+    Same order of operations as `replay_engine` (advance to each command tick, apply
+    it, then advance to the frontier), so the rebuilt engine is identical."""
+
+    def __init__(self, engine: MatchEngine, command_log: list[dict[str, object]], until_tick: int) -> None:
+        self.engine = engine
+        self.commands = [c for c in sorted(command_log, key=lambda c: int(c["tick"])) if int(c["tick"]) <= until_tick]
+        self.index = 0
+        self.until = until_tick
+
+    @property
+    def done(self) -> bool:
+        return self.index >= len(self.commands) and (self.engine.tick >= self.until or self.engine.finished)
+
+    def step(self, budget: int) -> None:
+        engine = self.engine
+        target = min(self.until, engine.tick + budget)
+        while self.index < len(self.commands) and int(self.commands[self.index]["tick"]) <= target:
+            command = self.commands[self.index]
+            engine.advance_to(int(command["tick"]))
+            side = int(command["side"])
+            if command["kind"] == "TACTICS":
+                engine.queue_tactics(side, tactics_from_payload(command["tactics"]), str(command["command_id"]))
+            elif command["kind"] == "SUBSTITUTION":
+                try:
+                    engine.queue_substitution(side, str(command["out"]), str(command["in"]), str(command["command_id"]))
+                except ValueError:
+                    pass
+            self.index += 1
+        engine.advance_to(target)
+
+
+def _fingerprint(home: TeamInput, away: TeamInput, seed: int, bot_sides: list[int]) -> str:
+    return json.dumps([team_input_view(home), team_input_view(away), seed, bot_sides], sort_keys=True, default=str)
+
 
 @dataclass
 class RoomSeason:
@@ -57,6 +112,10 @@ class RoomSeason:
     # When the current round became available for preparation (server clock).
     preparation_opened_at: float | None = None
     double_round_robin: bool = True
+    # Bot-against-bot matches of the next round simulated ahead, during preparation.
+    prebuilt: dict[str, PrebuiltMatch] = field(default_factory=dict)
+    # Live engines being rebuilt after a restart (replayed in slices, never in one go).
+    recovering: dict[str, ReplayJob] = field(default_factory=dict)
 
 
 class SeasonService:
@@ -132,28 +191,181 @@ class SeasonService:
         for fixture in fixtures:
             if fixture.id in season.state.results:
                 continue
-            home_input = self._team_input(room_id, market, fixture.home)
-            away_input = self._team_input(room_id, market, fixture.away)
-            seed = zlib.crc32(f"{room_id}:{season.season_number}:{fixture.id}".encode())
-            engine = MatchEngine(fixture.id, season.mode, home_input, away_input, seed)
+            home_input, away_input, seed, bot_sides = self._fixture_inputs(room_id, market, fixture, human_clubs)
+            prebuilt = season.prebuilt.pop(fixture.id, None)
+            if prebuilt is not None and prebuilt.fingerprint == _fingerprint(home_input, away_input, seed, bot_sides):
+                # Simulated during preparation from exactly these inputs: identical result.
+                engine = prebuilt.engine
+            else:
+                engine = MatchEngine(fixture.id, season.mode, home_input, away_input, seed)
             meta = {"id": fixture.id, "home": fixture.home, "away": fixture.away, "status": "LIVE", "seed": seed,
                     "inputs": {"home": team_input_view(home_input), "away": team_input_view(away_input)},
-                    "bot_sides": [side for side, club in enumerate((fixture.home, fixture.away)) if club not in human_clubs]}
+                    "bot_sides": bot_sides}
             prepared[fixture.id] = (engine, meta)
+        season.prebuilt.clear()
         # Publish all ten engines with one shared server clock. No result enters the
         # official table until the whole round is committed.
         announced_at = self.clock()
         started_at = announced_at + self.intro_seconds
         for match_id, (engine, meta) in prepared.items():
-            engine.enable_snapshots()
+            if self._watched(meta):
+                engine.enable_snapshots()
+                season.directors[match_id] = Director(started_at, match_seconds)
+            else:
+                # Nobody watches bot against bot: no broadcast, frames or snapshots.
+                engine.record_frames = False
+                season.directors[match_id] = LinearClock(started_at, match_seconds)
             season.engines[match_id] = engine
             season.matches[match_id] = meta
-            season.directors[match_id] = Director(started_at, match_seconds)
         season.live_round = {"round_number": round_number, "announced_at": announced_at, "started_at": started_at,
                              "ends_at": started_at + match_seconds, "duration_seconds": match_seconds,
                              "match_seconds": match_seconds, "match_ids": list(prepared), "human_clubs": sorted(human_clubs)}
         season.ready_clubs.clear()
         return self.view(room_id)
+
+    @staticmethod
+    def _watched(meta: dict[str, object]) -> bool:
+        return len(meta.get("bot_sides", [])) < 2
+
+    def _fixture_inputs(self, room_id: str, market: InitialMarket, fixture: Fixture,
+                        human_clubs: set[str]) -> tuple[TeamInput, TeamInput, int, list[int]]:
+        season = self._season(room_id)
+        home_input = self._team_input(room_id, market, fixture.home)
+        away_input = self._team_input(room_id, market, fixture.away)
+        seed = zlib.crc32(f"{room_id}:{season.season_number}:{fixture.id}".encode())
+        bot_sides = [side for side, club in enumerate((fixture.home, fixture.away)) if club not in human_clubs]
+        return home_input, away_input, seed, bot_sides
+
+    # ------------------------------------------------------------------ cooperative simulation
+    def prepare_slice(self, room_id: str, market: InitialMarket, human_clubs: set[str], budget: int = SLICE_TICKS) -> bool:
+        """During preparation, simulate the next round's bot-against-bot matches ahead.
+
+        They depend on nothing a coach can still change (only their own inputs, which
+        are fingerprinted and re-checked when the round starts), so their CPU cost is
+        spread over the preparation instead of competing with the live broadcast.
+        Returns True while there is still work to do."""
+        season = self._season(room_id)
+        if season.live_round or season.transfer_window_open or season.recovering:
+            return False
+        round_number = self.current_round(room_id)
+        if round_number > self._regular_round_count(season):
+            return False
+        for fixture in season.state.fixtures:
+            if fixture.round_number != round_number or fixture.id in season.state.results:
+                continue
+            if fixture.home in human_clubs or fixture.away in human_clubs:
+                season.prebuilt.pop(fixture.id, None)
+                continue
+            prebuilt = season.prebuilt.get(fixture.id)
+            if prebuilt is None:
+                home_input, away_input, seed, bot_sides = self._fixture_inputs(room_id, market, fixture, human_clubs)
+                engine = MatchEngine(fixture.id, season.mode, home_input, away_input, seed)
+                engine.record_frames = False
+                season.prebuilt[fixture.id] = PrebuiltMatch(_fingerprint(home_input, away_input, seed, bot_sides), engine)
+                return True
+            engine = prebuilt.engine
+            if not engine.finished:
+                advance_with_bots(engine, engine.tick + budget, (0, 1), (engine.inputs[0].tactics, engine.inputs[1].tactics))
+                return True
+        return False
+
+    def simulate_slice(self, room_id: str, now: float | None = None, budget: int = SLICE_TICKS) -> tuple[bool, bool]:
+        """One bounded unit of live simulation work (the caller yields between slices).
+
+        Returns (urgent, more): `urgent` while something the screen will need soon is
+        still missing; `more` while any useful work remains (e.g. finishing unwatched
+        matches early with spare CPU)."""
+        season = self._season(room_id)
+        live = season.live_round
+        if not live:
+            return False, False
+        now = self.clock() if now is None else now
+        # 1. Engines being rebuilt after a restart.
+        for match_id, job in list(season.recovering.items()):
+            job.step(budget)
+            if job.done:
+                season.recovering.pop(match_id)
+            return True, True
+        started = now >= float(live["started_at"])
+        pending_more = False
+        # 2. Watched matches: keep the engine ahead of the planner, then plan.
+        for match_id in live["match_ids"]:
+            engine, director = season.engines.get(match_id), season.directors.get(match_id)
+            if engine is None or not isinstance(director, Director) or director.complete:
+                continue
+            meta = season.matches[match_id]
+            bots = tuple(meta.get("bot_sides", []))
+            baselines = (engine.inputs[0].tactics, engine.inputs[1].tactics)
+            # During the presentation the frontier stays at kick-off, so tactics changed
+            # before the whistle count from the first minute.
+            if started:
+                cursor = director.cursor_tick
+                half_limit = TICKS_PER_HALF if cursor <= TICKS_PER_HALF else FULL_TIME_TICK
+                target = min(half_limit, cursor + PRESIM_LEAD)
+                if engine.tick < target and not engine.finished:
+                    advance_with_bots(engine, min(target, engine.tick + budget), bots, baselines)
+                    return True, True
+            if director.cursor_real < now + 1.5:
+                before = (director.cursor_real, len(director.segments))
+                director.plan(engine, lambda tick, e=engine, b=bots, base=baselines: advance_with_bots(e, tick, b, base), now)
+                engine.prune_snapshots(director.shown_tick(now) - 30)
+                if (director.cursor_real, len(director.segments)) != before:
+                    return True, True
+        # 3. Unwatched matches: stay ahead of their score-ticker clock.
+        for match_id in live["match_ids"]:
+            engine, clock = season.engines.get(match_id), season.directors.get(match_id)
+            if engine is None or not isinstance(clock, LinearClock) or engine.finished:
+                continue
+            need = FULL_TIME_TICK if now >= clock.deadline - 2 else min(FULL_TIME_TICK, clock.shown_tick(now + 3) + LINEAR_LEAD)
+            if engine.tick < need:
+                advance_with_bots(engine, min(need, engine.tick + budget), (0, 1), (engine.inputs[0].tactics, engine.inputs[1].tactics))
+                return True, True
+            pending_more = True
+        # 4. Spare CPU: finish unwatched matches early (their result is fixed anyway).
+        if pending_more:
+            for match_id in live["match_ids"]:
+                engine, clock = season.engines.get(match_id), season.directors.get(match_id)
+                if engine is not None and isinstance(clock, LinearClock) and not engine.finished:
+                    advance_with_bots(engine, engine.tick + budget, (0, 1), (engine.inputs[0].tactics, engine.inputs[1].tactics))
+                    return False, True
+        return False, False
+
+    def ready_to_finish(self, room_id: str, now: float | None = None) -> bool:
+        """The round can be committed without simulating anything inline."""
+        season = self._season(room_id)
+        live = season.live_round
+        if not live or season.recovering:
+            return False
+        now = self.clock() if now is None else now
+        if now < float(live["ends_at"]):
+            return False
+        for match_id in live["match_ids"]:
+            engine, clock = season.engines.get(match_id), season.directors.get(match_id)
+            if engine is None:
+                continue
+            if isinstance(clock, Director):
+                # The planner reaches the final whistle cheaply once the engine is there.
+                if engine.tick < FULL_TIME_TICK - 1 and not engine.finished:
+                    return False
+            elif not engine.finished:
+                return False
+        return True
+
+    def round_state(self, room_id: str, now: float | None = None) -> str:
+        """PREPARING -> READY -> STARTING -> LIVE -> FINISHED (then PREPARING again)."""
+        season = self._season(room_id)
+        now = self.clock() if now is None else now
+        live = season.live_round
+        if live:
+            if season.recovering:
+                return "RECOVERING"
+            if now < float(live["started_at"]):
+                return "STARTING"
+            return "LIVE" if now < float(live["ends_at"]) else "FINISHED"
+        humans = season.human_clubs
+        if humans and humans.issubset(season.ready_clubs):
+            return "READY"
+        return "PREPARING"
 
     def shown_tick(self, season: RoomSeason, match_id: str, now: float) -> int:
         """Tick currently on screen for a live match (the broadcast trails the engine)."""
@@ -184,12 +396,20 @@ class SeasonService:
                 "halftime_ends_at": float(halftime["r1"]) if halftime else None, "ends_at": live["ends_at"]}
 
     def sync_live(self, room_id: str, now: float | None = None) -> None:
-        """Extend every live broadcast (and its bot coaches) up to the server clock."""
+        """Synchronous catch-up of every live match to the server clock.
+
+        The server never calls this on a request path: the round task does the same
+        work in small slices (`simulate_slice`). It remains for the commit at the
+        final whistle (where it is a no-op once the slices have caught up) and tests."""
         season = self._season(room_id)
         live = season.live_round
         if not live:
             return
         now = self.clock() if now is None else now
+        for match_id, job in list(season.recovering.items()):
+            while not job.done:
+                job.step(FULL_TIME_TICK)
+            season.recovering.pop(match_id)
         for match_id in live["match_ids"]:
             engine = season.engines.get(match_id)
             director = season.directors.get(match_id)
@@ -198,6 +418,10 @@ class SeasonService:
             meta = season.matches[match_id]
             bots = tuple(meta.get("bot_sides", []))
             baselines = (engine.inputs[0].tactics, engine.inputs[1].tactics)
+            if isinstance(director, LinearClock):
+                target = FULL_TIME_TICK if now >= director.deadline - 2 else director.shown_tick(now + 3) + LINEAR_LEAD
+                advance_with_bots(engine, target, bots, baselines)
+                continue
             director.plan(engine, lambda tick, e=engine, b=bots, base=baselines: advance_with_bots(e, tick, b, base), now)
             engine.prune_snapshots(director.shown_tick(now) - 30)
 
@@ -232,7 +456,8 @@ class SeasonService:
         live = season.live_round
         if not live:
             raise MarketError("Não há partida ao vivo no momento.")
-        self.sync_live(room_id)
+        if season.recovering:
+            raise MarketError("A partida está sendo recuperada após uma reinicialização do servidor. Tente de novo em alguns segundos.")
         match_id = next((key for key in live["match_ids"] if club in (season.matches[key]["home"], season.matches[key]["away"])), None)
         engine = season.engines.get(match_id) if match_id else None
         if engine is None:
@@ -269,8 +494,10 @@ class SeasonService:
         season = self._season(room_id)
         live = season.live_round
         now = self.clock()
-        if live:
-            self.sync_live(room_id, now)
+        if live and season.recovering:
+            return {"server_now": now, "live_round": live, "recovering": True, "round_state": "RECOVERING", "clock": None,
+                    "broadcast": None, "match": None, "scores": [], "table": [], "official_table": [],
+                    "current_round": self.current_round(room_id), "ready_clubs": sorted(season.ready_clubs)}
         ids = live["match_ids"] if live else [f.id for f in season.state.fixtures
                 if f.round_number == min(38, max(1, self.current_round(room_id) - 1))]
         own_id = next((key for key in ids if key in season.matches and
@@ -285,18 +512,25 @@ class SeasonService:
                 "scores": scores, "table": self.live_table(room_id, now),
                 "official_table": standings(tuple(sorted({f.home for f in season.state.fixtures})),
                                             season.state.fixtures, season.state.results),
-                "current_round": self.current_round(room_id), "ready_clubs": sorted(season.ready_clubs)}
+                "current_round": self.current_round(room_id), "ready_clubs": sorted(season.ready_clubs),
+                "round_state": self.round_state(room_id, now), "recovering": False}
 
-    def live_frames(self, room_id: str, club: str, since_tick: int, sync: bool = True) -> dict[str, object]:
+    def live_frames(self, room_id: str, club: str, since_tick: int, sync: bool = False,
+                    known_timeline: list[int] | tuple[int, int] | None = None) -> dict[str, object]:
         """Authoritative frames of the coach's match up to the tick on screen.
 
         Only frames the broadcast shows are sent: every tick of a highlight, and the
-        edges of a cut (the client cross-fades between them instead of sliding)."""
+        edges of a cut (the client cross-fades between them instead of sliding).
+        A socket push passes the timeline key it already sent: the broadcast window is
+        then only rebuilt and included when it changed (the push runs several times a
+        second per coach, so this is the hot path on a small server)."""
         season = self._season(room_id)
         live = season.live_round
         if not live:
             return {"frames": [], "tick": None, "finished": True}
         now = self.clock()
+        if season.recovering:
+            return {"frames": [], "tick": None, "finished": False, "recovering": True, "server_now": now}
         if sync:
             self.sync_live(room_id, now)
         match_id = next((key for key in live["match_ids"] if club in (season.matches[key]["home"], season.matches[key]["away"])), None)
@@ -306,11 +540,16 @@ class SeasonService:
             return {"frames": [], "tick": None, "finished": True}
         shown = self.shown_tick(season, match_id, now)
         since = max(int(since_tick), shown - 240)
-        rows = [row for row in engine.frames_between(since, shown) if director.visible(int(row["t"]))]
-        goals = [e for e in engine.events if e["kind"] == "GOAL" and int(e["tick"]) <= shown]
-        return {"match_id": match_id, "tick": shown, "server_now": now,
-                "score": {"home": sum(1 for g in goals if g["team"] == engine.clubs[0]), "away": sum(1 for g in goals if g["team"] == engine.clubs[1])},
-                "broadcast": director.window(now), "frames": rows}
+        rows = [row for row in engine.frames_between(since, shown) if director.visible(int(row["t"]))] if shown > since else []
+        timeline = list(director.timeline_key(now))
+        view: dict[str, object] = {"match_id": match_id, "tick": shown, "server_now": now, "frames": rows, "timeline": timeline}
+        if known_timeline is None or list(known_timeline) != timeline:
+            view["broadcast"] = director.window(now)
+        if known_timeline is None:
+            goals = [e for e in engine.events if e["kind"] == "GOAL" and int(e["tick"]) <= shown]
+            view["score"] = {"home": sum(1 for g in goals if g["team"] == engine.clubs[0]),
+                             "away": sum(1 for g in goals if g["team"] == engine.clubs[1])}
+        return view
 
     def _score(self, season: RoomSeason, match_id: str, now: float | None = None) -> dict[str, object]:
         match = season.matches[match_id]
@@ -574,7 +813,7 @@ class SeasonService:
         clubs = tuple(sorted({club for fixture in season.state.fixtures for club in (fixture.home, fixture.away)}))
         current = self.current_round(room_id)
         total_rounds = self._regular_round_count(season)
-        return {"live_round": season.live_round, "server_now": self.clock(), "preparation_opened_at": season.preparation_opened_at, "live_table": self.live_table(room_id), "season_number": season.season_number, "current_round": current, "total_rounds": total_rounds, "double_round_robin": season.double_round_robin, "regular_season_complete": current > total_rounds, "season_complete": bool(season.playoffs and season.playoffs.champion), "progression_applied": season.progression_applied, "champion": season.playoffs.champion if season.playoffs else None, "playoffs": season.playoffs.view() if season.playoffs else None, "transfer_window_open": season.transfer_window_open, "ready_clubs": sorted(season.ready_clubs), "table": standings(clubs, season.state.fixtures, season.state.results), "fixtures": [{"id": fixture.id, "round_number": fixture.round_number, "home": fixture.home, "away": fixture.away, "result": self._result_view(season.state.results.get(fixture.id)), "match_id": fixture.id if fixture.id in season.matches else None} for fixture in season.state.fixtures if fixture.round_number == min(current, total_rounds)], "matches": [{"id": match_id, "round_number": next((f.round_number for f in season.state.fixtures if f.id == match_id), total_rounds + 1), "home": match["home"], "away": match["away"], "home_goals": projected["home_goals"], "away_goals": projected["away_goals"]} for match_id, match in season.matches.items() for projected in [self._score(season, match_id)]], "match_count": len(season.matches), "schedule": [{"id": f.id, "round_number": f.round_number, "home": f.home, "away": f.away, "result": self._result_view(season.state.results.get(f.id))} for f in season.state.fixtures], "season_history": season.season_history, "development_records": season.development_records, "top_scorers": self._top_scorers(season)}
+        return {"live_round": season.live_round, "server_now": self.clock(), "preparation_opened_at": season.preparation_opened_at, "live_table": self.live_table(room_id), "season_number": season.season_number, "current_round": current, "total_rounds": total_rounds, "double_round_robin": season.double_round_robin, "regular_season_complete": current > total_rounds, "season_complete": bool(season.playoffs and season.playoffs.champion), "progression_applied": season.progression_applied, "champion": season.playoffs.champion if season.playoffs else None, "playoffs": season.playoffs.view() if season.playoffs else None, "transfer_window_open": season.transfer_window_open, "ready_clubs": sorted(season.ready_clubs), "human_clubs": sorted(season.human_clubs), "round_state": self.round_state(room_id), "recovering": bool(season.recovering), "table": standings(clubs, season.state.fixtures, season.state.results), "fixtures": [{"id": fixture.id, "round_number": fixture.round_number, "home": fixture.home, "away": fixture.away, "result": self._result_view(season.state.results.get(fixture.id)), "match_id": fixture.id if fixture.id in season.matches else None} for fixture in season.state.fixtures if fixture.round_number == min(current, total_rounds)], "matches": [{"id": match_id, "round_number": next((f.round_number for f in season.state.fixtures if f.id == match_id), total_rounds + 1), "home": match["home"], "away": match["away"], "home_goals": projected["home_goals"], "away_goals": projected["away_goals"]} for match_id, match in season.matches.items() for projected in [self._score(season, match_id)]], "match_count": len(season.matches), "schedule": [{"id": f.id, "round_number": f.round_number, "home": f.home, "away": f.away, "result": self._result_view(season.state.results.get(f.id))} for f in season.state.fixtures], "season_history": season.season_history, "development_records": season.development_records, "top_scorers": self._top_scorers(season)}
 
     @staticmethod
     def _top_scorers(season: RoomSeason) -> list[dict[str, object]]:
@@ -595,10 +834,13 @@ class SeasonService:
 
     def export_room(self, room_id: str) -> dict[str, object]:
         season = self._season(room_id)
-        matches = {key: ({**match, "command_log": list(season.engines[key].command_log), "frontier": season.engines[key].tick,
-                          "broadcast": season.directors[key].to_dict() if key in season.directors else None}
-                         if key in season.engines else match)
-                   for key, match in season.matches.items()}
+        def live_entry(key: str, match: dict[str, object]) -> dict[str, object]:
+            job = season.recovering.get(key)
+            # Mid-rebuild the engine only holds part of the log: persist the full one.
+            log, frontier = (list(job.commands), job.until) if job else (list(season.engines[key].command_log), season.engines[key].tick)
+            return {**match, "command_log": log, "frontier": frontier,
+                    "broadcast": season.directors[key].to_dict() if key in season.directors else None}
+        matches = {key: (live_entry(key, match) if key in season.engines else match) for key, match in season.matches.items()}
         return {
             "live_round": season.live_round,
             "human_clubs": sorted(season.human_clubs),
@@ -721,22 +963,27 @@ class SeasonService:
             preparation_opened_at=float(payload["preparation_opened_at"]) if payload.get("preparation_opened_at") is not None else None,
         )
         if room_season.live_round:
-            # Rebuild every live engine deterministically from inputs, seed and the command
-            # log, then let the normal sync catch up with the original server clock.
+            # Every live engine is rebuilt deterministically from inputs, seed and the
+            # command log - in slices, by the round task (`simulate_slice`), never here:
+            # replaying ten matches inline used to keep a 0.1 CPU host busy for over a
+            # minute before it could even answer its health check.
             for match_id in room_season.live_round["match_ids"]:
                 meta = matches_payload[match_id]
                 log = list(meta.pop("command_log", []))
                 home, away = team_input_from_view(meta["inputs"]["home"]), team_input_from_view(meta["inputs"]["away"])
                 until = max([int(meta.pop("frontier", 0) or 0), *(int(c["tick"]) for c in log)])
-                engine = replay_engine(match_id, room_season.mode, home, away, int(meta["seed"]), log, until, snapshots=True)
-                room_season.engines[match_id] = engine
+                engine = MatchEngine(match_id, room_season.mode, home, away, int(meta["seed"]))
                 broadcast = meta.pop("broadcast", None)
                 live_round = room_season.live_round
-                director = (Director.from_dict(broadcast) if isinstance(broadcast, dict)
-                            else Director(float(live_round["started_at"]), int(live_round["match_seconds"])))
-                if director.cursor_tick > engine.tick:
-                    raise ValueError("Snapshot de transmissão mostra lances além do motor reconstruído.")
-                room_season.directors[match_id] = director
+                clock = (clock_from_dict(broadcast) if isinstance(broadcast, dict)
+                         else Director(float(live_round["started_at"]), int(live_round["match_seconds"])))
+                if isinstance(clock, Director):
+                    engine.enable_snapshots()
+                else:
+                    engine.record_frames = False
+                room_season.engines[match_id] = engine
+                room_season.directors[match_id] = clock
+                room_season.recovering[match_id] = ReplayJob(engine, log, until)
         self._seasons[room_id] = room_season
         return room_season
 

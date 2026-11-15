@@ -1,4 +1,6 @@
 import asyncio
+import logging
+import time
 
 from fastapi import (
     APIRouter,
@@ -36,9 +38,10 @@ from app.core.config import get_settings
 from app.domain.catalog import catalog_status, load_catalog
 from app.domain.clubs import CLUBS
 from app.domain.demo_catalog import create_demo_catalog
-from app.domain.market import MarketError
+from app.domain.market import InitialMarket, MarketError
 from app.domain.match_engine import PlayerInput, derived_attributes
 from app.domain.rooms import room_manager
+from app.services import metrics
 from app.services.auth import (
     SESSION_COOKIE,
     GuestIdentity,
@@ -49,10 +52,11 @@ from app.services.auth import (
 from app.services.market_service import market_service
 from app.services.realtime import hub
 from app.services.season_service import season_service
-from app.services.snapshots import load_snapshot, write_snapshot
+from app.services.snapshot_store import snapshot_store
 from app.services.squad_service import squad_service
 from app.services.transfer_service import transfer_service
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1")
 
 
@@ -64,7 +68,10 @@ def envelope(data: object, revision: int | None = None) -> dict[str, object]:
 
 
 def snapshot_room(room_id: str) -> None:
-    """Persist the current in-memory authority only when snapshots are enabled."""
+    """Persist the current in-memory authority only when snapshots are enabled.
+
+    Serialisation is incremental (finished matches are cached) and the file is written
+    off the event loop, debounced (see app.services.snapshot_store)."""
     settings = get_settings()
     if not settings.enable_json_snapshots:
         return
@@ -75,13 +82,9 @@ def snapshot_room(room_id: str) -> None:
         "season": season_service.export_room(room_id) if room_id in season_service._seasons else None,
         "transfers": transfer_service.export_room(room_id) if room_id in transfer_service._offers or room_id in transfer_service._operations else {"offers": [], "operations": []},
     }
-    stored: dict[str, object] = {"rooms": {}}
-    if settings.snapshot_path.exists():
-        stored = load_snapshot(settings.snapshot_path)
-    rooms = stored.setdefault("rooms", {})
-    if isinstance(rooms, dict):
-        rooms[room_id] = result
-    write_snapshot(settings.snapshot_path, stored)
+    with metrics.cpu("snapshot_serialize"):
+        snapshot_store.update(settings.snapshot_path, room_id, result)
+    snapshot_store.schedule(settings.snapshot_path)
 
 
 async def finalize_market(completed_room_id: str) -> None:
@@ -103,8 +106,15 @@ async def notify_market(room_id: str, message: dict[str, object]) -> None:
     await hub.broadcast(room_id, message)
 
 
+@router.get("/metrics")
+async def runtime_metrics() -> dict[str, object]:
+    """CPU per subsystem and event-loop lag (operational; no personal data)."""
+    return envelope({**metrics.snapshot(), "live_rounds": sum(1 for task in round_tasks.values() if not task.done()),
+                     "rooms": len(season_service._seasons)})
+
+
 @router.get("/health")
-def health() -> dict[str, str]:
+async def health() -> dict[str, str]:
     return {"status": "ok", "storage": "memory"}
 
 
@@ -486,39 +496,97 @@ def schedule_round(room_id: str) -> None:
         round_tasks[room_id] = asyncio.create_task(broadcast_round(room_id))
 
 
+# Simulation runs in small slices (see SeasonService.simulate_slice) with a yield to
+# the event loop after each one, so health checks, requests and sockets are served in
+# between. While the broadcast needs work the task keeps going (on a 0.1 CPU host
+# idle pauses would waste the CPU share the round is entitled to); it only sleeps once
+# it has caught up. Frames are pushed at least every URGENT_BURST_SECONDS.
+URGENT_BURST_SECONDS = 0.5
+SPARE_BURST_SECONDS = 0.05
+IDLE_SLEEP_SECONDS = 0.1
+TICK_NOTIFY_SECONDS = 2.0
+# Frames reach the client in batches it buffers (it renders ~1 s behind the server
+# clock), so pushing more often than this only costs CPU.
+FRAME_PUSH_SECONDS = 0.25
+
+
+# Until when some live broadcast is behind schedule: background pre-simulation backs off.
+live_pressure_until = 0.0
+
+
+async def simulate_round(room_id: str) -> bool:
+    """Advance the room's live engines cooperatively. Returns True while still behind."""
+    global live_pressure_until
+    began = time.perf_counter()
+    urgent = more = True
+    while urgent and time.perf_counter() - began < URGENT_BURST_SECONDS:
+        async with round_locks.setdefault(room_id, asyncio.Lock()):
+            if room_id not in season_service._seasons or not season_service._season(room_id).live_round:
+                return False
+            with metrics.cpu("simulation"):
+                urgent, more = season_service.simulate_slice(room_id)
+        await asyncio.sleep(0)
+    if urgent:
+        live_pressure_until = time.perf_counter() + 0.5
+        return True
+    # Caught up: a little spare work (finishing unwatched matches early), then rest.
+    spare_began = time.perf_counter()
+    while more and time.perf_counter() - spare_began < SPARE_BURST_SECONDS:
+        async with round_locks.setdefault(room_id, asyncio.Lock()):
+            if room_id not in season_service._seasons or not season_service._season(room_id).live_round:
+                return False
+            with metrics.cpu("simulation"):
+                urgent, more = season_service.simulate_slice(room_id)
+        await asyncio.sleep(0)
+        if urgent:
+            return True
+    return False
+
+
 async def broadcast_round(room_id: str) -> None:
     completed = False
+    crashed = False
     last_tick_broadcast = 0.0
+    last_push = 0.0
     try:
         while season_service._season(room_id).live_round:
+            behind = await simulate_round(room_id)
             async with round_locks.setdefault(room_id, asyncio.Lock()):
-                # The engines advance with the server clock even with nobody watching.
-                season_service.sync_live(room_id)
-                completed = season_service.finish_due(room_id)
+                completed = False
+                if season_service.ready_to_finish(room_id):
+                    # Every engine is already at the final whistle: committing is cheap.
+                    with metrics.cpu("round_commit"):
+                        completed = season_service.finish_due(room_id)
                 if completed:
                     season = season_service._season(room_id)
                     if season.transfer_window_open:
                         room = room_manager._room(room_id)
                         await room_manager.set_phase(room_id, room.host_user_id, "TRANSFER_WINDOW")
                     snapshot_room(room_id)
-            if not completed:
-                # Engines were synced above under the lock; just read each coach's new frames.
-                await hub.push_frames(room_id, lambda club, since: season_service.live_frames(room_id, club, since, sync=False))
             now = season_service.clock()
-            if completed or now - last_tick_broadcast >= 1.0:
-                # Clients stream frames by polling; the socket only nudges state refreshes.
+            if not completed and now - last_push >= FRAME_PUSH_SECONDS:
+                # Engines were advanced above; just read each coach's new frames.
+                last_push = now
+                with metrics.cpu("frame_push"):
+                    await hub.push_frames(room_id, lambda club, since, known: season_service.live_frames(room_id, club, since, known_timeline=known))
+            if completed or now - last_tick_broadcast >= TICK_NOTIFY_SECONDS:
+                # Frames go over the socket; this only nudges score/event refreshes.
                 await hub.broadcast(room_id, {"type": "season.round_completed" if completed else "season.tick"})
                 last_tick_broadcast = now
             if completed:
                 break
-            remaining = season_service._season(room_id).live_round["ends_at"] - season_service.clock()
-            await asyncio.sleep(max(0, min(.2, remaining)))
+            await asyncio.sleep(0 if behind else IDLE_SLEEP_SECONDS)
+    except Exception:
+        # Never leave a room stuck "live" because one iteration failed: log, pause, retry.
+        logger.exception("Falha na transmissão da rodada da sala %s", room_id)
+        crashed = True
+        await asyncio.sleep(1)
     finally:
         round_tasks.pop(room_id, None)
         # A coach may ready the next round while the completion notification is
         # being sent. Hand that round to a new timer after retiring this task.
         season = season_service._seasons.get(room_id)
-        if completed and season and season.live_round:
+        if (completed or crashed) and season and season.live_round:
             schedule_round(room_id)
 
 
@@ -529,7 +597,7 @@ async def start_round_if_preparation_expired(room_id: str) -> None:
     room = room_manager._room(room_id)
     if room.phase != "SEASON_PREPARATION":
         return
-    humans = {p.selected_club_code for p in room.participants.values() if p.selected_club_code}
+    humans = {p.selected_club_code for p in room.participants.values() if p.selected_club_code and p.role != "BOT"}
     async with round_locks.setdefault(room_id, asyncio.Lock()):
         try:
             started = season_service.start_if_preparation_expired(
@@ -544,17 +612,61 @@ async def start_round_if_preparation_expired(room_id: str) -> None:
         await hub.broadcast(room_id, {"type": "season.round_started", "reason": "preparation_timeout"})
 
 
+async def prepare_rooms_forever(interval: float = 1.0) -> None:
+    """Housekeeping for rooms in preparation (one task for the whole server).
+
+    * enforces the preparation deadline even when nobody is polling the season;
+    * spends idle CPU simulating the next round's bot-against-bot matches, one slice
+      per room in turn with a yield after each, until there is nothing left to do."""
+    while True:
+        await asyncio.sleep(interval)
+        working: dict[str, tuple[InitialMarket, set[str]]] = {}
+        for room_id in list(season_service._seasons):
+            try:
+                room = room_manager._room(room_id)
+                if room.phase != "SEASON_PREPARATION" or room_id not in market_service.sessions:
+                    continue
+                await start_round_if_preparation_expired(room_id)
+                humans = {p.selected_club_code for p in room.participants.values() if p.selected_club_code and p.role != "BOT"}
+                working[room_id] = (market_service._session(room_id).market, humans)
+            except (KeyError, MarketError):
+                continue
+            except Exception:
+                logger.exception("Falha na preparação da sala %s", room_id)
+        began = time.perf_counter()
+        while working and time.perf_counter() - began < 2.0:
+            if time.perf_counter() < live_pressure_until:
+                await asyncio.sleep(0.05)  # live broadcasts first
+                continue
+            for room_id, (market, humans) in list(working.items()):
+                try:
+                    async with round_locks.setdefault(room_id, asyncio.Lock()):
+                        with metrics.cpu("preparation_presim"):
+                            more = season_service.prepare_slice(room_id, market, humans)
+                except (KeyError, MarketError):
+                    more = False
+                except Exception:
+                    logger.exception("Falha na pré-simulação da sala %s", room_id)
+                    more = False
+                if not more:
+                    working.pop(room_id)
+                await asyncio.sleep(0)
+
+
 @router.post("/rooms/{room_id}/season/ready")
 async def ready_for_round(room_id: str, identity: GuestIdentity = Depends(current_identity)) -> dict[str, object]:
     club = market_club(room_id, identity.id)
     room = room_manager._room(room_id)
-    humans = {p.selected_club_code for p in room.participants.values() if p.selected_club_code}
+    humans = {p.selected_club_code for p in room.participants.values() if p.selected_club_code and p.role != "BOT"}
     if room.phase != "SEASON_PREPARATION":
         raise HTTPException(status_code=409, detail="Aguarde a etapa de preparação da rodada.")
     try:
         async with round_locks.setdefault(room_id, asyncio.Lock()):
-            result = season_service.ready(room_id, club)
+            # Idempotent: confirming twice is the same as once. The lock makes "every
+            # coach ready -> start" atomic, so the round starts exactly once.
             season = season_service._season(room_id)
+            season.human_clubs = set(humans)
+            result = season_service.ready(room_id, club)
             if not season.live_round and humans.issubset(season.ready_clubs):
                 result = season_service.advance(room_id, market_service._session(room_id).market, humans, room_manager._room(room_id).match_duration_seconds)
             if season.live_round:
@@ -571,7 +683,7 @@ async def advance_round(room_id: str, identity: GuestIdentity = Depends(current_
     room = room_manager._room(room_id)
     if room.host_user_id != identity.id:
         raise HTTPException(status_code=403, detail="Apenas o anfitrião pode iniciar a rodada.")
-    humans = {p.selected_club_code for p in room.participants.values() if p.selected_club_code}
+    humans = {p.selected_club_code for p in room.participants.values() if p.selected_club_code and p.role != "BOT"}
     if room.phase != "SEASON_PREPARATION":
         raise HTTPException(status_code=409, detail="Aguarde a etapa de preparação da rodada.")
     try:
@@ -627,7 +739,7 @@ async def season_preview(room_id: str, identity: GuestIdentity = Depends(current
     club = market_club(room_id, identity.id)
     try:
         room = room_manager._room(room_id)
-        season_service._season(room_id).human_clubs = {p.selected_club_code for p in room.participants.values() if p.selected_club_code}
+        season_service._season(room_id).human_clubs = {p.selected_club_code for p in room.participants.values() if p.selected_club_code and p.role != "BOT"}
         preview = season_service.preview(room_id, market_service._session(room_id).market, club)
         managers = {p.selected_club_code: p.display_name for p in room.participants.values() if p.selected_club_code}
         for side in ("home", "away"):
@@ -815,7 +927,9 @@ async def match_frames(room_id: str, match_id: str, start: int = 0, end: int = 6
         match = season_service.match(room_id, match_id)
         if club not in (match["home"], match["away"]):
             raise HTTPException(status_code=403, detail="Você pode rever somente as partidas do seu clube.")
-        return envelope(season_service.replay_frames(room_id, match_id, start, end))
+        # Re-simulates a finished match on its own engine: safe in a worker thread,
+        # where it no longer stalls the event loop.
+        return envelope(await asyncio.to_thread(season_service.replay_frames, room_id, match_id, start, end))
     except MarketError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
 

@@ -1,3 +1,4 @@
+import { reportServerHealth } from "./serverHealth";
 import { readLocal, writeLocal } from "./storage";
 
 export type MatchDuration = 90 | 120 | 180;
@@ -72,19 +73,32 @@ export type FramesView = { match_id?: string; tick: number | null; phase?: Match
 export type PreviewSide = { club_code: string; formation_code: string; starters: { id: string; name: string; position: string; slot_position: string; overall: number; improvised: boolean; number: number }[]; bench_size: number; tactics: Tactics | null; average: number; sectors: Record<string, number>; ready: boolean; human: boolean | null; manager?: string | null };
 export type MatchPreview = { fixture: { id: string; round_number: number; home: string; away: string } | null; home?: PreviewSide; away?: PreviewSide };
 export type LiveCommandPayload = { kind: "TACTICS"; mentality?: Mentality; pressure?: Pressure; style?: PlayStyle } | { kind: "SUBSTITUTION"; out_player_id: string; in_player_id: string };
-export type LiveView = { server_now: number; live_round: LiveRound | null; clock?: LiveClock | null; broadcast?: BroadcastSegment[] | null; match: LiveMatch | null; scores: { id: string; home: string; away: string; home_goals: number; away_goals: number; minute?: number; status?: string }[]; table: SeasonTableRow[]; official_table: SeasonTableRow[]; current_round: number; ready_clubs: string[] };
+export type LiveView = { round_state?: RoundState; recovering?: boolean; server_now: number; live_round: LiveRound | null; clock?: LiveClock | null; broadcast?: BroadcastSegment[] | null; match: LiveMatch | null; scores: { id: string; home: string; away: string; home_goals: number; away_goals: number; minute?: number; status?: string }[]; table: SeasonTableRow[]; official_table: SeasonTableRow[]; current_round: number; ready_clubs: string[] };
 export type MatchReplay = { id: string; home: string; away: string; home_players: string[]; away_players: string[]; home_goals: number; away_goals: number; home_xg: number; away_xg: number; probabilities?: { home: number; draw: number; away: number }; status: "LIVE" | "FINISHED"; minute: number; started_at?: number; ends_at?: number; home_formation?: MatchFormation; away_formation?: MatchFormation; statistics: Record<string, Record<string, number>>; events: MatchEvent[] };
 export type PlayoffMatch = { id: string; stage: string; home: string; away: string; home_goals: number; away_goals: number; winner: string; home_penalties: number | null; away_penalties: number | null };
 export type PlayoffView = { qualifiers: string[]; quarterfinals: PlayoffMatch[]; semifinals: PlayoffMatch[]; final: PlayoffMatch | null; champion: string | null; next_stage: string };
 export type DevelopmentRecord = { player_id: string; season_number: number; overall_before: number; overall_after: number; delta: number; internal_market_value_cents: number; minutes_played: number; goals: number; reasons: string[] };
 export type SeasonTopScorer = { player_id: string; player_name: string; club_code: string; goals: number };
 export type ScheduleRow = { id: string; round_number: number; home: string; away: string; result: { home_goals: number; away_goals: number } | null };
-export type SeasonView = { live_round: LiveRound | null; server_now: number; preparation_opened_at?: number | null; schedule?: ScheduleRow[]; live_table: SeasonTableRow[]; season_number: number; current_round: number; regular_season_complete: boolean; season_complete: boolean; progression_applied: boolean; champion: string | null; playoffs: PlayoffView | null; transfer_window_open: boolean; ready_clubs: string[]; table: SeasonTableRow[]; fixtures: { id: string; round_number: number; home: string; away: string; match_id?: string | null; result: { home_goals: number; away_goals: number } | null }[]; matches: { id: string; round_number: number; home: string; away: string; home_goals: number; away_goals: number }[]; top_scorers: SeasonTopScorer[]; development_records: DevelopmentRecord[]; season_history: { season_number: number; champion: string; table: SeasonTableRow[]; top_scorers?: SeasonTopScorer[] }[] };
+export type RoundState = "PREPARING" | "READY" | "STARTING" | "LIVE" | "FINISHED" | "RECOVERING";
+export type SeasonView = { round_state?: RoundState; human_clubs?: string[]; recovering?: boolean; live_round: LiveRound | null; server_now: number; preparation_opened_at?: number | null; schedule?: ScheduleRow[]; live_table: SeasonTableRow[]; season_number: number; current_round: number; regular_season_complete: boolean; season_complete: boolean; progression_applied: boolean; champion: string | null; playoffs: PlayoffView | null; transfer_window_open: boolean; ready_clubs: string[]; table: SeasonTableRow[]; fixtures: { id: string; round_number: number; home: string; away: string; match_id?: string | null; result: { home_goals: number; away_goals: number } | null }[]; matches: { id: string; round_number: number; home: string; away: string; home_goals: number; away_goals: number }[]; top_scorers: SeasonTopScorer[]; development_records: DevelopmentRecord[]; season_history: { season_number: number; champion: string; table: SeasonTableRow[]; top_scorers?: SeasonTopScorer[] }[] };
 
 export type CareerView = { club_code: string; season_number: number; budget_cents: number; reserved_transfer_cents: number; available_transfer_cents: number; financial_ledger: { operation_id?: string; type?: string; amount_cents?: number; description?: string; player_id?: string }[]; transfers: TransferOffer[]; development_records: DevelopmentRecord[]; season_history: SeasonView["season_history"]; players: MarketPlayer[] };
+/** network: no answer at all · unavailable: proxy/server down (502/503/504) · client: the game said no (4xx). */
+export type ApiErrorKind = "network" | "unavailable" | "server" | "client";
 export class ApiError extends Error {
   constructor(message: string, public status: number) { super(message); this.name = "ApiError"; }
+  get kind(): ApiErrorKind {
+    if (this.status === 0) return "network";
+    if (this.status === 502 || this.status === 503 || this.status === 504) return "unavailable";
+    return this.status >= 500 ? "server" : "client";
+  }
+  /** Worth retrying automatically (the request may succeed in a moment). */
+  get transient(): boolean { return this.kind !== "client" || this.status === 408 || this.status === 429; }
 }
+
+const UNAVAILABLE = "O servidor está reiniciando ou indisponível. Tentando de novo automaticamente…";
+const OFFLINE = "Sem conexão com o servidor. Verifique sua internet; tentando de novo…";
 
 type Envelope<T> = { data: T; meta: { revision?: number } };
 const baseUrl = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api/v1";
@@ -99,15 +113,31 @@ function rememberToken(identity: Identity): Identity {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${baseUrl}${path}`, {
-    credentials: "include",
-    headers: { "content-type": "application/json", ...(accessToken() ? { authorization: `Bearer ${accessToken()}` } : {}), ...init?.headers },
-    ...init,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl}${path}`, {
+      credentials: "include",
+      headers: { "content-type": "application/json", ...(accessToken() ? { authorization: `Bearer ${accessToken()}` } : {}), ...init?.headers },
+      ...init,
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") throw error;
+    // fetch() only rejects when there is no HTTP answer at all. (A 502 from the proxy
+    // has no CORS headers, so browsers also report it this way, as a "CORS error".)
+    reportServerHealth("network");
+    throw new ApiError(OFFLINE, 0);
+  }
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as { detail?: string } | null;
-    throw new ApiError(typeof body?.detail === "string" ? body.detail : "Confira os campos e tente novamente.", response.status);
+    const error = new ApiError(typeof body?.detail === "string" ? body.detail : "Confira os campos e tente novamente.", response.status);
+    if (error.kind === "unavailable" || error.kind === "server") {
+      reportServerHealth("unavailable");
+      throw new ApiError(UNAVAILABLE, response.status);
+    }
+    reportServerHealth("ok");
+    throw error;
   }
+  reportServerHealth("ok");
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }

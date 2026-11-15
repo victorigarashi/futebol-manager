@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { api, type BroadcastSegment, type FrameRow } from "../../../lib/api";
 import { BroadcastTimeline, DISPLAY_DELAY_SECONDS, ServerClock, type BroadcastView } from "./broadcastClock";
 import { FrameBuffer } from "./frameBuffer";
+import { backoffDelay } from "../../../lib/serverHealth";
 
 type FramesPush = { match_id?: string; frames?: FrameRow[]; broadcast?: BroadcastSegment[]; server_now?: number };
 
@@ -16,7 +17,8 @@ export function useFrameStream(roomId: string, matchId: string | undefined, acti
   const buffer = useMemo(() => new FrameBuffer(), []);
   const timeline = useMemo(() => new BroadcastTimeline(), []);
   const server = useMemo(() => new ServerClock(), []);
-  const status = useRef({ online: true, failures: 0, lastData: Date.now() });
+  // starvedSeconds: how far the screen has run past the broadcast it holds (real lag).
+  const status = useRef({ online: true, failures: 0, lastData: Date.now(), starvedSeconds: 0 });
   const view = useRef<BroadcastView>({ tick: 0, kind: "WAIT", label: "", cut: null });
 
   useEffect(() => { buffer.reset(); timeline.reset(); }, [matchId, buffer, timeline]);
@@ -37,7 +39,7 @@ export function useFrameStream(roomId: string, matchId: string | undefined, acti
       timeline.merge(detail.broadcast);
       if (detail.frames) buffer.push(detail.frames);
       lastPush.current = Date.now();
-      status.current = { online: true, failures: 0, lastData: Date.now() };
+      status.current = { ...status.current, online: true, failures: 0, lastData: Date.now() };
     };
     window.addEventListener("bm:frames", onFrames);
     return () => window.removeEventListener("bm:frames", onFrames);
@@ -61,11 +63,12 @@ export function useFrameStream(roomId: string, matchId: string | undefined, acti
           timeline.merge(data.broadcast);
           buffer.push(data.frames);
         }
-        status.current = { online: true, failures: 0, lastData: Date.now() };
+        status.current = { ...status.current, online: true, failures: 0, lastData: Date.now() };
       } catch {
         status.current = { ...status.current, online: false, failures: status.current.failures + 1 };
       }
-      if (!stopped) timer = window.setTimeout(poll, status.current.online ? 700 : Math.min(4000, 600 * status.current.failures));
+      // Fallback polling backs off (with jitter) while the server does not answer.
+      if (!stopped) timer = window.setTimeout(poll, status.current.online ? 700 : backoffDelay(status.current.failures - 1, 600, 8000));
     };
     void poll();
     return () => { stopped = true; window.clearTimeout(timer); };
@@ -73,7 +76,10 @@ export function useFrameStream(roomId: string, matchId: string | undefined, acti
 
   /** Called by the canvas every animation frame: the moment of the broadcast to draw. */
   const driver = (): BroadcastView => {
-    const next = timeline.at(server.now() - DISPLAY_DELAY_SECONDS);
+    const time = server.now() - DISPLAY_DELAY_SECONDS;
+    const next = timeline.at(time);
+    const last = timeline.last;
+    status.current.starvedSeconds = last && !(last.k === "BREAK" && last.label === "FULL_TIME") ? Math.max(0, time - last.r1) : 0;
     // Never draw past the frames we actually hold (slow network): hold the last one.
     if (next.kind === "PLAY" && buffer.latestTick >= 0 && next.tick > buffer.latestTick) next.tick = buffer.latestTick;
     view.current = next;

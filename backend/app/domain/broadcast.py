@@ -109,6 +109,7 @@ class Director:
         self._small_pitch = False
         self._goals_before = 0
         self._starts = [float(s["r0"]) for s in self.segments]
+        self._t0s = [int(s["t0"]) for s in self.segments]
 
     # ------------------------------------------------------------------ state
     def to_dict(self) -> dict[str, object]:
@@ -148,6 +149,7 @@ class Director:
         r1 = r0 + seconds
         self.segments.append({"k": kind, "t0": t0, "t1": t1, "r0": round(r0, 4), "r1": round(r1, 4), "label": label})
         self._starts.append(round(r0, 4))
+        self._t0s.append(int(t0))
 
     # ------------------------------------------------------------------ queries
     def tick_at(self, now: float) -> float:
@@ -175,14 +177,22 @@ class Director:
         return segment["k"] == "PLAY" or tick in (int(segment["t0"]), int(segment["t1"]))
 
     def _segment_for_tick(self, tick: int) -> int | None:
-        for index in range(len(self.segments) - 1, -1, -1):
-            segment = self.segments[index]
-            if int(segment["t0"]) <= tick <= int(segment["t1"]):
-                # Prefer a PLAY segment when two segments share a boundary tick.
-                if segment["k"] != "PLAY" and index > 0 and int(self.segments[index - 1]["t1"]) == tick and self.segments[index - 1]["k"] == "PLAY":
-                    return index - 1
-                return index
-        return None
+        # Segments are contiguous in game time, so the last one starting at or before
+        # `tick` is the latest one containing it (binary search, not a linear scan).
+        index = bisect.bisect_right(self._t0s, tick) - 1
+        if index < 0:
+            return None
+        segment = self.segments[index]
+        if int(segment["t1"]) < tick:
+            return None
+        # Prefer a PLAY segment when two segments share a boundary tick.
+        if segment["k"] != "PLAY" and index > 0 and int(self.segments[index - 1]["t1"]) == tick and self.segments[index - 1]["k"] == "PLAY":
+            return index - 1
+        return index
+
+    def timeline_key(self, now: float) -> tuple[int, int]:
+        """Changes when a segment is added or one finishes playing (its label is revealed)."""
+        return len(self.segments), bisect.bisect_right(self._starts, now)
 
     def window(self, now: float, past: float = 12.0) -> list[dict[str, object]]:
         """Segments a client needs to render around `now` (nothing from the future)."""
@@ -432,3 +442,67 @@ class Director:
                 if tick > start:
                     found.append(Moment(tick, tick - 14, 3, 0.12 + 0.2 * (depth - depth_line), "ATTACK"))
         return found
+
+
+class LinearClock:
+    """Score-ticker clock for a match nobody watches (bot against bot).
+
+    There is no broadcast to plan and no 2D frames to keep: the 90 minutes simply run
+    linearly over the round's real duration, with the same half-time break and final
+    hold a broadcast of that length has, so its score moves in step with the matches
+    the coaches are watching. Same query interface as `Director`."""
+
+    kind = "LINEAR"
+
+    def __init__(self, started_at: float, duration: int) -> None:
+        profile = duration_profile(duration)
+        self.started_at = float(started_at)
+        self.duration = int(duration)
+        self.deadline = self.started_at + self.duration
+        self.halftime = profile.halftime
+        self.half_seconds = (self.duration - profile.halftime - profile.final_hold) / 2
+        self.segments: list[dict[str, object]] = []
+
+    def to_dict(self) -> dict[str, object]:
+        return {"kind": self.kind, "started_at": self.started_at, "duration": self.duration}
+
+    @classmethod
+    def from_dict(cls, raw: dict[str, object]) -> LinearClock:
+        return cls(float(raw["started_at"]), int(raw["duration"]))
+
+    def tick_at(self, now: float) -> float:
+        elapsed = now - self.started_at
+        if elapsed <= 0:
+            return 0.0
+        if elapsed < self.half_seconds:
+            return TICKS_PER_HALF * elapsed / self.half_seconds
+        second = elapsed - self.half_seconds - self.halftime
+        if second <= 0:
+            return float(TICKS_PER_HALF)
+        if second < self.half_seconds:
+            return TICKS_PER_HALF + TICKS_PER_HALF * second / self.half_seconds
+        return float(FULL_TIME_TICK)
+
+    def shown_tick(self, now: float) -> int:
+        return int(self.tick_at(now))
+
+    @property
+    def cursor_tick(self) -> int:
+        return 0
+
+    @property
+    def complete(self) -> bool:
+        return False
+
+    def visible(self, tick: int) -> bool:
+        return False
+
+    def window(self, now: float, past: float = 12.0) -> list[dict[str, object]]:
+        return []
+
+    def timeline_key(self, now: float) -> tuple[int, int]:
+        return 0, 0
+
+
+def clock_from_dict(raw: dict[str, object]) -> Director | LinearClock:
+    return LinearClock.from_dict(raw) if raw.get("kind") == LinearClock.kind else Director.from_dict(raw)

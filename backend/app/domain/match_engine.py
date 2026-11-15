@@ -207,6 +207,9 @@ class MatchEngine:
         self.applied_commands: dict[str, dict[str, object]] = {}
         self.frames: deque[tuple] = deque(maxlen=1200)
         self.keep_snapshots = False
+        # Matches nobody watches (bot against bot) skip the 2D frame history entirely.
+        self.record_frames = True
+        self._row_cache: dict[int, dict[str, object]] = {}
         self._snapshot_events = 0
         self.snapshots: deque[tuple] = deque(maxlen=1500)
         # Ball state
@@ -1188,6 +1191,8 @@ class MatchEngine:
 
     # ------------------------------------------------------------------ output
     def _record_frame(self) -> None:
+        if not self.record_frames:
+            return
         # Raw metres; normalised and rounded only when a client asks for frames.
         positions = tuple((a.x, a.y) if a.active else None for a in self.agents)
         owner = self.owner.index if self.owner is not None else -1
@@ -1205,8 +1210,29 @@ class MatchEngine:
         return [self._frame_row(frame) for frame in rows]
 
     def frames_between(self, start: int, end: int) -> list[dict[str, object]]:
-        """Frames with start < t <= end (normalised)."""
-        return [self._frame_row(frame) for frame in self.frames if start < frame[0] <= end]
+        """Frames with start < t <= end (normalised).
+
+        Walks the history from the newest frame backwards (clients ask for what is new,
+        so this is O(new frames) instead of O(history)), and memoises the normalised
+        rows: both coaches of a match, and every push, reuse the same encoding."""
+        picked = []
+        for frame in reversed(self.frames):
+            tick = frame[0]
+            if tick <= start:
+                break
+            if tick <= end:
+                picked.append(frame)
+        cache = self._row_cache
+        rows = []
+        for frame in reversed(picked):
+            row = cache.get(frame[0])
+            if row is None:
+                row = cache[frame[0]] = self._frame_row(frame)
+                if len(cache) > 600:
+                    for old in sorted(cache)[:200]:
+                        del cache[old]
+            rows.append(row)
+        return rows
 
     def _frame_row(self, frame: tuple) -> dict[str, object]:
         L, W = self.L, self.W
