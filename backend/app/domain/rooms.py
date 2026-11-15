@@ -200,9 +200,14 @@ class RoomManager:
                 return self._state(draft)
             if draft.phase != "WAITING":
                 raise HTTPException(status_code=409, detail="A liga já começou. Somente os técnicos que já participam podem retornar.")
-            if len(draft.participants) >= draft.max_human_participants:
+            # Bots occupy clubs, not human seats: only people count toward the human limit.
+            if sum(member.role != "BOT" for member in draft.participants.values()) >= draft.max_human_participants:
                 raise HTTPException(
                     status_code=409, detail="Limite de participantes humanos atingido."
+                )
+            if len(draft.participants) >= draft.team_count:
+                raise HTTPException(
+                    status_code=409, detail="Todas as vagas de clube estão ocupadas. O anfitrião pode remover um bot para abrir espaço."
                 )
             draft.participants[user_id] = Participant(user_id, display_name, "MEMBER")
             draft.revision += 1

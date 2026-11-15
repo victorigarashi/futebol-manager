@@ -231,3 +231,19 @@ body { overflow-x: hidden; }
 .server-banner--offline { color: #fff; background: #b4413c; }
 .server-banner i { width: .65rem; height: .65rem; flex: 0 0 auto; border-radius: 50%; background: currentColor; animation: server-banner-pulse 1.2s ease-in-out infinite; }
 @keyframes server-banner-pulse { 50% { opacity: .25; } }
+
+/* Club places: people, bots and open places (custom leagues). */
+.reference-lobby__column { display: grid; gap: 1rem; align-content: start; min-width: 0; }
+.bot-slots { border: 1px solid var(--line); border-radius: .35rem; padding: 1.2rem 1.4rem; background: var(--surface); }
+.bot-slots__counts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .6rem; margin: .6rem 0; }
+.bot-slots__counts div { padding: .6rem; border: 1px solid var(--line); background: var(--surface-raised); }
+.bot-slots__counts dt { color: var(--muted); font-size: .6rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.bot-slots__counts dd { margin: .2rem 0 0; color: var(--lime); font-size: 1.4rem; font-weight: 900; }
+.bot-slots__hint { display: block; color: var(--muted); font-size: .75rem; line-height: 1.4; }
+.bot-slots__list { display: grid; gap: .4rem; margin: .8rem 0 0; padding: 0; list-style: none; }
+.bot-slots__list li { display: flex; align-items: center; gap: .6rem; padding: .4rem 0; border-bottom: 1px solid var(--line); }
+.bot-slots__list li > span:not(.club-crest) { display: grid; flex: 1; min-width: 0; }
+.bot-slots__list .club-crest { flex: 0 0 auto; }
+.bot-slots__list small { color: var(--muted); font-size: .68rem; }
+.bot-slots__actions { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: .9rem; }
+@media (max-width: 640px) { .bot-slots__counts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

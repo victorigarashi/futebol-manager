@@ -82,7 +82,8 @@ async def restore_snapshots() -> None:
             expected_clubs = {club.code for club in CLUBS}
             market_clubs = set(map(str, market.get("teams", {})))
             selected = {str(member.get("selected_club_code")) for member in room.get("participants", []) if member.get("selected_club_code")}
-            if market_clubs != expected_clubs or not selected.issubset(market_clubs):
+            # Custom leagues use a subset of the 20 clubs (4 to 20).
+            if not market_clubs.issubset(expected_clubs) or len(market_clubs) not in (4, 6, 8, 10, 12, 16, 20) or not selected.issubset(market_clubs):
                 raise ValueError(f"Snapshot de mercado não corresponde aos clubes da sala {room_id}.")
         if room.get("phase") != "WAITING" and market is None:
             raise ValueError(f"A sala {room_id} avançou sem estado de mercado restaurável.")

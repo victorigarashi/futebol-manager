@@ -178,7 +178,7 @@ async def main() -> None:
                                  "live_to_finished_s": round(START[r["room_id"]]["finished"] - START[r["room_id"]]["live"], 1) if {"live", "finished"} <= START[r["room_id"]].keys() else None}
                   for r in rooms},
         "frame_pushes_per_s": round(sum(len(v) for v in FRAMES.values()) / max(1, len(FRAMES)) / wall, 2) if FRAMES else 0,
-        "max_gap_between_frame_pushes_s": round(max((max((b - a for a, b in zip(v, v[1:])), default=0) for v in FRAMES.values()), default=0), 2),
+        "max_gap_between_frame_pushes_s": round(max((max((b - a for a, b in zip(v, v[1:], strict=False)), default=0) for v in FRAMES.values()), default=0), 2),
         "ws_drops": DROPS["ws_closed"],
         "server_cpu_seconds": round(cpu1 - cpu0, 2), "server_cpu_share": round((cpu1 - cpu0) / wall, 3),
         "server_rss_peak_mb": round(rss_peak / 1e6, 1),

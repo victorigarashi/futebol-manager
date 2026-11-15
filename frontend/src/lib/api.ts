@@ -24,11 +24,12 @@ export type Room = {
   revision: number;
   participant_count?: number;
   bot_count?: number;
+  available_slots?: number;
 };
 export type Participant = {
   user_id: string;
   display_name: string;
-  role: "HOST" | "MEMBER";
+  role: "HOST" | "MEMBER" | "BOT";
   selected_club_code: string | null;
 };
 export type RoomState = Room & { participants: Participant[] };
@@ -191,6 +192,8 @@ export const api = {
   startSeason: (roomId: string) => request<Envelope<RoomState>>(`/rooms/${roomId}/season/start`, { method: "POST" }),
   season: (roomId: string) => request<Envelope<SeasonView>>(`/rooms/${roomId}/season`),
   live: (roomId: string) => request<Envelope<LiveView>>(`/rooms/${roomId}/season/live`),
+  addBot: (roomId: string, clubCode?: string) => request<Envelope<RoomState>>(`/rooms/${roomId}/bots`, { method: "POST", body: JSON.stringify(clubCode ? { club_code: clubCode } : {}) }),
+  removeBot: (roomId: string, clubCode: string) => request<Envelope<RoomState>>(`/rooms/${roomId}/bots/${clubCode}`, { method: "DELETE" }),
   readyForRound: (roomId: string) => request<Envelope<SeasonView>>(`/rooms/${roomId}/season/ready`, { method: "POST" }),
   advanceRound: (roomId: string) => request<Envelope<SeasonView>>(`/rooms/${roomId}/season/advance`, { method: "POST" }),
   closeTransferWindow: (roomId: string) => request<Envelope<SeasonView>>(`/rooms/${roomId}/season/transfer-window/close`, { method: "POST" }),

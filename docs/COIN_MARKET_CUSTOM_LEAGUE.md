@@ -56,3 +56,25 @@ Esta branch deliberadamente não altera os componentes React em refatoração
 paralela. A tela de criação deve enviar os três campos acima, exibir
 `participant_count`, `bot_count`, `available_slots`, e usar os endpoints de
 bots. Em moeda, deve rotular todos os valores como moedas e não como reais.
+
+## Correções de integração (15/11/2026)
+
+Encontradas com um teste ponta a ponta via HTTP (liga de 4 clubes em moedas e de 8 clubes tradicional; bots, mercado, temporada e reinício):
+
+- **Reinício do servidor.**
+  - `restore_room` exigia 20 clubes, 380 jogos, 38 rodadas e 10 partidas por rodada.
+  - `recovery.py` exigia o mercado com os 20 clubes.
+  - Com qualquer liga personalizada salva, o snapshot era recusado no boot e **a API não subia**.
+  - Agora a validação usa a quantidade de clubes do calendário (4 a 20) e o formato salvo.
+- **Formato perdido.**
+  - `SeasonService.create` não guardava `double_round_robin` (ficava `True`), então a temporada seguinte virava ida e volta.
+  - O formato também não ia para o snapshot. Agora é guardado e exportado.
+- **Bots ocupando vaga de humano.** `join` contava os bots no limite de humanos: com os bots adicionados primeiro, os amigos recebiam "sala cheia". Agora só pessoas contam nesse limite, e o total fica limitado ao número de clubes.
+- **Rotas que contavam bots como humanos.**
+  - O READY, o prazo e o pré-jogo esperavam confirmação dos bots participantes.
+  - O resultado era a rodada presa em "aguardando confirmação".
+  - Agora os participantes com papel `BOT` são excluídos.
+- **Interface.**
+  - Não havia como adicionar bots, então ligas com menos de 20 clubes não conseguiam começar.
+  - O lobby ganhou o painel **Vagas do campeonato**, com técnicos, bots, vagas livres e clubes, e os botões "+ Adicionar bot", "Completar com bots" e "Remover".
+  - O botão de início explica quantas vagas faltam.

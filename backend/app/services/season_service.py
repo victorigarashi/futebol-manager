@@ -38,6 +38,7 @@ from app.services.squad_service import squad_service
 # Cooperative simulation budget. One slice simulates at most this many ticks of one
 # match (~5-8 ms of CPU on a desktop core, ~10x more on a 0.1 CPU host), so the event
 # loop always gets back control quickly (health check, other requests, sockets).
+LEAGUE_SIZES = (4, 6, 8, 10, 12, 16, 20)
 SLICE_TICKS = 40
 # Watched matches are simulated this far beyond the broadcast cursor in slices, so
 # the planner rarely has to simulate inline.
@@ -132,7 +133,7 @@ class SeasonService:
     def create(self, room_id: str, market: InitialMarket, *, double_round_robin: bool = True) -> RoomSeason:
         if room_id not in self._seasons:
             self._seasons[room_id] = RoomSeason(SeasonState(generate_calendar(tuple(market.teams), double_round_robin=double_round_robin)), market.mode, current_overalls={player_id: player.overall for player_id, player in market.catalog.items()},
-                                                preparation_opened_at=self.clock())
+                                                preparation_opened_at=self.clock(), double_round_robin=double_round_robin)
         return self._seasons[room_id]
 
     def create_next_season(self, room_id: str, market: InitialMarket) -> dict[str, object]:
@@ -499,7 +500,7 @@ class SeasonService:
                     "broadcast": None, "match": None, "scores": [], "table": [], "official_table": [],
                     "current_round": self.current_round(room_id), "ready_clubs": sorted(season.ready_clubs)}
         ids = live["match_ids"] if live else [f.id for f in season.state.fixtures
-                if f.round_number == min(38, max(1, self.current_round(room_id) - 1))]
+                if f.round_number == min(self._regular_round_count(season), max(1, self.current_round(room_id) - 1))]
         own_id = next((key for key in ids if key in season.matches and
                        club in (season.matches[key]["home"], season.matches[key]["away"])), None)
         scores = [self._score(season, key, now) for key in ids if key in season.matches]
@@ -845,6 +846,7 @@ class SeasonService:
             "live_round": season.live_round,
             "human_clubs": sorted(season.human_clubs),
             "preparation_opened_at": season.preparation_opened_at,
+            "double_round_robin": season.double_round_robin,
             "mode": season.mode,
             "fixtures": [asdict(fixture) for fixture in season.state.fixtures],
             "results": {key: asdict(value) for key, value in season.state.results.items()},
@@ -864,15 +866,28 @@ class SeasonService:
         if not isinstance(fixtures_payload, list):
             raise ValueError("Snapshot da temporada sem calendário completo.")
         fixtures = [Fixture(str(row["id"]), int(row["round_number"]), str(row["home"]), str(row["away"])) for row in fixtures_payload]
-        if len(fixtures) != 380 or len({fixture.id for fixture in fixtures}) != 380:
-            raise ValueError("Calendário do snapshot está incompleto ou duplicado.")
         clubs = {club for fixture in fixtures for club in (fixture.home, fixture.away)}
-        if (len(clubs) != 20 or {f.round_number for f in fixtures} != set(range(1, 39))
-                or len({(f.home, f.away) for f in fixtures}) != 380
+        team_count = len(clubs)
+        if team_count not in LEAGUE_SIZES:
+            raise ValueError("Calendário do snapshot tem uma quantidade de clubes não suportada.")
+        # Custom leagues (4 to 20 clubs, single or double round robin): the format is
+        # stored; older snapshots (always 20 clubs, ida e volta) infer it.
+        rounds_single = team_count - 1
+        double_round_robin = bool(payload.get("double_round_robin", len(fixtures) == team_count * rounds_single))
+        rounds = rounds_single * (2 if double_round_robin else 1)
+        expected = team_count * rounds // 2
+        if len(fixtures) != expected or len({fixture.id for fixture in fixtures}) != expected:
+            raise ValueError("Calendário do snapshot está incompleto ou duplicado.")
+        pairs = [(f.home, f.away) for f in fixtures]
+        unique_pairs = len(set(pairs)) == expected if double_round_robin else len({frozenset(p) for p in pairs}) == expected
+        per_round: dict[tuple[int, str], int] = {}
+        for f in fixtures:
+            for club in (f.home, f.away):
+                per_round[(f.round_number, club)] = per_round.get((f.round_number, club), 0) + 1
+        if ({f.round_number for f in fixtures} != set(range(1, rounds + 1)) or not unique_pairs
                 or any(f.home == f.away for f in fixtures)
-                or any(sum(f.round_number == number and club in (f.home, f.away) for f in fixtures) != 1
-                       for number in range(1, 39) for club in clubs)):
-            raise ValueError("Calendário do snapshot viola as rodadas do Brasileirão.")
+                or len(per_round) != rounds * team_count or any(count != 1 for count in per_round.values())):
+            raise ValueError("Calendário do snapshot viola as rodadas do campeonato.")
         state = SeasonState(fixtures)
         results_payload = payload.get("results", {})
         matches_payload = payload.get("matches", {})
@@ -929,7 +944,7 @@ class SeasonService:
                 # Snapshot from the previous clock model: keep its kick-off, adopt 3:00.
                 live["match_seconds"] = live["duration_seconds"] = 180
                 live["ends_at"] = float(live.get("started_at", 0)) + 180
-            if (not isinstance(ids, list) or len(ids) != 10 or set(ids) != expected
+            if (not isinstance(ids, list) or len(ids) != team_count // 2 or set(ids) != expected
                     or not set(ids).issubset(matches_payload) or set(ids) & set(state.results)
                     or int(live.get("match_seconds", 0)) not in DURATIONS
                     or abs(float(live.get("ends_at", 0)) - float(live.get("started_at", 0)) - float(live.get("match_seconds", -1))) > 1e-6):
@@ -961,6 +976,7 @@ class SeasonService:
             progression_applied=bool(payload.get("progression_applied", False)),
             human_clubs=set(map(str, payload.get("human_clubs", []))),
             preparation_opened_at=float(payload["preparation_opened_at"]) if payload.get("preparation_opened_at") is not None else None,
+            double_round_robin=double_round_robin,
         )
         if room_season.live_round:
             # Every live engine is rebuilt deterministically from inputs, seed and the
