@@ -42,8 +42,8 @@ relógio do servidor ─► sync_live ──┘   │
   recuperação após reinício, replay de lances (`GET /matches/{id}/frames`) e auditoria.
 - **`app/domain/bot_coach.py`** — escolhe escalação válida e, a cada 5 minutos de jogo, reage a placar, minuto,
   cansaço e expulsões usando `queue_tactics`/`queue_substitution` (as mesmas chamadas dos humanos, mesmos limites).
-- **Relógio**: `LIVE_MATCH_SECONDS` (padrão 180 s para 90') + `LIVE_HALFTIME_SECONDS` (20 s, relógio parado)
-  + `LIVE_INTRO_SECONDS` (8 s de apresentação). As 10 partidas compartilham o relógio; o resultado só entra
+- **Relógio** (substituído em `docs/PARTIDAS_CONDENSADAS.md`): duração escolhida pela sala (1:30/2:00/3:00) com transmissão condensada
+  + `LIVE_INTRO_SECONDS` (5 s de apresentação). As 10 partidas compartilham o relógio; o resultado só entra
   na tabela no apito final da rodada.
 - **Substituições**: até 5 (11×11) / 3 (5×5), 3 janelas fora do intervalo no 11×11, aplicadas na próxima
   bola parada (ou na hora, se a bola já estiver parada/intervalo). Rejeita: jogador de outro time,
@@ -103,8 +103,7 @@ Reproduzir o teste de navegador:
 
 ```sh
 # terminal 1 (backend)
-APP_ENVIRONMENT=test PLAYER_CATALOG_PATH=../data/catalogs/players.json LIVE_MATCH_SECONDS=120 \
-LIVE_HALFTIME_SECONDS=12 LIVE_INTRO_SECONDS=6 CORS_ORIGINS=http://127.0.0.1:5174 \
+APP_ENVIRONMENT=test PLAYER_CATALOG_PATH=../data/catalogs/players.json LIVE_INTRO_SECONDS=6 CORS_ORIGINS=http://127.0.0.1:5174 \
 CAREER_ACCEPTANCE_STATE=/tmp/career.json ../.venv/bin/python -m uvicorn tools.career_acceptance:app --port 8000
 # terminal 2 (frontend)
 VITE_API_BASE_URL=http://127.0.0.1:8000/api/v1 npx vite --host 127.0.0.1 --port 5174

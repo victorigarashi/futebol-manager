@@ -29,6 +29,8 @@ O demo está desligado por padrão e é recusado em produção. Sem demo, config
 ## Documentação
 
 - [Modo Carreira: motor 2D, partida ao vivo e nova interface](docs/MODO_CARREIRA.md)
+- [Partidas condensadas (1:30 / 2:00 / 3:00), transmissão 2D e motor](docs/PARTIDAS_CONDENSADAS.md)
+- [Fontes de dados de jogadores: cobertura e direitos de uso](docs/pesquisa-dados/RELATORIO_FONTES_JOGADORES.md)
 
 - [Execução local e amigos](docs/RUNNING.md)
 - [Modo demo e pendências de dados reais](docs/DEMO.md)

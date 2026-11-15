@@ -1,0 +1,122 @@
+[
+  {
+    "name": "hub shows next match and table",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "lineup shows 11 slots",
+    "ok": true,
+    "detail": "11"
+  },
+  {
+    "name": "lineup swap saved and validated by server",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "tactics saved",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "host confirmed readiness",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "changing lineup cancels readiness",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "default duration is 1:30 for both coaches",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "only the host can change the duration",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "duration change synced to the other coach with feedback",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "match presentation shown before kick-off",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "condensed broadcast cuts between moments",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "both coaches watch the same match",
+    "ok": true,
+    "detail": "r1-1"
+  },
+  {
+    "name": "same score and event stream (prefix)",
+    "ok": true,
+    "detail": "0-0"
+  },
+  {
+    "name": "live tactic change applied",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "substitution requested",
+    "ok": true,
+    "detail": "Substituição pedida: entra na próxima paralisação."
+  },
+  {
+    "name": "substitution applied at a stoppage",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "goal celebration appeared (if a goal happened)",
+    "ok": true,
+    "detail": "goal seen"
+  },
+  {
+    "name": "half-time screen",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "match lasted the configured 2:00",
+    "ok": true,
+    "detail": "119.6 s from kick-off on screen to the post-match"
+  },
+  {
+    "name": "post-match report after full time",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "both coaches see the same final score",
+    "ok": true,
+    "detail": "4–0 / 4–0"
+  },
+  {
+    "name": "round 2 open and table updated",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "no console errors (host)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "no console errors (rival)",
+    "ok": true,
+    "detail": ""
+  }
+]

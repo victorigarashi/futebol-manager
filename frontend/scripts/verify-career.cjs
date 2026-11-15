@@ -81,6 +81,15 @@ const shot = (page, file) => page.screenshot({ path: path.join(out, file), fullP
     await r.getByRole("button", { name: /Próxima partida/ }).click();
     await r.waitForSelector(".matchup");
     await shot(r, "06-mobile-pre-jogo.png");
+
+    // Match settings: default 1:30, host-only, synced to the other coach with feedback.
+    const active = async (p) => (await p.locator(".match-settings__choices button.is-active").innerText()).trim();
+    check("default duration is 1:30 for both coaches", (await active(page)) === "1:30" && (await active(r)) === "1:30");
+    check("only the host can change the duration", await r.locator(".match-settings__choices button").first().isDisabled());
+    await page.locator(".match-settings__choices button", { hasText: "2:00" }).click();
+    await r.waitForSelector(".match-settings__notice:has-text('O anfitrião mudou')", { timeout: 15000 });
+    check("duration change synced to the other coach with feedback", (await active(r)) === "2:00");
+    await shot(r, "06b-mobile-duracao.png");
     await r.getByRole("button", { name: "Confirmar equipe" }).click();
 
     await page.waitForSelector(".match-center", { timeout: 20000 });
@@ -88,7 +97,11 @@ const shot = (page, file) => page.screenshot({ path: path.join(out, file), fullP
     check("match presentation shown before kick-off", intro === 1);
     await shot(page, "07-apresentacao.png");
     await page.waitForSelector(".scorebug__status--first_half", { timeout: 20000 });
-    await page.waitForTimeout(7000);
+    const kickoff = Date.now();
+    const cut = await page.waitForSelector(".pitch-cut", { timeout: 30000 }).then(() => true).catch(() => false);
+    check("condensed broadcast cuts between moments", cut);
+    if (cut) await shot(page, "08b-corte.png");
+    await page.waitForTimeout(3000);
     await shot(page, "08-ao-vivo.png");
 
     // Two coaches: compare authoritative state from the server.
@@ -98,7 +111,7 @@ const shot = (page, file) => page.screenshot({ path: path.join(out, file), fullP
     check("same score and event stream (prefix)", ids(a).startsWith(ids(b)) || ids(b).startsWith(ids(a)), `${a.data.match.home_goals}-${a.data.match.away_goals}`);
 
     await page.locator(".tactic-row button", { hasText: "Muito of." }).click();
-    await page.waitForSelector(".cm-toast:has-text('Nova orientação')", { timeout: 8000 });
+    await page.waitForSelector(".cm-toast:has-text('Ordem enviada')", { timeout: 8000 });
     check("live tactic change applied", true);
     await page.locator(".sub-list button").nth(6).click();
     await page.locator(".sub-picker .sub-list button").first().click();
@@ -124,6 +137,9 @@ const shot = (page, file) => page.screenshot({ path: path.join(out, file), fullP
     await page.getByRole("button", { name: "Técnico", exact: true }).click();
 
     await page.waitForSelector(".postmatch", { timeout: 150000 });
+    const wall = (Date.now() - kickoff) / 1000;
+    // 2:00 match + 1 s display delay + the post-match refresh (documented tolerance: +6 s).
+    check("match lasted the configured 2:00", wall >= 118 && wall <= 128, `${wall.toFixed(1)} s from kick-off on screen to the post-match`);
     check("post-match report after full time", true);
     await page.waitForSelector(".postmatch .ratings li");
     await shot(page, "15-pos-jogo.png");

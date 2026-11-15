@@ -1,5 +1,6 @@
 import { readLocal, writeLocal } from "./storage";
 
+export type MatchDuration = 90 | 120 | 180;
 export type Club = { code: string; name: string; sort_order: number };
 export type Room = {
   id: string;
@@ -12,6 +13,8 @@ export type Room = {
   initial_market_duration_seconds: number;
   round_preparation_duration_seconds: number;
   withdrawal_penalty_percent: 0 | 2 | 5 | 10;
+  /** Real duration of each live match (90 game minutes condensed): 90, 120 or 180 s. */
+  match_duration_seconds?: MatchDuration;
   phase: string;
   revision: number;
   participant_count?: number;
@@ -49,20 +52,23 @@ export type Squad = { club_code: string; budget_cents: number; players: SquadPla
 export type SeasonTableRow = { position: number; club_code: string; points: number; played: number; wins: number; draws: number; losses: number; goals_for: number; goals_against: number; goal_difference: number; percentage: number };
 export type MatchEvent = { event_id: string; match_id: string; kind: string; team: string | null; minute: number; animation_ms: number; x: number; y: number; outcome: string; player_id: string | null; player_name?: string; participant_ids: string[]; xg: number };
 export type MatchFormation = { code: string; players: { id: string; name: string; x: number; y: number; number: number }[] };
-export type LiveRound = { round_number: number; announced_at?: number; started_at: number; ends_at: number; duration_seconds: number; play_seconds?: number; halftime_seconds?: number; match_ids: string[]; human_clubs?: string[] };
+export type LiveRound = { round_number: number; announced_at?: number; started_at: number; ends_at: number; duration_seconds: number; match_seconds?: MatchDuration; match_ids: string[]; human_clubs?: string[] };
 export type MatchPhase = "PRESENTATION" | "FIRST_HALF" | "HALF_TIME" | "SECOND_HALF" | "FULL_TIME";
-export type LiveClock = { tick: number; minute: number; phase: MatchPhase; server_now: number; ticks_per_second: number; halftime_ends_at: number; ends_at: number; kickoff_at: number };
+export type LiveClock = { tick: number; minute: number; phase: MatchPhase; server_now: number; match_seconds?: MatchDuration; segment?: BroadcastSegment["k"] | null; halftime_ends_at: number | null; ends_at: number; kickoff_at: number };
 export type PlayerStats = { passes: number; passes_completed: number; key_passes: number; shots: number; shots_on_target: number; goals: number; assists: number; tackles: number; interceptions: number; fouls: number; saves: number; dribbles: number; losses: number; distance: number };
 export type MatchPlayer = { id: string; name: string; number: number; role: string; position: string; overall: number; index: number; on_pitch: boolean; sent_off: boolean; yellow_cards: number; stamina: number; entered_tick: number | null; left_tick: number | null; available: boolean; rating: number; stats: PlayerStats; attributes: Record<string, number> };
 export type CommandStatus = { command_id: string; kind: "TACTICS" | "SUBSTITUTION"; status: "PENDING" | "APPLIED" | "REJECTED"; applied_tick?: number; requested_tick?: number; out_player_id?: string; in_player_id?: string; tactics?: Tactics; reason?: string };
 export type EngineEvent = { event_id: string; match_id: string; kind: string; team: string | null; tick: number; minute: number; x: number; y: number; outcome: string; player_id: string | null; player_name: string | null; secondary_player_id?: string | null; secondary_player_name?: string | null; xg: number; score?: { home: number; away: number }; header?: boolean; tactics?: Tactics | null };
-export type LiveMatch = { id: string; home: string; away: string; tick: number; minute: number; phase: MatchPhase; home_goals: number; away_goals: number; home_xg: number; away_xg: number; status: "LIVE" | "FINISHED"; statistics: Record<string, Record<string, number>>; events: EngineEvent[]; tactics: { home: Tactics | null; away: Tactics | null }; formations: { home: string; away: string }; lineups: { home: MatchPlayer[]; away: MatchPlayer[] }; substitutions: { home: { used: number; windows_used: number; pending: number }; away: { used: number; windows_used: number; pending: number }; max: number; windows: number | null }; ball_in_play: boolean; pitch: { length: number; width: number; goal: number; box: number }; you: "home" | "away" | null; commands?: CommandStatus[]; clock?: LiveClock; player_of_the_match?: { id: string; name: string; rating: number } | null; home_penalties?: number | null; away_penalties?: number | null };
-export type FrameRow = { t: number; b: [number, number, number]; p: number[] };
-export type FramesView = { match_id?: string; tick: number | null; phase?: MatchPhase; finished?: boolean; server_now?: number; score?: { home: number; away: number }; event_count?: number; frames: FrameRow[] };
+export type LiveMatch = { id: string; home: string; away: string; tick: number; minute: number; phase: MatchPhase; home_goals: number; away_goals: number; home_xg: number; away_xg: number; status: "LIVE" | "FINISHED"; statistics: Record<string, Record<string, number>>; events: EngineEvent[]; tactics: { home: Tactics | null; away: Tactics | null }; formations: { home: string; away: string }; lineups: { home: MatchPlayer[]; away: MatchPlayer[] }; substitutions: { home: { used: number; windows_used: number; pending: number }; away: { used: number; windows_used: number; pending: number }; max: number; windows: number | null }; ball_in_play: boolean; pitch: { length: number; width: number; goal: number; box: number }; you: "home" | "away" | null; commands?: CommandStatus[]; ordered_tactics?: Tactics; clock?: LiveClock; player_of_the_match?: { id: string; name: string; rating: number } | null; home_penalties?: number | null; away_penalties?: number | null };
+/** b = [x, y, owner index or -1, ball state (0 live, 1 dead ball, 2 in flight)]. */
+export type FrameRow = { t: number; b: [number, number, number, number?]; p: number[] };
+/** One stretch of the condensed broadcast: ticks t0→t1 shown between server times r0→r1. */
+export type BroadcastSegment = { k: "PLAY" | "CUT" | "BREAK"; t0: number; t1: number; r0: number; r1: number; label: string };
+export type FramesView = { match_id?: string; tick: number | null; phase?: MatchPhase; finished?: boolean; server_now?: number; score?: { home: number; away: number }; event_count?: number; frames: FrameRow[]; broadcast?: BroadcastSegment[] };
 export type PreviewSide = { club_code: string; formation_code: string; starters: { id: string; name: string; position: string; slot_position: string; overall: number; improvised: boolean; number: number }[]; bench_size: number; tactics: Tactics | null; average: number; sectors: Record<string, number>; ready: boolean; human: boolean | null; manager?: string | null };
 export type MatchPreview = { fixture: { id: string; round_number: number; home: string; away: string } | null; home?: PreviewSide; away?: PreviewSide };
 export type LiveCommandPayload = { kind: "TACTICS"; mentality?: Mentality; pressure?: Pressure; style?: PlayStyle } | { kind: "SUBSTITUTION"; out_player_id: string; in_player_id: string };
-export type LiveView = { server_now: number; live_round: LiveRound | null; clock?: LiveClock | null; match: LiveMatch | null; scores: { id: string; home: string; away: string; home_goals: number; away_goals: number; minute?: number; status?: string }[]; table: SeasonTableRow[]; official_table: SeasonTableRow[]; current_round: number; ready_clubs: string[] };
+export type LiveView = { server_now: number; live_round: LiveRound | null; clock?: LiveClock | null; broadcast?: BroadcastSegment[] | null; match: LiveMatch | null; scores: { id: string; home: string; away: string; home_goals: number; away_goals: number; minute?: number; status?: string }[]; table: SeasonTableRow[]; official_table: SeasonTableRow[]; current_round: number; ready_clubs: string[] };
 export type MatchReplay = { id: string; home: string; away: string; home_players: string[]; away_players: string[]; home_goals: number; away_goals: number; home_xg: number; away_xg: number; probabilities?: { home: number; draw: number; away: number }; status: "LIVE" | "FINISHED"; minute: number; started_at?: number; ends_at?: number; home_formation?: MatchFormation; away_formation?: MatchFormation; statistics: Record<string, Record<string, number>>; events: MatchEvent[] };
 export type PlayoffMatch = { id: string; stage: string; home: string; away: string; home_goals: number; away_goals: number; winner: string; home_penalties: number | null; away_penalties: number | null };
 export type PlayoffView = { qualifiers: string[]; quarterfinals: PlayoffMatch[]; semifinals: PlayoffMatch[]; final: PlayoffMatch | null; champion: string | null; next_stage: string };
@@ -114,13 +120,14 @@ export const api = {
   createRoom: (payload: {
     name: string; mode: "FIVE_A_SIDE" | "ELEVEN_A_SIDE"; initial_budget_cents: number;
     initial_market_duration_seconds: number; round_preparation_duration_seconds: number;
-    max_human_participants: number; privacy: "PUBLIC" | "PRIVATE"; withdrawal_penalty_percent: 0 | 2 | 5 | 10;
+    max_human_participants: number; privacy: "PUBLIC" | "PRIVATE"; withdrawal_penalty_percent: 0 | 2 | 5 | 10; match_duration_seconds?: MatchDuration;
   }) => request<Envelope<RoomState>>("/rooms", { method: "POST", body: JSON.stringify(payload) }),
   updateRoom: (roomId: string, payload: {
     name: string; mode: "FIVE_A_SIDE" | "ELEVEN_A_SIDE"; initial_budget_cents: number;
     initial_market_duration_seconds: number; round_preparation_duration_seconds: number;
-    max_human_participants: number; privacy: "PUBLIC" | "PRIVATE"; withdrawal_penalty_percent: 0 | 2 | 5 | 10;
+    max_human_participants: number; privacy: "PUBLIC" | "PRIVATE"; withdrawal_penalty_percent: 0 | 2 | 5 | 10; match_duration_seconds?: MatchDuration;
   }) => request<Envelope<RoomState>>(`/rooms/${roomId}`, { method: "PUT", body: JSON.stringify(payload) }),
+  updateMatchSettings: (roomId: string, match_duration_seconds: MatchDuration) => request<Envelope<RoomState>>(`/rooms/${roomId}/match-settings`, { method: "PUT", body: JSON.stringify({ match_duration_seconds }) }),
   startRoom: (roomId: string) => request<Envelope<RoomState>>(`/rooms/${roomId}/start`, { method: "POST" }),
   market: (roomId: string) => request<Envelope<MarketState>>(`/rooms/${roomId}/market`),
   marketSelection: (roomId: string) => request<Envelope<MarketSelection>>(`/rooms/${roomId}/market/selection`),

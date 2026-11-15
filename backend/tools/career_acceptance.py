@@ -6,7 +6,7 @@ leaves the room at round 1 preparation. Identities are written to
 CAREER_ACCEPTANCE_STATE so the browser script can sign in as each coach.
 
     APP_ENVIRONMENT=test PLAYER_CATALOG_PATH=../data/catalogs/players.json \
-    LIVE_MATCH_SECONDS=120 LIVE_HALFTIME_SECONDS=12 LIVE_INTRO_SECONDS=6 \
+    LIVE_INTRO_SECONDS=6 \
     CORS_ORIGINS=http://127.0.0.1:5174 ../.venv/bin/python -m uvicorn tools.career_acceptance:app --port 8000
 """
 

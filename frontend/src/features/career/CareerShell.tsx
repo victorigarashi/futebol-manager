@@ -78,7 +78,7 @@ export function CareerShell({ roomId, room, isHost, clubCode }: { roomId: string
 
     <main className="career-body" key={tab}>
       {tab === "hub" && <ClubHub roomId={roomId} room={room} season={data} clubCode={clubCode} clubs={clubList} onGo={setTab} onOpenMatch={setOpenMatch} />}
-      {tab === "next" && <PreMatch roomId={roomId} room={room} season={data} clubCode={clubCode} clubs={clubList} onGo={setTab} />}
+      {tab === "next" && <PreMatch roomId={roomId} room={room} season={data} clubCode={clubCode} clubs={clubList} onGo={setTab} isHost={isHost} />}
       {tab === "squad" && <LineupBoard roomId={roomId} locked={locked} />}
       {tab === "tactics" && <TacticsBoard roomId={roomId} locked={locked} />}
       {tab === "market" && <section className="market-tab">{data.transfer_window_open ? <>

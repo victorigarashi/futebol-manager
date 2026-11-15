@@ -3,12 +3,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api, type Club, type PreviewSide, type RoomState, type SeasonView } from "../../lib/api";
 import { ClubCrest } from "../../components/ClubCrest";
+import { MatchSettingsCard } from "../../components/MatchSettingsCard";
 import { POSITION_LABEL, tacticSummary } from "./labels";
 
-type Props = { roomId: string; room: RoomState; season: SeasonView; clubCode: string; clubs: Club[]; onGo: (tab: "squad" | "tactics") => void };
+type Props = { roomId: string; room: RoomState; season: SeasonView; clubCode: string; clubs: Club[]; onGo: (tab: "squad" | "tactics") => void; isHost?: boolean };
 
 /** Pre-match: matchup, both projected line-ups, plan summary and the ready check. */
-export function PreMatch({ roomId, room, season, clubCode, clubs, onGo }: Props) {
+export function PreMatch({ roomId, room, season, clubCode, clubs, onGo, isHost = false }: Props) {
   const client = useQueryClient();
   const preview = useQuery({ queryKey: ["preview", roomId, season.current_round], queryFn: () => api.preview(roomId).then((r) => r.data), refetchInterval: 8000 });
   const squad = useQuery({ queryKey: ["squad", roomId], queryFn: () => api.squad(roomId).then((r) => r.data) });
@@ -39,6 +40,7 @@ export function PreMatch({ roomId, room, season, clubCode, clubs, onGo }: Props)
       </div>
       <SectorCompare home={data.home} away={data.away} />
     </header>
+    <MatchSettingsCard room={room} isHost={isHost} liveRound={Boolean(season.live_round)} compact />
 
     <ol className="prematch-steps" aria-label="Preparação">
       <li className={hasLineup ? "is-done" : ""}><b>1</b><div><strong>Escalação</strong><span>{hasLineup ? `${ownSide.formation_code} salva` : `Sugestão automática (${ownSide.formation_code}) — revise e salve`}</span></div><button type="button" className="btn btn--ghost" onClick={() => onGo("squad")}>{hasLineup ? "Revisar" : "Montar"}</button></li>

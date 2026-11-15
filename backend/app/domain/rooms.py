@@ -9,6 +9,8 @@ from fastapi import HTTPException, status
 
 from app.domain.clubs import CLUBS
 
+MATCH_DURATIONS = (90, 120, 180)
+
 
 @dataclass
 class Participant:
@@ -31,6 +33,8 @@ class RoomState:
     initial_market_duration_seconds: int = 300
     round_preparation_duration_seconds: int = 300
     withdrawal_penalty_percent: int = 5
+    # Real duration of every live match (90 game minutes condensed): 90, 120 or 180 s.
+    match_duration_seconds: int = 90
     phase: str = "WAITING"
     market_ends_at: float | None = None
     revision: int = 0
@@ -75,6 +79,7 @@ class RoomManager:
             "initial_market_duration_seconds": room.initial_market_duration_seconds,
             "round_preparation_duration_seconds": room.round_preparation_duration_seconds,
             "withdrawal_penalty_percent": room.withdrawal_penalty_percent,
+            "match_duration_seconds": room.match_duration_seconds,
             "phase": room.phase,
             "market_ends_at": room.market_ends_at,
             "revision": room.revision,
@@ -108,12 +113,13 @@ class RoomManager:
             initial_market_duration_seconds=int(payload.get("initial_market_duration_seconds", 300)),
             round_preparation_duration_seconds=int(payload.get("round_preparation_duration_seconds", 86_400)),
             withdrawal_penalty_percent=int(payload.get("withdrawal_penalty_percent", 5)),
+            match_duration_seconds=int(payload.get("match_duration_seconds", 90)),
             phase=str(payload.get("phase", "WAITING")), market_ends_at=payload.get("market_ends_at"),
             revision=int(payload.get("revision", 0)), participants=participants,
         )
         selected_clubs = [member.selected_club_code for member in participants.values() if member.selected_club_code]
         known_clubs = {club.code for club in CLUBS}
-        if room.mode not in {"FIVE_A_SIDE", "ELEVEN_A_SIDE"} or room.withdrawal_penalty_percent not in {0, 2, 5, 10} or room.host_user_id not in participants or len(selected_clubs) != len(set(selected_clubs)) or not set(selected_clubs).issubset(known_clubs):
+        if room.mode not in {"FIVE_A_SIDE", "ELEVEN_A_SIDE"} or room.withdrawal_penalty_percent not in {0, 2, 5, 10} or room.match_duration_seconds not in MATCH_DURATIONS or room.host_user_id not in participants or len(selected_clubs) != len(set(selected_clubs)) or not set(selected_clubs).issubset(known_clubs):
             raise ValueError("Snapshot de sala viola invariantes de identidade ou modo.")
         self._rooms[room.id] = room
         self._locks[room.id] = asyncio.Lock()
@@ -131,9 +137,12 @@ class RoomManager:
         initial_market_duration_seconds: int = 300,
         round_preparation_duration_seconds: int = 300,
         withdrawal_penalty_percent: int = 5,
+        match_duration_seconds: int = 90,
     ) -> dict[str, object]:
         if withdrawal_penalty_percent not in {0, 2, 5, 10}:
             raise HTTPException(status_code=422, detail="A multa deve ser 0%, 2%, 5% ou 10%.")
+        if match_duration_seconds not in MATCH_DURATIONS:
+            raise HTTPException(status_code=422, detail="Duração da partida deve ser 1:30, 2:00 ou 3:00.")
         async with self._create_lock:
             room = RoomState(
                 id=self._id(),
@@ -146,6 +155,7 @@ class RoomManager:
                 initial_market_duration_seconds=initial_market_duration_seconds,
                 round_preparation_duration_seconds=round_preparation_duration_seconds,
                 withdrawal_penalty_percent=withdrawal_penalty_percent,
+                match_duration_seconds=match_duration_seconds,
                 host_user_id=user_id,
                 participants={user_id: Participant(user_id, display_name, "HOST")},
             )
@@ -220,6 +230,8 @@ class RoomManager:
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Apenas o anfitrião pode editar a liga.")
             if room.phase != "WAITING":
                 raise HTTPException(status_code=409, detail="A temporada já começou e não pode mais ser alterada.")
+            if changes.get("match_duration_seconds", room.match_duration_seconds) not in MATCH_DURATIONS:
+                raise HTTPException(status_code=422, detail="Duração da partida deve ser 1:30, 2:00 ou 3:00.")
             if changes.get("withdrawal_penalty_percent", room.withdrawal_penalty_percent) not in {0, 2, 5, 10}:
                 raise HTTPException(status_code=422, detail="A multa deve ser 0%, 2%, 5% ou 10%.")
             if int(changes["max_human_participants"]) < len(room.participants):
@@ -227,6 +239,25 @@ class RoomManager:
             draft = copy.deepcopy(room)
             for field_name, value in changes.items():
                 setattr(draft, field_name, value)
+            draft.revision += 1
+            self._rooms[room_id] = draft
+            return self._state(draft)
+
+    async def set_match_duration(self, room_id: str, user_id: str, seconds: int, live_round: bool) -> dict[str, object]:
+        """Host-only, any phase: the new duration applies from the next round to kick off."""
+        self._room(room_id)
+        async with self._locks[room_id]:
+            room = self._room(room_id)
+            if room.host_user_id != user_id:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Apenas o anfitrião pode alterar a duração das partidas.")
+            if seconds not in MATCH_DURATIONS:
+                raise HTTPException(status_code=422, detail="Duração da partida deve ser 1:30, 2:00 ou 3:00.")
+            if live_round:
+                raise HTTPException(status_code=409, detail="Há uma rodada em andamento: a duração só pode mudar depois do apito final.")
+            if room.match_duration_seconds == seconds:
+                return self._state(room)
+            draft = copy.deepcopy(room)
+            draft.match_duration_seconds = seconds
             draft.revision += 1
             self._rooms[room_id] = draft
             return self._state(draft)

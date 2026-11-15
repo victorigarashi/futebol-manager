@@ -2,13 +2,14 @@ import { useEffect, useRef } from "react";
 
 import type { EngineEvent } from "../../../lib/api";
 import { inkOn } from "../clubColors";
+import type { BroadcastView } from "./broadcastClock";
 import type { FrameBuffer, Sample } from "./frameBuffer";
 
-export type PitchPlayer = { index: number; number: number; name: string; side: "home" | "away"; role: string };
+export type PitchPlayer = { index: number; number: number; name: string; side: "home" | "away"; role: string; id?: string };
 type Props = {
   buffer: FrameBuffer;
-  /** Returns the (fractional) tick to draw, given elapsed ms since last frame. */
-  driver: (deltaMs: number) => number;
+  /** The broadcast moment to draw (live), or a plain fractional tick (replays). */
+  driver: (deltaMs: number) => number | BroadcastView;
   players: PitchPlayer[];
   kits: { home: string; away: string };
   pitch: { length: number; width: number; goal: number; box: number };
@@ -20,11 +21,12 @@ type Props = {
   label: string;
 };
 
-const FX_TICKS = 40;
+const FX_TICKS = 6;
 
 /**
- * Top-down 2D view. Positions come exclusively from authoritative engine frames;
- * visual effects are triggered only by events the engine actually emitted.
+ * Top-down 2D broadcast view. Positions come exclusively from authoritative engine
+ * frames; effects are triggered only by events the engine actually emitted. Cuts of
+ * the condensed broadcast cross-fade between two real moments (nothing slides).
  */
 export function PitchCanvas({ buffer, driver, players, kits, pitch, events, homeCode, ownSide, selectedIndex, onSelect, label }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -38,7 +40,7 @@ export function PitchCanvas({ buffer, driver, players, kits, pitch, events, home
     const context = canvas?.getContext("2d");
     if (!canvas || !context) return;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const trail: { x: number; y: number }[] = [];
+    const trail: { x: number; y: number; t: number }[] = [];
     let frame = 0;
     let last = performance.now();
     let lastPaint = 0;
@@ -49,8 +51,9 @@ export function PitchCanvas({ buffer, driver, players, kits, pitch, events, home
       const delta = Math.min(200, now - last);
       last = now;
       const { driver: drive, players: roster, kits: colours, pitch: dims, events: list, homeCode: home, ownSide: own, selectedIndex: selected } = props.current;
-      const tick = drive(delta);
-      if (reduced && now - lastPaint < 200) { frame = requestAnimationFrame(draw); return; }
+      const raw = drive(delta);
+      const view: BroadcastView = typeof raw === "number" ? { tick: raw, kind: "PLAY", label: "", cut: null } : raw;
+      if (reduced && now - lastPaint < 120) { frame = requestAnimationFrame(draw); return; }
       lastPaint = now;
       const width = canvas.clientWidth;
       const height = canvas.clientHeight;
@@ -62,7 +65,7 @@ export function PitchCanvas({ buffer, driver, players, kits, pitch, events, home
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
       // Portrait screens get a vertical pitch (home attacks upward) for legibility.
       const vertical = height > width * 1.05;
-      const margin = Math.max(10, Math.min(width, height) * 0.04);
+      const margin = Math.max(14, Math.min(width, height) * 0.05);
       const longSide = vertical ? height - margin * 2 : width - margin * 2;
       const shortSide = vertical ? width - margin * 2 : height - margin * 2;
       const scale = Math.min(longSide / dims.length, shortSide / dims.width);
@@ -71,107 +74,154 @@ export function PitchCanvas({ buffer, driver, players, kits, pitch, events, home
       const ox = (width - (vertical ? fieldShort : fieldLong)) / 2;
       const oy = (height - (vertical ? fieldLong : fieldShort)) / 2;
       layout.current = { vertical, ox, oy, scale };
-      // Normalised engine coords (x along length, y across) → screen.
       const at = (nx: number, ny: number): [number, number] => vertical
         ? [ox + ny * fieldShort, oy + (1 - nx) * fieldLong]
         : [ox + nx * fieldLong, oy + ny * fieldShort];
       const m = (metres: number) => metres * scale;
 
-      const key = `${width}x${height}:${dims.length}:${vertical}`;
-      if (key !== grassKey) { grass = paintGrass(width, height, ratio, ox, oy, vertical ? fieldShort : fieldLong, vertical ? fieldLong : fieldShort, vertical, dims, scale); grassKey = key; }
+      const key = `${width}x${height}:${dims.length}:${vertical}:${ratio}`;
+      if (key !== grassKey) { grass = paintPitch(width, height, ratio, ox, oy, vertical ? fieldShort : fieldLong, vertical ? fieldLong : fieldShort, vertical, dims, scale); grassKey = key; }
       context.clearRect(0, 0, width, height);
       if (grass) context.drawImage(grass, 0, 0, width, height);
 
-      const sample = buffer.sample(tick);
-      lastSample.current = sample;
-      if (!sample) { frame = requestAnimationFrame(draw); return; }
+      // Cuts: fade the last real moment out, then the next real moment in.
+      let layers: { sample: Sample; alpha: number }[] = [];
+      if (view.cut) {
+        const { from, to, progress } = view.cut;
+        const a = buffer.sample(from);
+        const b = buffer.has(to) ? buffer.sample(to) : null;
+        if (a && progress < 0.4) layers.push({ sample: a, alpha: 1 - progress / 0.4 });
+        if (b && progress > 0.6) layers.push({ sample: b, alpha: (progress - 0.6) / 0.4 });
+        context.fillStyle = `rgba(4, 12, 8, ${0.35 * Math.sin(Math.PI * progress)})`;
+        context.fillRect(0, 0, width, height);
+        trail.length = 0;
+      } else {
+        const sample = buffer.sample(view.tick);
+        if (sample) layers = [{ sample, alpha: 1 }];
+      }
+      const main = layers[layers.length - 1]?.sample ?? null;
+      lastSample.current = main;
+      if (!main) { frame = requestAnimationFrame(draw); return; }
 
-      // Event effects (only real engine events within the last FX_TICKS ticks).
-      for (const event of list) {
-        const age = sample.tick - event.tick;
-        if (age < 0 || age > FX_TICKS) continue;
-        const fade = 1 - age / FX_TICKS;
-        const [ex, ey] = at(event.x, event.y);
-        const attackingHome = event.team === home;
-        if (event.kind === "SHOT") {
-          const [gx, gy] = at(attackingHome ? 1 : 0, 0.5);
-          context.strokeStyle = `rgba(144, 252, 163, ${0.85 * fade})`;
-          context.lineWidth = 2;
-          context.setLineDash([6, 5]);
-          context.beginPath(); context.moveTo(ex, ey); context.lineTo(gx, gy); context.stroke();
-          context.setLineDash([]);
-        } else if (event.kind === "GOAL") {
-          for (let ring = 0; ring < 3; ring += 1) {
-            context.strokeStyle = `rgba(255, 255, 255, ${fade * (1 - ring * 0.25)})`;
-            context.lineWidth = 3 - ring;
-            context.beginPath(); context.arc(ex, ey, m(2 + age * 0.35 + ring * 2.5), 0, Math.PI * 2); context.stroke();
+      // Event effects (only real engine events, only while the play is on screen).
+      if (!view.cut) {
+        for (const event of list) {
+          const age = view.tick - event.tick;
+          if (age < 0 || age > FX_TICKS) continue;
+          const fade = 1 - age / FX_TICKS;
+          const [ex, ey] = at(event.x, event.y);
+          if (event.kind === "SHOT") {
+            const [gx, gy] = at(event.team === home ? 1 : 0, 0.5);
+            context.strokeStyle = `rgba(255, 236, 150, ${0.9 * fade})`;
+            context.lineWidth = 2;
+            context.setLineDash([5, 4]);
+            context.beginPath(); context.moveTo(ex, ey); context.lineTo(gx, gy); context.stroke();
+            context.setLineDash([]);
+          } else if (event.kind === "GOAL") {
+            for (let ring = 0; ring < 3; ring += 1) {
+              context.strokeStyle = `rgba(255, 255, 255, ${fade * (1 - ring * 0.28)})`;
+              context.lineWidth = 2.5 - ring * 0.6;
+              context.beginPath(); context.arc(ex, ey, m(1.5 + age * 1.4 + ring * 1.8), 0, Math.PI * 2); context.stroke();
+            }
+          } else if (event.kind === "SAVE") {
+            context.fillStyle = `rgba(255, 255, 255, ${0.3 * fade})`;
+            context.beginPath(); context.arc(ex, ey, m(2.5), 0, Math.PI * 2); context.fill();
+          } else if (event.kind === "CARD") {
+            context.fillStyle = event.outcome === "YELLOW" ? `rgba(250, 204, 21, ${fade})` : `rgba(239, 68, 68, ${fade})`;
+            roundRect(context, ex - 4, ey - 26, 8, 11, 1.5); context.fill();
+          } else if (event.kind === "FOUL") {
+            context.strokeStyle = `rgba(255, 180, 170, ${fade})`;
+            context.lineWidth = 2;
+            context.beginPath(); context.moveTo(ex - 4, ey - 4); context.lineTo(ex + 4, ey + 4); context.moveTo(ex + 4, ey - 4); context.lineTo(ex - 4, ey + 4); context.stroke();
           }
-        } else if (event.kind === "SAVE") {
-          context.fillStyle = `rgba(255, 255, 255, ${0.35 * fade})`;
-          context.beginPath(); context.arc(ex, ey, m(3), 0, Math.PI * 2); context.fill();
-        } else if (event.kind === "CARD") {
-          context.fillStyle = event.outcome === "YELLOW" ? `rgba(250, 204, 21, ${fade})` : `rgba(239, 68, 68, ${fade})`;
-          context.fillRect(ex - 4, ey - m(4) - 12, 8, 11);
-        } else if (event.kind === "FOUL") {
-          context.strokeStyle = `rgba(255, 170, 165, ${fade})`;
-          context.lineWidth = 2;
-          context.beginPath(); context.moveTo(ex - 5, ey - 5); context.lineTo(ex + 5, ey + 5); context.moveTo(ex + 5, ey - 5); context.lineTo(ex - 5, ey + 5); context.stroke();
         }
       }
 
-      // Players.
-      const radius = Math.max(7, Math.min(13, m(1.25)));
-      context.font = `800 ${Math.round(radius * 0.95)}px "Barlow Condensed", "Arial Narrow", sans-serif`;
-      context.textAlign = "center";
-      context.textBaseline = "middle";
-      for (const player of roster) {
-        const position = sample.players[player.index];
-        if (!position) continue;
-        const [px, py] = at(position[0], position[1]);
-        const kit = player.side === "home" ? colours.home : colours.away;
-        context.beginPath();
-        context.fillStyle = "rgba(0, 0, 0, 0.28)";
-        context.ellipse(px + 1.5, py + 2.5, radius, radius * 0.8, 0, 0, Math.PI * 2);
-        context.fill();
-        context.beginPath();
-        context.fillStyle = player.role === "GK" ? shade(kit) : kit;
-        context.arc(px, py, radius, 0, Math.PI * 2);
-        context.fill();
-        context.lineWidth = player.side === own ? 2.2 : 1.4;
-        context.strokeStyle = player.side === own ? "#F8FAFC" : "rgba(13, 17, 23, 0.85)";
-        context.stroke();
-        context.fillStyle = inkOn(player.role === "GK" ? shade(kit) : kit);
-        context.fillText(String(player.number), px, py + 0.5);
-        if (sample.ball.owner === player.index) {
-          context.strokeStyle = "#90FCA3";
-          context.lineWidth = 2;
-          context.beginPath(); context.arc(px, py, radius + 4, 0, Math.PI * 2); context.stroke();
+      // Who is shooting right now, and who just came on (from real events only).
+      const shooter = view.cut ? null : list.find((e) => e.kind === "SHOT" && view.tick - e.tick >= -1.2 && view.tick - e.tick <= 1.5)?.player_id ?? null;
+      const entering = new Set(view.cut ? [] : list.filter((e) => e.kind === "SUBSTITUTION" && view.tick - e.tick >= 0 && view.tick - e.tick < 12).map((e) => e.player_id ?? ""));
+      const radius = Math.max(6, Math.min(11, m(dims.length > 60 ? 1.15 : 0.85)));
+      for (const { sample, alpha: layerAlpha } of layers) {
+        context.save();
+        context.font = `800 ${Math.round(radius * 0.98)}px "Barlow Condensed", "Arial Narrow", sans-serif`;
+        context.textAlign = "center";
+        context.textBaseline = "middle";
+        // Shadows first, so no shadow covers a neighbouring marker.
+        context.fillStyle = "rgba(0, 0, 0, 0.32)";
+        for (const player of roster) {
+          const position = sample.players[player.index];
+          if (!position) continue;
+          const [px, py] = at(position[0], position[1]);
+          context.globalAlpha = layerAlpha * (sample.alpha[player.index] ?? 1) * 0.8;
+          context.beginPath(); context.ellipse(px + radius * 0.25, py + radius * 0.42, radius * 0.95, radius * 0.62, 0, 0, Math.PI * 2); context.fill();
         }
-        if (selected === player.index) {
-          context.strokeStyle = "#FDE68A";
-          context.setLineDash([4, 3]);
-          context.lineWidth = 2;
-          context.beginPath(); context.arc(px, py, radius + 7, 0, Math.PI * 2); context.stroke();
-          context.setLineDash([]);
-          drawLabel(context, player.name, px, py - radius - 14);
+        for (const player of roster) {
+          const position = sample.players[player.index];
+          if (!position) continue;
+          const markerAlpha = layerAlpha * (sample.alpha[player.index] ?? 1);
+          if (markerAlpha <= 0.02) continue;
+          const [px, py] = at(position[0], position[1]);
+          context.globalAlpha = markerAlpha;
+          const kit = player.side === "home" ? colours.home : colours.away;
+          const fill = player.role === "GK" ? keeperKit(kit, player.side) : kit;
+          const body = context.createRadialGradient(px - radius * 0.35, py - radius * 0.4, radius * 0.1, px, py, radius);
+          body.addColorStop(0, lighten(fill, 0.3));
+          body.addColorStop(1, fill);
+          context.fillStyle = body;
+          context.beginPath(); context.arc(px, py, radius, 0, Math.PI * 2); context.fill();
+          context.lineWidth = player.side === own ? 2 : 1.2;
+          context.strokeStyle = player.side === own ? "rgba(248, 250, 252, 0.95)" : "rgba(10, 14, 20, 0.75)";
+          context.stroke();
+          context.fillStyle = inkOn(fill);
+          context.fillText(String(player.number), px, py + 0.5);
+          if (sample.ball.owner === player.index && sample.ball.state === 0) {
+            context.strokeStyle = "rgba(144, 252, 163, 0.95)";
+            context.lineWidth = 1.8;
+            context.beginPath(); context.arc(px, py, radius + 3.5, 0, Math.PI * 2); context.stroke();
+          }
+          if (shooter && player.id === shooter) {
+            context.strokeStyle = "rgba(255, 236, 150, 0.95)";
+            context.lineWidth = 2.2;
+            context.beginPath(); context.arc(px, py, radius + 6 + Math.sin(now / 90) * 1.5, 0, Math.PI * 2); context.stroke();
+          }
+          if (player.id && entering.has(player.id)) {
+            context.strokeStyle = "rgba(96, 165, 250, 0.95)";
+            context.lineWidth = 2;
+            context.setLineDash([3, 3]);
+            context.beginPath(); context.arc(px, py, radius + 5, 0, Math.PI * 2); context.stroke();
+            context.setLineDash([]);
+          }
+          if (selected === player.index) {
+            context.strokeStyle = "#FDE68A";
+            context.setLineDash([4, 3]);
+            context.lineWidth = 2;
+            context.beginPath(); context.arc(px, py, radius + 7, 0, Math.PI * 2); context.stroke();
+            context.setLineDash([]);
+            drawLabel(context, player.name, px, py - radius - 14);
+          }
         }
+        context.restore();
       }
 
-      // Ball with a short trail (skipped for reduced motion).
-      const [bx, by] = at(sample.ball.x, sample.ball.y);
-      if (!reduced) {
-        trail.push({ x: bx, y: by });
-        if (trail.length > 10) trail.shift();
-        for (let index = 1; index < trail.length; index += 1) {
-          context.strokeStyle = `rgba(255, 255, 255, ${(index / trail.length) * 0.35})`;
-          context.lineWidth = Math.max(1, (index / trail.length) * 3);
-          context.beginPath(); context.moveTo(trail[index - 1].x, trail[index - 1].y); context.lineTo(trail[index].x, trail[index].y); context.stroke();
-        }
+      // Ball (newest layer), with a short trail while it travels.
+      const ball = main.ball;
+      const [bx, by] = at(ball.x, ball.y);
+      const layerAlpha = layers[layers.length - 1].alpha;
+      if (!reduced && !view.cut && ball.state === 2) trail.push({ x: bx, y: by, t: now });
+      while (trail.length && (now - trail[0].t > 260 || ball.state !== 2)) trail.shift();
+      for (let index = 1; index < trail.length; index += 1) {
+        context.strokeStyle = `rgba(255, 255, 255, ${(index / trail.length) * 0.45 * layerAlpha})`;
+        context.lineWidth = Math.max(1, (index / trail.length) * 2.6);
+        context.beginPath(); context.moveTo(trail[index - 1].x, trail[index - 1].y); context.lineTo(trail[index].x, trail[index].y); context.stroke();
       }
-      const ballRadius = Math.max(3.5, m(0.55));
-      context.beginPath(); context.fillStyle = "rgba(0, 0, 0, 0.35)"; context.arc(bx + 2, by + 2.5, ballRadius, 0, Math.PI * 2); context.fill();
+      const ballRadius = Math.max(3.2, m(dims.length > 60 ? 0.5 : 0.35));
+      const lift = ball.state === 2 ? ballRadius * 0.9 : 0;
+      context.save();
+      context.globalAlpha = layerAlpha * ball.alpha;
+      context.beginPath(); context.fillStyle = "rgba(0, 0, 0, 0.38)"; context.ellipse(bx + 1.5 + lift, by + 2 + lift, ballRadius, ballRadius * 0.7, 0, 0, Math.PI * 2); context.fill();
       context.beginPath(); context.fillStyle = "#FFFFFF"; context.arc(bx, by, ballRadius, 0, Math.PI * 2); context.fill();
       context.lineWidth = 1; context.strokeStyle = "#0D1117"; context.stroke();
+      context.restore();
       frame = requestAnimationFrame(draw);
     };
     frame = requestAnimationFrame(draw);
@@ -206,58 +256,98 @@ export function PitchCanvas({ buffer, driver, players, kits, pitch, events, home
   </canvas>;
 }
 
-function shade(hex: string): string {
+function keeperKit(hex: string, side: "home" | "away"): string {
+  // Keepers wear a contrasting kit: a deep shade of the club colour, or (on dark kits)
+  // amber for the home keeper and cyan for the away keeper, so the two never match.
   const value = parseInt(hex.slice(1), 16);
-  const r = Math.max(0, ((value >> 16) & 255) * 0.55) | 0;
-  const g = Math.max(0, ((value >> 8) & 255) * 0.55) | 0;
-  const b = Math.max(0, (value & 255) * 0.55) | 0;
+  const luminance = (((value >> 16) & 255) * 0.299 + ((value >> 8) & 255) * 0.587 + (value & 255) * 0.114) / 255;
+  if (luminance < 0.35) return side === "home" ? "#F59E0B" : "#22D3EE";
+  return shade(hex, 0.5);
+}
+
+function shade(hex: string, factor: number): string {
+  const value = parseInt(hex.slice(1), 16);
+  const r = Math.max(0, ((value >> 16) & 255) * factor) | 0;
+  const g = Math.max(0, ((value >> 8) & 255) * factor) | 0;
+  const b = Math.max(0, (value & 255) * factor) | 0;
   return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
+}
+
+function lighten(hex: string, amount: number): string {
+  const value = parseInt(hex.slice(1), 16);
+  const mix = (c: number) => Math.min(255, Math.round(c + (255 - c) * amount));
+  return `rgb(${mix((value >> 16) & 255)}, ${mix((value >> 8) & 255)}, ${mix(value & 255)})`;
+}
+
+function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  g.beginPath();
+  g.moveTo(x + r, y); g.lineTo(x + w - r, y); g.quadraticCurveTo(x + w, y, x + w, y + r);
+  g.lineTo(x + w, y + h - r); g.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  g.lineTo(x + r, y + h); g.quadraticCurveTo(x, y + h, x, y + h - r);
+  g.lineTo(x, y + r); g.quadraticCurveTo(x, y, x + r, y);
+  g.closePath();
 }
 
 function drawLabel(context: CanvasRenderingContext2D, text: string, x: number, y: number) {
   context.save();
+  context.globalAlpha = 1;
   context.font = '700 12px "Inter", system-ui, sans-serif';
   const width = context.measureText(text).width + 12;
-  context.fillStyle = "rgba(13, 17, 23, 0.88)";
-  context.fillRect(x - width / 2, y - 9, width, 18);
+  context.fillStyle = "rgba(10, 14, 20, 0.9)";
+  roundRect(context, x - width / 2, y - 9, width, 18, 4); context.fill();
   context.fillStyle = "#F8FAFC";
   context.fillText(text, x, y);
   context.restore();
 }
 
-/** Static layer: striped grass with a subtle grain and proportional markings. */
-function paintGrass(width: number, height: number, ratio: number, ox: number, oy: number, fieldW: number, fieldH: number, vertical: boolean, dims: { length: number; width: number; goal: number; box: number }, scale: number): HTMLCanvasElement {
+/** Static layer: stadium surround, mown grass, proportional markings and goal nets. */
+function paintPitch(width: number, height: number, ratio: number, ox: number, oy: number, fieldW: number, fieldH: number, vertical: boolean, dims: { length: number; width: number; goal: number; box: number }, scale: number): HTMLCanvasElement {
   const layer = document.createElement("canvas");
   layer.width = Math.round(width * ratio);
   layer.height = Math.round(height * ratio);
   const g = layer.getContext("2d");
   if (!g) return layer;
   g.setTransform(ratio, 0, 0, ratio, 0, 0);
-  g.fillStyle = "#0E3B24";
+  // Surround: dark apron with a soft floodlight glow toward the centre.
+  const surround = g.createRadialGradient(width / 2, height / 2, Math.min(width, height) * 0.2, width / 2, height / 2, Math.max(width, height) * 0.7);
+  surround.addColorStop(0, "#14532D");
+  surround.addColorStop(1, "#0A2615");
+  g.fillStyle = surround;
   g.fillRect(0, 0, width, height);
-  const stripes = dims.length > 60 ? 14 : 8;
+  const apron = Math.max(6, scale * 2.2);
+  g.fillStyle = "#145C34";
+  g.fillRect(ox - apron, oy - apron, fieldW + apron * 2, fieldH + apron * 2);
+  // Mown stripes along the length of the pitch.
+  const stripes = dims.length > 60 ? 18 : 10;
   for (let index = 0; index < stripes; index += 1) {
-    g.fillStyle = index % 2 ? "#17663D" : "#1A7044";
+    g.fillStyle = index % 2 ? "#1B7A43" : "#1F8A4C";
     if (vertical) g.fillRect(ox, oy + (index * fieldH) / stripes, fieldW, fieldH / stripes + 0.5);
     else g.fillRect(ox + (index * fieldW) / stripes, oy, fieldW / stripes + 0.5, fieldH);
   }
+  // Light from above: brighter centre, darker edges (depth without perspective tricks).
+  const light = g.createRadialGradient(ox + fieldW / 2, oy + fieldH / 2, Math.min(fieldW, fieldH) * 0.15, ox + fieldW / 2, oy + fieldH / 2, Math.max(fieldW, fieldH) * 0.7);
+  light.addColorStop(0, "rgba(255,255,255,0.06)");
+  light.addColorStop(1, "rgba(0,0,0,0.22)");
+  g.fillStyle = light;
+  g.fillRect(ox, oy, fieldW, fieldH);
   // Grain: deterministic speckles so the texture is stable between frames.
   let seed = 7;
-  for (let index = 0; index < (fieldW * fieldH) / 60; index += 1) {
+  for (let index = 0; index < (fieldW * fieldH) / 50; index += 1) {
     seed = (seed * 16807) % 2147483647;
     const x = ox + (seed % 10000) / 10000 * fieldW;
     seed = (seed * 16807) % 2147483647;
     const y = oy + (seed % 10000) / 10000 * fieldH;
-    g.fillStyle = seed % 2 ? "rgba(255,255,255,0.025)" : "rgba(0,0,0,0.05)";
-    g.fillRect(x, y, 1.5, 1.5);
+    g.fillStyle = seed % 2 ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.05)";
+    g.fillRect(x, y, 1.2, 1.2);
   }
   const at = (mx: number, my: number): [number, number] => vertical ? [ox + my * scale, oy + (dims.length - mx) * scale] : [ox + mx * scale, oy + my * scale];
   const rect = (x1: number, y1: number, x2: number, y2: number) => {
     const [ax, ay] = at(x1, y1); const [bx, by] = at(x2, y2);
     g.strokeRect(Math.min(ax, bx), Math.min(ay, by), Math.abs(bx - ax), Math.abs(by - ay));
   };
-  g.strokeStyle = "rgba(255,255,255,0.78)";
-  g.lineWidth = Math.max(1, scale * 0.12);
+  g.strokeStyle = "rgba(255,255,255,0.86)";
+  g.lineWidth = Math.max(1.2, scale * 0.12);
+  g.lineJoin = "round";
   const L = dims.length; const W = dims.width;
   const eleven = L > 60;
   rect(0, 0, L, W);
@@ -265,8 +355,8 @@ function paintGrass(width: number, height: number, ratio: number, ox: number, oy
   g.beginPath(); g.moveTo(m1x, m1y); g.lineTo(m2x, m2y); g.stroke();
   const [cx, cy] = at(L / 2, W / 2);
   g.beginPath(); g.arc(cx, cy, (eleven ? 9.15 : 3) * scale, 0, Math.PI * 2); g.stroke();
-  g.fillStyle = "rgba(255,255,255,0.85)";
-  g.beginPath(); g.arc(cx, cy, Math.max(1.5, scale * 0.25), 0, Math.PI * 2); g.fill();
+  g.fillStyle = "rgba(255,255,255,0.9)";
+  g.beginPath(); g.arc(cx, cy, Math.max(1.6, scale * 0.25), 0, Math.PI * 2); g.fill();
   const boxWidth = eleven ? 40.32 : Math.min(W * 0.6, dims.goal + 2 * dims.box);
   const smallDepth = eleven ? 5.5 : 0;
   const smallWidth = eleven ? 18.32 : 0;
@@ -280,28 +370,32 @@ function paintGrass(width: number, height: number, ratio: number, ox: number, oy
     g.beginPath(); g.arc(sx, sy, Math.max(1.5, scale * 0.22), 0, Math.PI * 2); g.fill();
     if (eleven) {
       // Penalty arc: the part of the 9.15 m circle outside the area.
-      const [ax, ay] = at(x0 + dir * spot, W / 2);
       const theta = Math.acos((dims.box - spot) / 9.15);
       const base = vertical ? (side === 0 ? -Math.PI / 2 : Math.PI / 2) : (side === 0 ? 0 : Math.PI);
-      g.beginPath(); g.arc(ax, ay, 9.15 * scale, base - theta, base + theta); g.stroke();
+      g.beginPath(); g.arc(sx, sy, 9.15 * scale, base - theta, base + theta); g.stroke();
     }
-    // Goal frame.
+    // Goal: net mesh behind the line and a solid frame.
+    const depth = eleven ? 2 : 1;
+    const [n1x, n1y] = at(x0, (W - dims.goal) / 2);
+    const [n2x, n2y] = at(x0 - dir * depth, (W + dims.goal) / 2);
+    const nx = Math.min(n1x, n2x); const ny = Math.min(n1y, n2y);
+    const nw = Math.abs(n2x - n1x); const nh = Math.abs(n2y - n1y);
     g.save();
-    g.strokeStyle = "rgba(255,255,255,0.95)";
-    g.lineWidth = Math.max(2, scale * 0.25);
-    rect(x0, (W - dims.goal) / 2, x0 - dir * (eleven ? 2 : 1), (W + dims.goal) / 2);
+    g.fillStyle = "rgba(255,255,255,0.10)";
+    g.fillRect(nx, ny, nw, nh);
+    g.strokeStyle = "rgba(255,255,255,0.28)";
+    g.lineWidth = 0.6;
+    const mesh = Math.max(3, scale * 0.6);
+    for (let x = nx; x <= nx + nw; x += mesh) { g.beginPath(); g.moveTo(x, ny); g.lineTo(x, ny + nh); g.stroke(); }
+    for (let y = ny; y <= ny + nh; y += mesh) { g.beginPath(); g.moveTo(nx, y); g.lineTo(nx + nw, y); g.stroke(); }
+    g.strokeStyle = "rgba(255,255,255,0.98)";
+    g.lineWidth = Math.max(2, scale * 0.24);
+    g.strokeRect(nx, ny, nw, nh);
     g.restore();
   }
-  // Corner arcs.
   for (const [x, y] of [[0, 0], [0, W], [L, 0], [L, W]]) {
     const [px, py] = at(x, y);
     g.beginPath(); g.arc(px, py, Math.max(3, scale), 0, Math.PI * 2); g.stroke();
   }
-  // Soft vignette for depth.
-  const gradient = g.createRadialGradient(width / 2, height / 2, Math.min(width, height) * 0.3, width / 2, height / 2, Math.max(width, height) * 0.75);
-  gradient.addColorStop(0, "rgba(0,0,0,0)");
-  gradient.addColorStop(1, "rgba(0,0,0,0.35)");
-  g.fillStyle = gradient;
-  g.fillRect(0, 0, width, height);
   return layer;
 }

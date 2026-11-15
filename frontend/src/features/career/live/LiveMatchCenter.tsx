@@ -9,6 +9,7 @@ import { ATTRIBUTE_LABEL, KEY_EVENTS, PHASE_LABEL, POSITION_LABEL, eventText, ne
 import { GoalCelebrationOverlay, type GoalMoment } from "./GoalCelebrationOverlay";
 import { markGoalsSeen, seenGoals } from "./seenGoals";
 import { PitchCanvas, type PitchPlayer } from "./PitchCanvas";
+import { DISPLAY_DELAY_SECONDS, type BroadcastView } from "./broadcastClock";
 import { useFrameStream } from "./useFrameStream";
 
 const MENTALITIES: [Mentality, string][] = [["VERY_DEFENSIVE", "Muito def."], ["DEFENSIVE", "Defensiva"], ["BALANCED", "Equilibrada"], ["ATTACKING", "Ofensiva"], ["VERY_ATTACKING", "Muito of."]];
@@ -23,15 +24,41 @@ export function LiveMatchCenter({ roomId, data, clubCode, clubs }: { roomId: str
   const club = useCallback((code: string): Club => clubs.find((item) => item.code === code) ?? { code, name: code, sort_order: 0 }, [clubs]);
   const you = match.you ?? (match.home === clubCode ? "home" : "away");
   const kits = useMemo(() => matchKits(match.home, match.away), [match.home, match.away]);
-  const { buffer, driver, clock: playback } = useFrameStream(roomId, match.id, true, clock?.ticks_per_second ?? 30);
+  const initial = useMemo(() => ({ segments: data.broadcast, serverNow: data.server_now }), [data.broadcast, data.server_now]);
+  const { buffer, driver, view: playback, server, status } = useFrameStream(roomId, match.id, true, initial);
 
-  // The scoreboard and timeline follow the 2D playback (not the slightly-ahead server state).
-  const [displayTick, setDisplayTick] = useState(0);
+  // Scoreboard, clock and timeline follow the broadcast on screen (never the engine's lookahead).
+  const [shown, setShown] = useState<BroadcastView>({ tick: 0, kind: "WAIT", label: "", cut: null });
+  const [holder, setHolder] = useState<"home" | "away" | null>(null);
+  const [lagging, setLagging] = useState(false);
   useEffect(() => {
-    const timer = window.setInterval(() => setDisplayTick(Math.max(0, Math.floor(playback.current.tick))), 250);
+    const homeCount = match.lineups.home.length;
+    const timer = window.setInterval(() => {
+      const current = playback.current;
+      setShown((previous) => previous.tick === current.tick && previous.kind === current.kind && previous.cut?.progress === current.cut?.progress ? previous : { ...current });
+      const owner = current.cut ? -1 : buffer.sample(current.tick)?.ball.owner ?? -1;
+      setHolder(owner < 0 ? null : owner < homeCount ? "home" : "away");
+      setLagging(Date.now() - status.current.lastData > 4000);
+    }, 200);
     return () => window.clearInterval(timer);
-  }, [playback]);
+  }, [playback, buffer, status, match.lineups.home.length]);
+  const displayTick = Math.max(0, Math.floor(shown.tick));
   const shownEvents = useMemo(() => match.events.filter((event) => event.tick <= displayTick), [match.events, displayTick]);
+  // Substitutions and the rival's change of posture get on-screen feedback when they happen.
+  const announced = useRef<Set<string> | null>(null);
+  const [banner, setBanner] = useState<{ id: string; text: string; tone: string } | null>(null);
+  useEffect(() => {
+    if (announced.current === null) { announced.current = new Set(match.events.filter((e) => e.tick <= displayTick).map((e) => e.event_id)); return; }
+    const fresh = shownEvents.filter((e) => (e.kind === "SUBSTITUTION" || e.kind === "TACTICS") && !announced.current!.has(e.event_id));
+    fresh.forEach((e) => announced.current!.add(e.event_id));
+    const latest = fresh[fresh.length - 1];
+    if (!latest) return;
+    const team = club(latest.team ?? match.home).name;
+    setBanner(latest.kind === "SUBSTITUTION"
+      ? { id: latest.event_id, tone: "sub", text: `🔁 ${team}: entra ${latest.player_name}, sai ${latest.secondary_player_name}` }
+      : { id: latest.event_id, tone: "tactic", text: latest.team === clubCode ? `📋 Sua nova orientação está em campo (${latest.minute}′)` : `📋 ${team} mudou a postura em campo` });
+  }, [shownEvents, displayTick, match.events, match.home, club, clubCode]);
+  useEffect(() => { if (!banner) return; const timer = window.setTimeout(() => setBanner(null), 3500); return () => window.clearTimeout(timer); }, [banner]);
   const score = useMemo(() => {
     const goals = shownEvents.filter((event) => event.kind === "GOAL");
     return { home: goals.filter((event) => event.team === match.home).length, away: goals.filter((event) => event.team === match.away).length };
@@ -59,8 +86,8 @@ export function LiveMatchCenter({ roomId, data, clubCode, clubs }: { roomId: str
   const closeGoal = useCallback(() => setGoal(null), []);
 
   const players: PitchPlayer[] = useMemo(() => [
-    ...match.lineups.home.map((p) => ({ index: p.index, number: p.number, name: p.name, side: "home" as const, role: p.role })),
-    ...match.lineups.away.map((p) => ({ index: p.index, number: p.number, name: p.name, side: "away" as const, role: p.role })),
+    ...match.lineups.home.map((p) => ({ index: p.index, number: p.number, name: p.name, side: "home" as const, role: p.role, id: p.id })),
+    ...match.lineups.away.map((p) => ({ index: p.index, number: p.number, name: p.name, side: "away" as const, role: p.role, id: p.id })),
   ], [match.lineups]);
   const [selected, setSelected] = useState<number | null>(null);
   const selectedPlayer = [...match.lineups.home, ...match.lineups.away].find((p) => p.index === selected) ?? null;
@@ -76,25 +103,35 @@ export function LiveMatchCenter({ roomId, data, clubCode, clubs }: { roomId: str
       const c = result.command;
       setFeedback(c.kind === "SUBSTITUTION"
         ? c.status === "APPLIED" ? "Substituição feita." : "Substituição pedida: entra na próxima paralisação."
-        : "Nova orientação aplicada em campo.");
+        : `Ordem enviada: entra em campo no próximo lance (${Math.floor((c.applied_tick ?? 0) / 60)}′).`);
       setSubOut(null);
     },
     onError: (error) => setFeedback(error instanceof Error ? error.message : "O servidor recusou o comando."),
   });
 
-  const phase = clock?.phase ?? match.phase;
-  const finished = phase === "FULL_TIME";
-  const ownTactics = match.tactics[you];
+  // The phase follows what is on screen (the server clock is a second ahead of the picture).
+  const serverPhase = clock?.phase ?? match.phase;
+  const phase = serverPhase === "PRESENTATION" && shown.kind === "WAIT" ? "PRESENTATION"
+    : shown.kind === "BREAK" && shown.label === "HALF_TIME" ? "HALF_TIME"
+    : displayTick >= 5400 || serverPhase === "FULL_TIME" && shown.tick >= 5400 ? "FULL_TIME"
+    : shown.kind === "WAIT" && serverPhase === "PRESENTATION" ? "PRESENTATION"
+    : displayTick >= 2700 ? "SECOND_HALF" : "FIRST_HALF";
+  const finished = phase === "FULL_TIME" || serverPhase === "FULL_TIME";
+  // The coach's own latest order (it reaches the pitch at the next planned moment).
+  const ownTactics = match.ordered_tactics ?? match.tactics[you];
+  const lastOrder = [...(match.commands ?? [])].reverse().find((c) => c.kind === "TACTICS");
+  const orderPending = lastOrder && (lastOrder.applied_tick ?? 0) > displayTick;
   const ownPlayers = match.lineups[you];
   const subs = match.substitutions[you];
   const pending = (match.commands ?? []).filter((c) => c.kind === "SUBSTITUTION" && c.status === "PENDING");
   const subsLeft = match.substitutions.max - subs.used - subs.pending;
   const minute = Math.min(90, Math.floor(displayTick / 60));
-  const now = Date.now() / 1000;
-  const serverOffset = data.server_now - now;
   const [, force] = useState(0);
   useEffect(() => { const timer = window.setInterval(() => force((v) => v + 1), 1000); return () => window.clearInterval(timer); }, []);
-  const countdown = (target?: number) => Math.max(0, Math.ceil((target ?? 0) - (Date.now() / 1000 + serverOffset)));
+  // Countdowns are on the picture's clock: server time minus the display delay.
+  const countdown = (target?: number | null) => Math.max(0, Math.ceil((target ?? 0) + DISPLAY_DELAY_SECONDS - server.now()));
+  const duration = data.live_round?.match_seconds ?? clock?.match_seconds;
+  const cutEvents = shown.cut ? match.events.filter((e) => e.tick > shown.cut!.from && e.tick <= shown.cut!.to && KEY_EVENTS.has(e.kind) && e.kind !== "TACTICS").slice(-3) : [];
 
   const stats = match.statistics;
   const statRows: [string, string | number, string | number, number, number][] = [
@@ -113,11 +150,11 @@ export function LiveMatchCenter({ roomId, data, clubCode, clubs }: { roomId: str
 
   return <section className="match-center" aria-label={`Partida ao vivo: ${clubName(match.home)} contra ${clubName(match.away)}`}>
     <header className="scorebug">
-      <div className="scorebug__meta"><span>BRASILEIRÃO · RODADA {data.live_round?.round_number}</span><b className={`scorebug__status scorebug__status--${phase.toLowerCase()}`}>{phase === "FIRST_HALF" || phase === "SECOND_HALF" ? "● AO VIVO" : PHASE_LABEL[phase]}</b></div>
+      <div className="scorebug__meta"><span>BRASILEIRÃO · RODADA {data.live_round?.round_number}{duration ? ` · JOGO DE ${Math.floor(duration / 60)}:${String(duration % 60).padStart(2, "0")}` : ""}</span><b className={`scorebug__status scorebug__status--${phase.toLowerCase()}`}>{phase === "FIRST_HALF" || phase === "SECOND_HALF" ? "● AO VIVO" : PHASE_LABEL[phase]}</b></div>
       <div className="scorebug__main">
-        <div className={`scorebug__team ${you === "home" ? "is-you" : ""}`}><ClubCrest club={club(match.home)} /><strong>{clubName(match.home)}</strong>{you === "home" && <small>Você</small>}</div>
+        <div className={`scorebug__team ${you === "home" ? "is-you" : ""}`}><ClubCrest club={club(match.home)} /><strong>{clubName(match.home)}</strong>{you === "home" && <small>Você</small>}{holder === "home" && <i className="possession-dot" aria-label="com a bola" />}</div>
         <div className="scorebug__score"><strong aria-live="polite" aria-label={`Placar ${score.home} a ${score.away}`}>{score.home}<i>–</i>{score.away}</strong><time>{phase === "HALF_TIME" ? "INT" : phase === "PRESENTATION" ? "0′" : `${minute}′`}</time></div>
-        <div className={`scorebug__team ${you === "away" ? "is-you" : ""}`}><ClubCrest club={club(match.away)} /><strong>{clubName(match.away)}</strong>{you === "away" && <small>Você</small>}</div>
+        <div className={`scorebug__team ${you === "away" ? "is-you" : ""}`}><ClubCrest club={club(match.away)} /><strong>{clubName(match.away)}</strong>{you === "away" && <small>Você</small>}{holder === "away" && <i className="possession-dot" aria-label="com a bola" />}</div>
       </div>
       <div className="scorebug__ticker" aria-label="Último lance">{lastKey ? <><b>{lastKey.minute}′</b> {eventText(lastKey, clubName).title} <span>{eventText(lastKey, clubName).detail}</span></> : <span>Aguardando o pontapé inicial</span>}</div>
     </header>
@@ -127,6 +164,9 @@ export function LiveMatchCenter({ roomId, data, clubCode, clubs }: { roomId: str
         <PitchCanvas buffer={buffer} driver={driver} players={players} kits={kits} pitch={match.pitch} events={match.events} homeCode={match.home} ownSide={you} selectedIndex={selected} onSelect={setSelected}
           label={`Campo 2D: ${clubName(match.home)} (camisa ${kits.home}) ataca para a direita. Clique em um jogador para ver os detalhes.`} />
         {goal && <GoalCelebrationOverlay goal={goal} onDone={closeGoal} />}
+        {shown.cut && !goal && <div className="pitch-cut" aria-live="polite"><span className="pitch-cut__clock">⏩ {Math.floor(shown.cut.from / 60)}′ <i>→</i> {Math.floor(shown.cut.to / 60)}′</span>{cutEvents.length > 0 && <ul>{cutEvents.map((e) => <li key={e.event_id}><b>{e.minute}′</b> {eventText(e, clubName).title}</li>)}</ul>}</div>}
+        {banner && !goal && <div className={`pitch-banner pitch-banner--${banner.tone}`} role="status">{banner.text}</div>}
+        {lagging && !finished && <div className="pitch-banner pitch-banner--warn" role="status">Conexão lenta — retomando a transmissão…</div>}
         {phase === "PRESENTATION" && <div className="pitch-overlay pitch-overlay--intro"><p className="kicker">A BOLA VAI ROLAR</p><div className="intro-crests"><ClubCrest club={club(match.home)} size="md" /><b>×</b><ClubCrest club={club(match.away)} size="md" /></div><h2>{clubName(match.home)} × {clubName(match.away)}</h2><p>{match.formations.home} contra {match.formations.away} · Pontapé inicial em <strong>{countdown(clock?.kickoff_at)}s</strong></p><p className="muted">Você ainda pode ajustar a orientação do time no painel do técnico.</p></div>}
         {phase === "HALF_TIME" && <div className="pitch-overlay pitch-overlay--half"><p className="kicker">INTERVALO · {score.home} × {score.away}</p><h2>Hora da conversa no vestiário</h2><div className="half-stats">{statRows.slice(0, 4).map(([label, h, a]) => <div key={label}><b>{h}</b><span>{label}</span><b>{a}</b></div>)}</div><p>Substituições no intervalo <strong>não gastam janela</strong>. Segundo tempo em <strong>{countdown(clock?.halftime_ends_at)}s</strong>.</p></div>}
         <div className="pitch-legend" aria-hidden="true"><span><i style={{ background: kits.home }} />{match.home} ataca para a direita (no celular, para cima)</span><span><i style={{ background: kits.away }} />{match.away}</span></div>
@@ -141,7 +181,7 @@ export function LiveMatchCenter({ roomId, data, clubCode, clubs }: { roomId: str
             <TacticRow label="Mentalidade" options={MENTALITIES} value={ownTactics.mentality} disabled={finished || command.isPending} onPick={(mentality) => command.mutate({ kind: "TACTICS", mentality })} />
             <TacticRow label="Pressão" options={PRESSURES} value={ownTactics.pressure} disabled={finished || command.isPending} onPick={(pressure) => command.mutate({ kind: "TACTICS", pressure })} />
             <TacticRow label="Estilo" options={STYLES} value={ownTactics.style} disabled={finished || command.isPending} onPick={(style) => command.mutate({ kind: "TACTICS", style })} />
-            <p className="hint">A mudança vale a partir do próximo segundo de jogo. O adversário só percebe a nova postura em campo.</p>
+            <p className="hint">{orderPending ? <><b>Ordem enviada.</b> Entra em campo no próximo lance ({Math.floor((lastOrder?.applied_tick ?? 0) / 60)}′).</> : "A ordem entra em campo no próximo lance. O adversário só percebe a nova postura em campo."}</p>
           </section>}
           <section className="coach-block"><h3>Substituições <small>{subs.used}/{match.substitutions.max}{match.substitutions.windows ? ` · janelas ${subs.windows_used}/${match.substitutions.windows}` : ""}</small></h3>
             {pending.map((c) => <p className="pending-sub" key={c.command_id}><span className="pulse" aria-hidden="true" />Aguardando paralisação: entra <b>{nameOf(ownPlayers, c.in_player_id)}</b>, sai <b>{nameOf(ownPlayers, c.out_player_id)}</b></p>)}
@@ -149,7 +189,7 @@ export function LiveMatchCenter({ roomId, data, clubCode, clubs }: { roomId: str
               ? <><p className="hint">Escolha quem sai. A troca acontece na próxima bola parada.</p><ul className="sub-list">{ownPlayers.filter((p) => p.on_pitch).map((p) => <li key={p.id}><button type="button" onClick={() => setSubOut(p.id)} disabled={pending.some((c) => c.out_player_id === p.id)}><span className="pos">{POSITION_LABEL[p.role] ?? p.role}</span><b>{p.number}. {p.name}</b><Stamina value={p.stamina} />{p.yellow_cards > 0 && <i className="card-dot" aria-label="Amarelado" />}</button></li>)}</ul></>
               : <SubstitutionPicker out={ownPlayers.find((p) => p.id === subOut)!} bench={ownPlayers.filter((p) => p.available && !pending.some((c) => c.in_player_id === p.id))} busy={command.isPending} onCancel={() => setSubOut(null)} onConfirm={(incoming) => command.mutate({ kind: "SUBSTITUTION", out_player_id: subOut, in_player_id: incoming })} />}
           </section>
-          <CommandHistory commands={match.commands ?? []} players={ownPlayers} />
+          <CommandHistory commands={match.commands ?? []} players={ownPlayers} shownTick={displayTick} />
         </div>}
 
         {tab === "stats" && <section className="stat-bars" aria-label="Estatísticas ao vivo"><header><span>{match.home}</span><span>{match.away}</span></header>{statRows.map(([label, h, a, hv, av]) => <div className="stat-bar" key={label}><b>{h}</b><span>{label}</span><b>{a}</b><div className="stat-bar__track" aria-hidden="true"><i style={{ width: `${hv + av ? (hv / (hv + av)) * 100 : 50}%`, background: kits.home }} /><i style={{ width: `${hv + av ? (av / (hv + av)) * 100 : 50}%`, background: kits.away }} /></div></div>)}
@@ -190,9 +230,10 @@ function SubstitutionPicker({ out, bench, busy, onCancel, onConfirm }: { out: Ma
   </div>;
 }
 
-function CommandHistory({ commands, players }: { commands: CommandStatus[]; players: MatchPlayer[] }) {
+function CommandHistory({ commands, players, shownTick }: { commands: CommandStatus[]; players: MatchPlayer[]; shownTick: number }) {
   if (!commands.length) return null;
-  return <section className="coach-block"><h3>Suas decisões</h3><ol className="decisions">{[...commands].reverse().slice(0, 6).map((c) => <li key={c.command_id}><span className={`badge badge--${c.status.toLowerCase()}`}>{c.status === "APPLIED" ? "Aplicada" : c.status === "PENDING" ? "Pendente" : "Recusada"}</span>{c.kind === "TACTICS" && c.tactics ? tacticSummary(c.tactics) : `Entra ${nameOf(players, c.in_player_id)}, sai ${nameOf(players, c.out_player_id)}`}{c.applied_tick !== undefined && <small> · {Math.floor(c.applied_tick / 60)}′</small>}{c.reason && <small> · {c.reason}</small>}</li>)}</ol></section>;
+  const label = (c: CommandStatus) => c.status === "REJECTED" ? ["rejected", "Recusada"] : c.status === "PENDING" ? ["pending", "Pendente"] : (c.applied_tick ?? 0) > shownTick ? ["pending", "Agendada"] : ["applied", "Aplicada"];
+  return <section className="coach-block"><h3>Suas decisões</h3><ol className="decisions">{[...commands].reverse().slice(0, 6).map((c) => <li key={c.command_id}><span className={`badge badge--${label(c)[0]}`}>{label(c)[1]}</span>{c.kind === "TACTICS" && c.tactics ? tacticSummary(c.tactics) : `Entra ${nameOf(players, c.in_player_id)}, sai ${nameOf(players, c.out_player_id)}`}{c.applied_tick !== undefined && <small> · {Math.floor(c.applied_tick / 60)}′</small>}{c.reason && <small> · {c.reason}</small>}</li>)}</ol></section>;
 }
 
 function TimelineItem({ event, clubName, own }: { event: EngineEvent; clubName: (code: string) => string; own: boolean }) {

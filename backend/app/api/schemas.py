@@ -12,6 +12,8 @@ class RoomCreate(BaseModel):
     initial_market_duration_seconds: int = Field(default=300)
     round_preparation_duration_seconds: int = Field(default=300, ge=120, le=604_800)
     withdrawal_penalty_percent: Literal[0, 2, 5, 10] = 5
+    # Real duration of each live match: 1:30 (default), 2:00 or 3:00.
+    match_duration_seconds: Literal[90, 120, 180] = 90
 
     @field_validator("name")
     @classmethod
@@ -80,7 +82,12 @@ class ProfileUpdate(BaseModel):
 
 
 class RoomUpdate(RoomCreate):
-    pass
+    # Omitted by older clients: keep the room's current duration.
+    match_duration_seconds: Literal[90, 120, 180] | None = None
+
+
+class MatchSettingsUpdate(BaseModel):
+    match_duration_seconds: Literal[90, 120, 180]
 
 
 class MarketOfferCreate(BaseModel):

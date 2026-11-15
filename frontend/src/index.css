@@ -192,3 +192,21 @@ body { overflow-x: hidden; }
   .live-pressure svg { height: 90px; }
 }
 @media (prefers-reduced-motion: reduce) { .live-badge { animation: none; } }
+
+/* Match settings (lobby, league dialog and pre-match): real duration of each match. */
+.choice-grid--three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.match-settings { display: grid; gap: .55rem; margin: 1rem 0; padding: .9rem 1rem; border: 1px solid var(--line, #2b3440); border-radius: 12px; background: rgb(255 255 255 / 3%); }
+.match-settings .section-kicker { margin: 0; }
+.match-settings__row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .6rem; }
+.match-settings__label { color: var(--muted, #94a3b8); font-size: .72rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+.match-settings__choices { display: inline-grid; grid-template-columns: repeat(3, minmax(64px, 1fr)); gap: .35rem; padding: .25rem; border-radius: 10px; background: rgb(0 0 0 / 28%); }
+.match-settings__choices button { min-height: 40px; padding: .35rem .7rem; border: 1px solid transparent; border-radius: 8px; color: var(--paper, #f1f5f9); background: transparent; font: 800 1.15rem/1 "Barlow Condensed", "Arial Narrow", sans-serif; letter-spacing: .02em; cursor: pointer; transition: background .15s ease, color .15s ease; }
+.match-settings__choices button.is-active { border-color: var(--lime, #90fca3); color: #0b1410; background: var(--lime, #90fca3); }
+.match-settings__choices button:disabled { cursor: default; }
+.match-settings__choices button:disabled:not(.is-active) { opacity: .55; }
+.match-settings__choices button:focus-visible { outline: 2px solid var(--lime, #90fca3); outline-offset: 2px; }
+.match-settings__hint { color: var(--muted, #94a3b8); font-size: .75rem; }
+.match-settings__notice { margin: 0; padding: .5rem .7rem; border-left: 3px solid var(--lime, #90fca3); border-radius: 6px; color: var(--paper, #f1f5f9); background: rgb(144 252 163 / 10%); font-size: .82rem; animation: match-settings-in .25s ease; }
+.match-settings--compact { margin: .8rem 0 0; }
+@keyframes match-settings-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@media (max-width: 640px) { .choice-grid--three { grid-template-columns: 1fr; } .match-settings__choices { width: 100%; } }

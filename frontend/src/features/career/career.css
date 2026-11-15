@@ -394,3 +394,19 @@
 @media (prefers-reduced-motion: reduce) {
   .career *, .career *::before, .career *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+/* Condensed broadcast: cut transition, on-pitch banners, possession marker. */
+.pitch-cut { position: absolute; inset: auto 0 44px; display: grid; justify-items: center; gap: .35rem; pointer-events: none; animation: rise .2s ease; }
+.pitch-cut__clock { padding: .35rem .9rem; border-radius: 999px; color: var(--text); background: rgb(10 14 19 / 82%); font: 800 1.35rem/1 var(--display); letter-spacing: .04em; box-shadow: var(--shadow); }
+.pitch-cut__clock i { color: var(--lime); font-style: normal; }
+.pitch-cut ul { display: flex; flex-wrap: wrap; justify-content: center; gap: .35rem; margin: 0; padding: 0; list-style: none; }
+.pitch-cut li { padding: .2rem .6rem; border-radius: 6px; color: #dbe5ef; background: rgb(10 14 19 / 70%); font-size: .78rem; }
+.pitch-cut li b { color: var(--gold); }
+.pitch-banner { position: absolute; top: 12px; left: 50%; max-width: calc(100% - 24px); padding: .45rem .9rem; border-radius: 10px; color: var(--text); background: rgb(10 14 19 / 86%); font-weight: 700; font-size: .88rem; transform: translateX(-50%); box-shadow: var(--shadow); animation: banner-in .25s ease; pointer-events: none; }
+@keyframes banner-in { from { opacity: 0; transform: translate(-50%, -6px); } to { opacity: 1; transform: translate(-50%, 0); } }
+.pitch-banner--sub { border-left: 4px solid #60a5fa; }
+.pitch-banner--tactic { border-left: 4px solid var(--lime); }
+.pitch-banner--warn { top: auto; bottom: 44px; border-left: 4px solid var(--warn); }
+.possession-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 0 3px rgb(144 252 163 / 25%); animation: pulse-dot 1.2s ease-in-out infinite; }
+@keyframes pulse-dot { 50% { box-shadow: 0 0 0 6px rgb(144 252 163 / 0%); } }
+@media (prefers-reduced-motion: reduce) { .possession-dot, .pitch-cut, .pitch-banner { animation: none; } }

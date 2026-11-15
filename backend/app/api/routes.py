@@ -20,6 +20,7 @@ from app.api.schemas import (
     MarketReassignmentDecision,
     MarketSelectionConfirm,
     MarketSelectionPreview,
+    MatchSettingsUpdate,
     ProfileUpdate,
     RoomCreate,
     RoomUpdate,
@@ -169,6 +170,7 @@ async def create_room(
         initial_market_duration_seconds=payload.initial_market_duration_seconds,
         round_preparation_duration_seconds=payload.round_preparation_duration_seconds,
         withdrawal_penalty_percent=payload.withdrawal_penalty_percent,
+        match_duration_seconds=payload.match_duration_seconds,
     )
     snapshot_room(str(state["id"]))
     await hub.broadcast(str(state["id"]), {"type": "room.created", "revision": state["revision"]})
@@ -179,9 +181,25 @@ async def create_room(
 async def update_room(
     room_id: str, payload: RoomUpdate, identity: GuestIdentity = Depends(current_identity)
 ) -> dict[str, object]:
-    state = await room_manager.update(room_id, identity.id, **payload.model_dump())
+    state = await room_manager.update(room_id, identity.id, **payload.model_dump(exclude_none=True))
     snapshot_room(room_id)
     await hub.broadcast(room_id, {"type": "room.updated", "revision": state["revision"]})
+    return envelope(state, int(state["revision"]))
+
+
+@router.put("/rooms/{room_id}/match-settings")
+async def update_match_settings(
+    room_id: str, payload: MatchSettingsUpdate, identity: GuestIdentity = Depends(current_identity)
+) -> dict[str, object]:
+    """Host changes the live match duration; it is frozen for a round once it kicks off."""
+    season = season_service._seasons.get(room_id)
+    live = bool(season and season.live_round)
+    previous = room_manager._room(room_id).match_duration_seconds
+    state = await room_manager.set_match_duration(room_id, identity.id, payload.match_duration_seconds, live)
+    if state["match_duration_seconds"] != previous:
+        snapshot_room(room_id)
+        await hub.broadcast(room_id, {"type": "room.match_settings", "revision": state["revision"],
+                                      "match_duration_seconds": state["match_duration_seconds"]})
     return envelope(state, int(state["revision"]))
 
 
@@ -490,7 +508,8 @@ async def start_round_if_preparation_expired(room_id: str) -> None:
     async with round_locks.setdefault(room_id, asyncio.Lock()):
         try:
             started = season_service.start_if_preparation_expired(
-                room_id, market_service._session(room_id).market, humans, room.round_preparation_duration_seconds)
+                room_id, market_service._session(room_id).market, humans, room.round_preparation_duration_seconds,
+                room.match_duration_seconds)
         except MarketError:
             return
         if started:
@@ -512,7 +531,7 @@ async def ready_for_round(room_id: str, identity: GuestIdentity = Depends(curren
             result = season_service.ready(room_id, club)
             season = season_service._season(room_id)
             if not season.live_round and humans.issubset(season.ready_clubs):
-                result = season_service.advance(room_id, market_service._session(room_id).market, humans)
+                result = season_service.advance(room_id, market_service._session(room_id).market, humans, room_manager._room(room_id).match_duration_seconds)
             if season.live_round:
                 schedule_round(room_id)
             snapshot_room(room_id)
@@ -532,7 +551,7 @@ async def advance_round(room_id: str, identity: GuestIdentity = Depends(current_
         raise HTTPException(status_code=409, detail="Aguarde a etapa de preparação da rodada.")
     try:
         async with round_locks.setdefault(room_id, asyncio.Lock()):
-            result = season_service.advance(room_id, market_service._session(room_id).market, humans)
+            result = season_service.advance(room_id, market_service._session(room_id).market, humans, room_manager._room(room_id).match_duration_seconds)
             if result["live_round"]:
                 schedule_round(room_id)
             snapshot_room(room_id)

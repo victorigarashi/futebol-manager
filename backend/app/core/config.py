@@ -17,11 +17,11 @@ class Settings(BaseSettings):
     enable_demo_catalog: bool = False
     demo_snapshot_path: Path = Path("data/snapshots/demo-rooms.json")
 
-    # Real seconds of play for 90 game minutes, plus the real half-time break.
-    live_match_seconds: int = 180
-    live_halftime_seconds: int = 20
+    # Default real duration of a live match (each room chooses 90, 120 or 180 s; this
+    # only applies to rounds started without a room setting, e.g. legacy tools).
+    live_match_seconds: int = 90
     # Match presentation (line-ups on screen) between "all ready" and kick-off.
-    live_intro_seconds: int = 8
+    live_intro_seconds: int = 5
 
     request_limit_per_minute: int = 600
     auth_limit_per_minute: int = 120
@@ -31,8 +31,8 @@ class Settings(BaseSettings):
     def validate_runtime(self) -> "Settings":
         if self.app_environment not in {"development", "test", "production"}:
             raise ValueError("APP_ENVIRONMENT deve ser development, test ou production.")
-        if self.live_match_seconds < 30 or self.live_halftime_seconds < 0 or self.live_intro_seconds < 0:
-            raise ValueError("LIVE_MATCH_SECONDS deve ser >= 30 e LIVE_HALFTIME_SECONDS >= 0.")
+        if self.live_match_seconds not in {90, 120, 180} or self.live_intro_seconds < 0:
+            raise ValueError("LIVE_MATCH_SECONDS deve ser 90, 120 ou 180 e LIVE_INTRO_SECONDS >= 0.")
         if min(self.request_limit_per_minute, self.auth_limit_per_minute, self.max_request_body_bytes) < 1:
             raise ValueError("Limites de requisição devem ser positivos.")
         if self.app_environment == "production":

@@ -21,6 +21,9 @@ from app.domain.tactics import Tactics
 
 TICKS_PER_HALF = 2700
 FULL_TIME_TICK = TICKS_PER_HALF * 2
+# Live engines keep light state snapshots so a coach is shown exactly the minute on
+# screen while the engine itself already simulates a little ahead (broadcast lookahead).
+SNAPSHOT_EVERY = 3
 
 PITCH = {
     "ELEVEN_A_SIDE": {"length": 105.0, "width": 68.0, "goal": 7.32, "box": 16.5, "shot_range": 30.0, "xg_scale": 1.0, "max_subs": 5, "windows": 3},
@@ -45,11 +48,14 @@ PRESSURE = {
 STYLE = {
     #                 risk  progress long_bonus width  hold  counter cross
     "POSSESSION":    (1.55, 0.80, -0.04, 1.00, 0.06, 0.0, 0.6),
-    "COUNTER":       (0.95, 1.10, 0.02, 0.95, 0.00, 1.0, 0.8),
-    "DIRECT":        (0.70, 1.45, 0.07, 0.95, 0.00, 0.3, 1.0),
-    "SHORT_BUILDUP": (1.30, 0.90, -0.08, 1.00, 0.03, 0.0, 0.7),
-    "WIDE":          (1.05, 1.00, 0.00, 1.18, 0.02, 0.0, 1.6),
+    "COUNTER":       (1.32, 1.10, 0.02, 0.95, 0.00, 1.0, 0.8),
+    "DIRECT":        (1.30, 1.25, 0.05, 0.95, 0.00, 0.3, 1.0),
+    "SHORT_BUILDUP": (1.50, 0.90, -0.08, 1.00, 0.03, 0.0, 0.7),
+    "WIDE":          (1.40, 1.00, 0.00, 1.18, 0.02, 0.0, 1.6),
 }
+
+STAT_KEYS = ("passes", "passes_completed", "key_passes", "shots", "shots_on_target", "goals", "assists",
+             "tackles", "interceptions", "fouls", "saves", "dribbles", "losses", "distance")
 
 EVENT_KINDS = {"KICK_OFF", "SHOT", "SAVE", "GOAL", "CORNER", "FOUL", "CARD", "SUBSTITUTION",
                "TACTICS", "HALF_TIME", "SECOND_HALF", "FULL_TIME", "BIG_CHANCE"}
@@ -154,8 +160,7 @@ class Agent:
         self.entered_tick: int | None = None
         self.left_tick: int | None = None
         self.intensity = 0.0
-        self.stats = {k: 0 for k in ("passes", "passes_completed", "key_passes", "shots", "shots_on_target", "goals", "assists",
-                                     "tackles", "interceptions", "fouls", "saves", "dribbles", "losses", "distance")}
+        self.stats = dict.fromkeys(STAT_KEYS, 0)
 
     def skill(self, value: float) -> float:
         # Fatigue degrades execution: an exhausted player keeps ~70% of his level.
@@ -196,6 +201,9 @@ class MatchEngine:
         self.command_log: list[dict[str, object]] = []
         self.applied_commands: dict[str, dict[str, object]] = {}
         self.frames: deque[tuple] = deque(maxlen=1200)
+        self.keep_snapshots = False
+        self._snapshot_events = 0
+        self.snapshots: deque[tuple] = deque(maxlen=1500)
         # Ball state
         self.bx, self.by = self.L / 2, self.W / 2
         self.owner: Agent | None = None
@@ -269,11 +277,13 @@ class MatchEngine:
         for agent in self.agents:
             if agent.active:
                 agent.x, agent.y = self._formation_spot(agent, kickoff=True)
-        takers = sorted(self.active(side), key=lambda a: -a.ax)
-        taker = takers[0]
+        taker = self._kickoff_taker(side)
         taker.x, taker.y = self.L / 2, self.W / 2
         self.bx, self.by = self.L / 2, self.W / 2
         self._give(taker, kickoff=True)
+
+    def _kickoff_taker(self, side: int) -> Agent:
+        return sorted(self.active(side), key=lambda a: -a.ax)[0]
 
     def _give(self, agent: Agent, kickoff: bool = False) -> None:
         previous = self.possession_side
@@ -428,10 +438,12 @@ class MatchEngine:
         self.owner = None
         self.flight = None
         self.bx, self.by = x, y
-        candidates = [a for a in self.active(side) if (a.role != "GK" or restart == "GOAL_KICK")]
+        candidates = [a for a in self.active(side) if (a.role != "GK" or restart == "GOAL_KICK")] or list(self.active(side))
         if restart == "GOAL_KICK":
             keeper = next((a for a in candidates if a.role == "GK"), None)
             taker = keeper or min(candidates, key=lambda a: (a.x - x) ** 2 + (a.y - y) ** 2)
+        elif restart == "KICK_OFF":
+            taker = self._kickoff_taker(side)  # the same player who will take it walks to the spot
         else:
             taker = min(candidates, key=lambda a: (a.x - x) ** 2 + (a.y - y) ** 2)
         self.dead = {"restart": restart, "side": side, "x": x, "y": y, "resume": self.tick + duration, "taker": taker}
@@ -460,20 +472,39 @@ class MatchEngine:
             if self.rng.random() < 0.55:
                 self._shoot(taker, set_piece=True)
 
+    def corner_spots(self, side: int) -> list[tuple[float, float]]:
+        """Where the attacking side's targets stand for a corner (they walk there during the stoppage)."""
+        depth = self.L - self.cfg["box"] * 0.45
+        spread = self.cfg["box"] * 0.30
+        offsets = ((0.0, 0.0), (-1.8, -1.0), (1.2, 1.0), (-0.6, 1.9), (2.2, -1.8))
+        return [(self.abs_x(side, depth + dx), self.W / 2 + dy * spread) for dx, dy in offsets]
+
+    def _corner_roles(self, side: int) -> tuple[list[Agent], list[Agent]]:
+        """Deterministic box roles: the side's best headers attack, the best defenders mark them."""
+        taker = self.dead["taker"] if self.dead else None
+        attackers = sorted((a for a in self.active(side) if a is not taker and a.role != "GK"), key=lambda a: (-a.physical, a.index))
+        defenders = sorted((a for a in self.active(1 - side) if a.role != "GK"), key=lambda a: (-(a.physical + a.defending * 0.5), a.index))
+        count = min(len(self.corner_spots(side)), 4 if self.mode == "ELEVEN_A_SIDE" else 2)
+        return attackers[:count], defenders[:count]
+
     def _corner(self, taker: Agent) -> None:
         side = taker.side
         attackers = [a for a in self.active(side) if a is not taker and a.role != "GK"]
         defenders = [a for a in self.active(1 - side) if a.role != "GK"]
         if not attackers:
             return  # nobody to aim at (sent-offs): the taker simply keeps the ball
-        # Bodies attack the box: the best headers become the cross targets.
-        target = max(attackers, key=lambda a: a.physical + self.rng.random() * 25)
-        tx = self.abs_x(side, self.L - self.cfg["box"] * 0.45)
-        ty = self.W / 2 + self.rng.uniform(-0.3, 0.3) * self.cfg["box"]
-        target.x, target.y = tx, ty
-        marker = max(defenders, key=lambda a: a.physical + a.defending * 0.5 + self.rng.random() * 25) if defenders else None
+        # The cross is aimed at one of the bodies that walked into the box during the
+        # stoppage: nobody is moved, the ball travels to where the target really stands.
+        drop = self.corner_spots(side)[0]
+        in_box = sorted(attackers, key=lambda a: (a.x - drop[0]) ** 2 + (a.y - drop[1]) ** 2)[:4]
+        target = max(in_box, key=lambda a: a.physical + self.rng.random() * 25)
+        tx, ty = target.x, target.y
+        close = [d for d in defenders if (d.x - tx) ** 2 + (d.y - ty) ** 2 < 16]
+        marker = max(close or defenders, key=lambda a: a.physical + a.defending * 0.5 + self.rng.random() * 25) if defenders else None
         delivery = taker.skill(taker.passing)
         contest = 0.24 + (target.skill(target.physical) - (marker.skill(marker.physical) if marker else 40)) / 160 + (delivery - 70) / 300
+        if marker is not None and not close:
+            contest += 0.12  # the defender is not even near him
         taker.stats["passes"] += 1
         self.team_stats[side]["passes"] += 1
         if self.rng.random() < max(0.12, min(0.62, contest)):
@@ -485,7 +516,6 @@ class MatchEngine:
             self.possession_side = side
             self._shoot(target, header=True)
         elif marker is not None:
-            marker.x, marker.y = tx, ty
             marker.stats["interceptions"] += 1
             self.team_stats[1 - side]["interceptions"] += 1
             self._give(marker)
@@ -626,7 +656,7 @@ class MatchEngine:
         risk = mentality[5] * style[0] * 1.8  # losing the ball also costs shape and a transition
         held = self.tick - self.received_tick
         counter_phase = style[5] > 0 and self.tick - self.possession_since < 10
-        progress_weight = style[1] * (1.6 if counter_phase else 1.0) * (0.85 + 0.1 * mentality[2])
+        progress_weight = style[1] * (1.3 if counter_phase else 1.0) * (0.85 + 0.1 * mentality[2])
         v_here = self.value(side, owner.x, owner.y)
         loss_here = self.value(1 - side, owner.x, owner.y)
         noise = 0.0035
@@ -697,7 +727,8 @@ class MatchEngine:
             if not mate.active or mate is owner or mate.role in ("GK", "DF") and tactics.mentality not in ("ATTACKING", "VERY_ATTACKING"):
                 continue
             f_mate = self.fwd(side, mate.x)
-            if f_mate < f_owner + 3 or abs(f_mate - opp_line_abs) > 5:
+            # Only an onside runner (level with or behind the last defender) can be found.
+            if f_mate < f_owner + 3 or f_mate > opp_line_abs + 0.5 or f_mate < opp_line_abs - 6:
                 continue
             space = min(16.0 if self.mode == "ELEVEN_A_SIDE" else 6.0, (self.L - 4.0) - opp_line_abs)
             if space < 5.0 * (1 if self.mode == "ELEVEN_A_SIDE" else 0.4):
@@ -711,9 +742,11 @@ class MatchEngine:
             dist = math.hypot(tx - owner.x, ty - owner.y)
             margin = def_time - run_time
             success = 1 / (1 + math.exp(-1.4 * (margin - 0.2))) * (1.02 - dist * 0.004 * (1.6 - pass_skill / 100)) - press * 0.08
-            success = max(0.05, min(0.9, success))
+            # Even a well-timed ball in behind is often overhit, read by the keeper or caught
+            # by a recovering defender: the raw race model overstated completion (up to 90%).
+            success = max(0.04, min(0.72, success * 0.80))
             value = success * (self.value(side, tx, ty) + 0.02 * progress_weight) - (1 - success) * self.value(1 - side, (owner.x + tx) / 2, (owner.y + ty) / 2) * risk
-            value += (style[5] * 0.012 if counter_phase else 0.0) + style[2] * 0.01 + rng.random() * noise
+            value += (style[5] * 0.004 if counter_phase else 0.0) + style[2] * 0.01 + rng.random() * noise
             if value > best_value:
                 best_kind, best_value, best_target = "through", value, (mate, success, dist, (tx, ty), run_time)
 
@@ -895,16 +928,18 @@ class MatchEngine:
             self.score[side] += 1
             if assist:
                 assist.stats["assists"] += 1
-            self._event("SHOT", side, shooter, shooter.x, shooter.y, "GOAL", xg=xg, extra={"header": header})
+            self._event("SHOT", side, shooter, shooter.x, shooter.y, "GOAL", xg=xg, extra={"header": header, "possession_since": self.possession_since})
             self._event("GOAL", side, shooter, gx, goal_y, "SCORED", other=assist, xg=xg, extra={"header": header})
             self._stop("KICK_OFF", 1 - side, self.L / 2, self.W / 2, 30)
+            # The ball rests in the net until the restart (no jump to the centre spot).
+            self.bx, self.by = gx + (1.2 if side == 0 else -1.2), goal_y
         elif roll < p_on:
             shooter.stats["shots_on_target"] += 1
             stats["shots_on_target"] += 1
             if keeper:
                 keeper.stats["saves"] += 1
             self.team_stats[1 - side]["saves"] += 1
-            self._event("SHOT", side, shooter, shooter.x, shooter.y, "ON_TARGET", xg=xg, extra={"header": header})
+            self._event("SHOT", side, shooter, shooter.x, shooter.y, "ON_TARGET", xg=xg, extra={"header": header, "possession_since": self.possession_since})
             self._event("SAVE", 1 - side, keeper, gx, goal_y, "SAVED", other=shooter, xg=xg)
             parry = rng.random()
             if parry < 0.30:
@@ -918,7 +953,7 @@ class MatchEngine:
             elif keeper:
                 self._give(keeper)
         elif roll < p_on + blocked_p * (1 - p_on):
-            self._event("SHOT", side, shooter, shooter.x, shooter.y, "BLOCKED", xg=xg, extra={"header": header})
+            self._event("SHOT", side, shooter, shooter.x, shooter.y, "BLOCKED", xg=xg, extra={"header": header, "possession_since": self.possession_since})
             if rng.random() < 0.40:
                 stats["corners"] += 1
                 self._event("CORNER", side, None, gx, 0 if shooter.y < self.W / 2 else self.W, "AWARDED")
@@ -927,9 +962,13 @@ class MatchEngine:
                 self.owner = None
                 self.bx = shooter.x + (1.5 if side == 1 else -1.5)
         else:
-            self._event("SHOT", side, shooter, shooter.x, shooter.y, "OFF_TARGET", xg=xg, extra={"header": header})
+            self._event("SHOT", side, shooter, shooter.x, shooter.y, "OFF_TARGET", xg=xg, extra={"header": header, "possession_since": self.possession_since})
             gk_x = self.abs_x(1 - side, self.cfg["box"] * 0.35)
             self._stop("GOAL_KICK", 1 - side, gk_x, self.W / 2, 8)
+            # The miss ends up behind the goal line, wide of the post, until the goal kick.
+            wide = self.cfg["goal"] / 2 + 2.5
+            self.bx = gx + (1.5 if side == 0 else -1.5)
+            self.by = self.W / 2 + (wide if goal_y >= self.W / 2 else -wide)
 
     # ------------------------------------------------------------------ movement
     def _clamp(self, x: float, y: float) -> tuple[float, float]:
@@ -954,6 +993,18 @@ class MatchEngine:
                 if near:
                     chaser = min(near, key=lambda a: (a.x - ball_x) ** 2 + (a.y - ball_y) ** 2)
                     chasers[chaser.index] = (ball_x, ball_y)
+        corner_targets: dict[int, tuple[float, float]] = {}
+        if dead_restart == "CORNER" and self.dead is not None:
+            attack_side = int(self.dead["side"])
+            box_attackers, box_markers = self._corner_roles(attack_side)
+            spots = self.corner_spots(attack_side)
+            goal_side = 1.0 if attack_side == 0 else -1.0  # markers stand between their man and the goal
+            for index, agent in enumerate(box_attackers):
+                corner_targets[agent.index] = spots[index]
+            for index, agent in enumerate(box_markers):
+                if index < len(box_attackers):
+                    sx, sy = spots[index]
+                    corner_targets[agent.index] = (sx + goal_side * 1.4, sy + (0.6 if sy < W / 2 else -0.6))
         moves: list[tuple[Agent, float, float, float, float]] = []
         for side in (0, 1):
             tactics = self.tactics[side]
@@ -986,7 +1037,8 @@ class MatchEngine:
             pressers: set[int] = set()
             supporters: set[int] = set()
             runners: set[int] = set()
-            if in_play and not attacking and self.owner is not None:
+            # (With send-offs a 5-a-side team can be left with its keeper alone: no pressers.)
+            if in_play and not attacking and self.owner is not None and outfield:
                 # How far the carrier has advanced toward our goal (0 = his own goal line).
                 advanced = self.fwd(1 - side, self.owner.x) / L
                 ranked = sorted(outfield, key=lambda a: (a.x - ball_x) ** 2 + (a.y - ball_y) ** 2)
@@ -1001,7 +1053,7 @@ class MatchEngine:
                 ranked = sorted((a for a in outfield if a is not self.owner), key=lambda a: (a.x - ball_x) ** 2 + (a.y - ball_y) ** 2)
                 supporters = {a.index for a in ranked[: ment[2] + (1 if tactics.style in ("POSSESSION", "SHORT_BUILDUP") else 0)]}
                 forwards = sorted(outfield, key=lambda a: -a.ax)
-                run_p = ment[3] + (0.25 if tactics.style in ("COUNTER", "DIRECT") else 0)
+                run_p = ment[3] + (0.25 if tactics.style == "COUNTER" else 0.10 if tactics.style == "DIRECT" else 0)
                 if self.tick - self.possession_since < 12 and tactics.style == "COUNTER":
                     run_p += 0.3
                 for a in forwards[:3]:
@@ -1036,7 +1088,9 @@ class MatchEngine:
                     self._drain(agent, 0.7, press_cfg[5])
                     continue
                 intensity = 0.45
-                if agent.role == "GK":
+                if agent.role == "GK" and dead_restart == "KICK_OFF":
+                    tx, ty = self._formation_spot(agent, kickoff=True)
+                elif agent.role == "GK":
                     gf = 1.5 + max(0.0, min(9.0, (ball_f - 0) / L * 12)) if not attacking else min(0.30 * L, 2 + ball_f * 0.18)
                     gy = W / 2 + (ball_y - W / 2) * 0.25
                     tx, ty = self.abs_x(side, gf), gy
@@ -1087,6 +1141,9 @@ class MatchEngine:
                     tf = 1.0 if tf < 1.0 else L - 1.0 if tf > L - 1.0 else tf
                     tx = tf if side == 0 else L - tf
                     ty = 1.0 if ty < 1.0 else W - 1.0 if ty > W - 1.0 else ty
+                if agent.index in corner_targets:
+                    tx, ty = corner_targets[agent.index]
+                    intensity = 0.8
                 if agent.index in chasers:
                     tx, ty = chasers[agent.index]
                     intensity = 1.0
@@ -1126,83 +1183,159 @@ class MatchEngine:
         # Raw metres; normalised and rounded only when a client asks for frames.
         positions = tuple((a.x, a.y) if a.active else None for a in self.agents)
         owner = self.owner.index if self.owner is not None else -1
-        self.frames.append((self.tick, self.bx, self.by, owner, positions))
+        state = 1 if (self.dead is not None or self.phase in ("HALF_TIME", "FULL_TIME")) else 2 if self.flight is not None else 0
+        self.frames.append((self.tick, self.bx, self.by, owner, positions, state))
+        # Every tick with an event gets a snapshot, so the statistics shown at any tick
+        # always agree with the events (and the score) released up to that tick.
+        if self.keep_snapshots and (self.tick % SNAPSHOT_EVERY == 0 or len(self.events) != self._snapshot_events
+                                    or self.phase not in ("FIRST_HALF", "SECOND_HALF")):
+            self._snapshot()
 
     def frames_since(self, tick: int, limit: int = 400) -> list[dict[str, object]]:
         """Normalised frames (0..1, home attacks toward x=1); -1 marks players off the pitch."""
-        L, W = self.L, self.W
         rows = [frame for frame in self.frames if frame[0] > tick][-limit:]
-        result = []
-        for t, bx, by, owner, positions in rows:
-            flat: list[float] = []
-            for pos in positions:
-                flat.extend((round(pos[0] / L, 4), round(pos[1] / W, 4)) if pos else (-1, -1))
-            result.append({"t": t, "b": [round(bx / L, 4), round(by / W, 4), owner], "p": flat})
-        return result
+        return [self._frame_row(frame) for frame in rows]
+
+    def frames_between(self, start: int, end: int) -> list[dict[str, object]]:
+        """Frames with start < t <= end (normalised)."""
+        return [self._frame_row(frame) for frame in self.frames if start < frame[0] <= end]
+
+    def _frame_row(self, frame: tuple) -> dict[str, object]:
+        L, W = self.L, self.W
+        t, bx, by, owner, positions, state = frame
+        flat: list[float] = []
+        for pos in positions:
+            flat.extend((round(pos[0] / L, 4), round(pos[1] / W, 4)) if pos else (-1, -1))
+        # b = [x, y, owner index or -1, 0 live / 1 dead ball / 2 in flight]
+        return {"t": t, "b": [round(bx / L, 4), round(by / W, 4), owner, state], "p": flat}
 
     def minute(self) -> float:
         return round(self.tick / 60, 2)
 
-    def statistics(self) -> dict[str, dict[str, float]]:
-        total = max(1, self.team_stats[0]["possession_ticks"] + self.team_stats[1]["possession_ticks"])
+    # ------------------------------------------------------------------ snapshots
+    def enable_snapshots(self) -> None:
+        self.keep_snapshots = True
+        self.snapshots.clear()
+        self._snapshot()
+
+    def _snapshot(self) -> None:
+        self._snapshot_events = len(self.events)
+        agents = tuple((a.stamina, a.yellow, a.sent_off, a.active, a.entered_tick, a.left_tick, a.role, tuple(a.stats.values())) for a in self.agents)
+        self.snapshots.append((self.tick, {
+            "score": tuple(self.score), "team_stats": (dict(self.team_stats[0]), dict(self.team_stats[1])), "agents": agents,
+            "subs_used": tuple(self.subs_used), "windows_used": tuple(self.windows_used),
+            "tactics": (self.tactics[0], self.tactics[1]), "phase": self.phase,
+        }))
+
+    def prune_snapshots(self, before_tick: int) -> None:
+        """Drop snapshots nobody can be shown anymore (keeps the latest one <= before_tick)."""
+        snaps = self.snapshots
+        while len(snaps) > 1 and snaps[1][0] <= before_tick:
+            snaps.popleft()
+
+    def _state_at(self, tick: int | None) -> dict[str, object] | None:
+        if tick is None or tick >= self.tick or not self.keep_snapshots:
+            return None
+        best = None
+        for snap_tick, state in self.snapshots:
+            if snap_tick > tick:
+                break
+            best = (snap_tick, state)
+        if best is None:
+            return None
+        keys = STAT_KEYS
+        agents = tuple(row[:7] + (dict(zip(keys, row[7], strict=True)),) for row in best[1]["agents"])
+        return {**best[1], "agents": agents, "tick": best[0]}
+
+    def _current_state(self) -> dict[str, object]:
+        agents = tuple((a.stamina, a.yellow, a.sent_off, a.active, a.entered_tick, a.left_tick, a.role, a.stats) for a in self.agents)
+        return {"tick": self.tick, "score": tuple(self.score), "team_stats": self.team_stats, "agents": agents,
+                "subs_used": tuple(self.subs_used), "windows_used": tuple(self.windows_used),
+                "tactics": (self.tactics[0], self.tactics[1]), "phase": self.phase}
+
+    def statistics(self, state: dict[str, object] | None = None) -> dict[str, dict[str, float]]:
+        state = state or self._current_state()
+        team_stats = state["team_stats"]
+        agents = state["agents"]
+        total = max(1, team_stats[0]["possession_ticks"] + team_stats[1]["possession_ticks"])
         result = {}
         for side in (0, 1):
-            stats = dict(self.team_stats[side])
+            stats = dict(team_stats[side])
             stats["possession"] = round(stats["possession_ticks"] * 100 / total, 1)
             stats["xg"] = round(stats["xg"], 2)
             stats["distance"] = round(stats["distance"] / 1000, 1)
             stats["pass_accuracy"] = round(stats["passes_completed"] * 100 / max(1, stats["passes"]), 1)
-            active = [a for a in self.team_agents[side] if a.entered_tick is not None]
-            stats["avg_stamina"] = round(sum(a.stamina for a in self.active(side)) / max(1, len(self.active(side))), 3)
-            stats["players_used"] = len(active)
+            mine = [agents[a.index] for a in self.team_agents[side]]
+            on_pitch = [row for row in mine if row[3]]
+            stats["avg_stamina"] = round(sum(row[0] for row in on_pitch) / max(1, len(on_pitch)), 3)
+            stats["players_used"] = sum(1 for row in mine if row[4] is not None)
             result[self.clubs[side]] = stats
         return result
 
-    def rating(self, agent: Agent) -> float:
-        s = agent.stats
-        conceded = self.score[1 - agent.side]
-        played = ((agent.left_tick if agent.left_tick is not None else self.tick) - (agent.entered_tick or 0)) / FULL_TIME_TICK
-        if agent.entered_tick is None or played <= 0:
+    def rating(self, agent: Agent, state: dict[str, object] | None = None) -> float:
+        state = state or self._current_state()
+        _, yellow, sent_off, _, entered, left, role, s = state["agents"][agent.index]
+        score = state["score"]
+        conceded = score[1 - agent.side]
+        played = ((left if left is not None else int(state["tick"])) - (entered or 0)) / FULL_TIME_TICK
+        if entered is None or played <= 0:
             return 0.0
         accuracy = s["passes_completed"] / s["passes"] if s["passes"] else 0.8
         value = 6.2 + s["goals"] * 1.0 + s["assists"] * 0.6 + s["key_passes"] * 0.12 + s["shots_on_target"] * 0.12
         value += (s["tackles"] + s["interceptions"]) * 0.07 + s["dribbles"] * 0.05 + s["saves"] * 0.28
         value += (accuracy - 0.8) * 1.5 * min(1.0, s["passes"] / 20) - s["losses"] * 0.025
-        if agent.role in ("GK", "DF"):
+        if role in ("GK", "DF"):
             value -= conceded * 0.25 * played
             if conceded == 0 and played > 0.6:
                 value += 0.4
-        value -= agent.yellow * 0.3 + (1.5 if agent.sent_off else 0)
-        if self.score[agent.side] > self.score[1 - agent.side]:
+        value -= yellow * 0.3 + (1.5 if sent_off else 0)
+        if score[agent.side] > score[1 - agent.side]:
             value += 0.15
         return round(max(3.0, min(10.0, value)), 1)
 
-    def player_views(self, side: int) -> list[dict[str, object]]:
+    def player_views(self, side: int, state: dict[str, object] | None = None) -> list[dict[str, object]]:
+        state = state or self._current_state()
         rows = []
         for agent in self.team_agents[side]:
+            stamina, yellow, sent_off, active, entered, left, role, stats = state["agents"][agent.index]
             rows.append({
-                "id": agent.id, "name": agent.name, "number": agent.number, "role": agent.role, "position": agent.position,
-                "overall": agent.overall, "index": agent.index, "on_pitch": agent.active, "sent_off": agent.sent_off,
-                "yellow_cards": agent.yellow, "stamina": round(agent.stamina, 3), "entered_tick": agent.entered_tick,
-                "left_tick": agent.left_tick, "available": agent.entered_tick is None and not agent.active,
-                "rating": self.rating(agent), "stats": {k: (round(v) if k == "distance" else v) for k, v in agent.stats.items()},
+                "id": agent.id, "name": agent.name, "number": agent.number, "role": role, "position": agent.position,
+                "overall": agent.overall, "index": agent.index, "on_pitch": active, "sent_off": sent_off,
+                "yellow_cards": yellow, "stamina": round(stamina, 3), "entered_tick": entered,
+                "left_tick": left, "available": entered is None and not active,
+                "rating": self.rating(agent, state), "stats": {k: (round(v) if k == "distance" else v) for k, v in stats.items()},
                 "attributes": {"pace": round(agent.pace), "passing": round(agent.passing), "shooting": round(agent.shooting),
                                "dribbling": round(agent.dribbling), "defending": round(agent.defending),
                                "physical": round(agent.physical), "keeping": round(agent.keeping)},
             })
         return rows
 
-    def summary(self) -> dict[str, object]:
+    def summary(self, at_tick: int | None = None) -> dict[str, object]:
+        """Match state. With `at_tick` (live broadcast) only what had happened by then is shown."""
+        state = self._state_at(at_tick)
+        shown = at_tick if state is not None else self.tick
+        if state is None:
+            state = self._current_state()
+        score = state["score"]
+        events = [e for e in self.events if int(e["tick"]) <= shown] if shown < self.tick else list(self.events)
+        if shown < self.tick:
+            # The scoreboard follows the released events exactly (snapshots are sparse).
+            score = (sum(1 for e in events if e["kind"] == "GOAL" and e["team"] == self.clubs[0]),
+                     sum(1 for e in events if e["kind"] == "GOAL" and e["team"] == self.clubs[1]))
+        tactics = state["tactics"]
+        team_stats = state["team_stats"]
+        phase = self.phase if shown >= self.tick else ("HALF_TIME" if shown == TICKS_PER_HALF else "FIRST_HALF" if shown < TICKS_PER_HALF else "SECOND_HALF")
+        pending = [len(self.pending_subs[0]), len(self.pending_subs[1])]
         return {
-            "id": self.match_id, "home": self.clubs[0], "away": self.clubs[1], "tick": self.tick, "minute": self.minute(),
-            "phase": self.phase, "home_goals": self.score[0], "away_goals": self.score[1],
-            "home_xg": round(self.team_stats[0]["xg"], 3), "away_xg": round(self.team_stats[1]["xg"], 3),
-            "statistics": self.statistics(), "events": list(self.events),
-            "tactics": {"home": self.tactics[0].view(), "away": self.tactics[1].view()},
+            "id": self.match_id, "home": self.clubs[0], "away": self.clubs[1], "tick": shown, "minute": round(shown / 60, 2),
+            "phase": phase, "home_goals": score[0], "away_goals": score[1],
+            "home_xg": round(team_stats[0]["xg"], 3), "away_xg": round(team_stats[1]["xg"], 3),
+            "statistics": self.statistics(state), "events": events,
+            "tactics": {"home": tactics[0].view(), "away": tactics[1].view()},
             "formations": {"home": self.inputs[0].formation_code, "away": self.inputs[1].formation_code},
-            "lineups": {"home": self.player_views(0), "away": self.player_views(1)},
-            "substitutions": {"home": {"used": self.subs_used[0], "windows_used": self.windows_used[0], "pending": len(self.pending_subs[0])},
-                              "away": {"used": self.subs_used[1], "windows_used": self.windows_used[1], "pending": len(self.pending_subs[1])},
+            "lineups": {"home": self.player_views(0, state), "away": self.player_views(1, state)},
+            "substitutions": {"home": {"used": state["subs_used"][0], "windows_used": state["windows_used"][0], "pending": pending[0]},
+                              "away": {"used": state["subs_used"][1], "windows_used": state["windows_used"][1], "pending": pending[1]},
                               "max": self.cfg["max_subs"], "windows": self.cfg["windows"] if self.cfg["windows"] < 99 else None},
             "ball_in_play": self.dead is None and self.phase in ("FIRST_HALF", "SECOND_HALF"),
             "pitch": {"length": self.L, "width": self.W, "goal": self.cfg["goal"], "box": self.cfg["box"]},
@@ -1210,9 +1343,11 @@ class MatchEngine:
 
 
 def replay_engine(match_id: str, mode: str, home: TeamInput, away: TeamInput, seed: int,
-                  command_log: list[dict[str, object]], until_tick: int) -> MatchEngine:
+                  command_log: list[dict[str, object]], until_tick: int, snapshots: bool = False) -> MatchEngine:
     """Rebuild an engine deterministically from its inputs and command log."""
     engine = MatchEngine(match_id, mode, home, away, seed)
+    if snapshots:
+        engine.enable_snapshots()
     for command in sorted(command_log, key=lambda c: int(c["tick"])):
         if int(command["tick"]) > until_tick:
             break  # later decisions cannot influence an earlier moment
