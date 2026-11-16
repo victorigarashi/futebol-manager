@@ -32,6 +32,9 @@ ERRORS: dict[str, int] = defaultdict(int)
 HEALTH: list[float] = []
 FRAMES: dict[str, list[float]] = defaultdict(list)
 DROPS = {"ws_closed": 0}
+WS_BYTES: dict[str, int] = defaultdict(int)
+WS_MESSAGES: dict[str, int] = defaultdict(int)
+HTTP_BYTES = {"received": 0}
 START: dict[str, dict[str, float]] = defaultdict(dict)
 
 
@@ -51,6 +54,7 @@ async def call(client: httpx.AsyncClient, method: str, path: str, token: str, **
         ERRORS[f"{method} {label(path)} network"] += 1
         return None
     LAT[f"{method} {label(path)}"].append(time.perf_counter() - began)
+    HTTP_BYTES["received"] += len(response.content)
     if response.status_code >= 500:
         ERRORS[f"{method} {label(path)} {response.status_code}"] += 1
     return response
@@ -77,18 +81,27 @@ async def socket_reader(ws_base: str, room: str, token: str, key: str, stop: asy
                     continue
                 if isinstance(raw, str) and raw.startswith("{"):
                     message = json.loads(raw)
+                    WS_BYTES[str(message.get("type"))] += len(raw)
+                    WS_MESSAGES[str(message.get("type"))] += 1
                     if message.get("type") == "live.frames" and message.get("frames"):
                         FRAMES[key].append(time.time())
     except (OSError, websockets.WebSocketException):
         DROPS["ws_closed"] += 1
 
 
+CLIENT = {"mode": "v1"}
+
+
 async def coach(client: httpx.AsyncClient, room: dict, index: int, stop: asyncio.Event, ready_delay: float) -> None:
+    """v1 = previous web app (live view polled ~every 2 s); v2 = current one (the live
+    view arrives over the socket; HTTP only on entry and every 30 s to reconcile)."""
     rid, token = room["room_id"], room["tokens"][index]
     base = f"/api/v1/rooms/{rid}"
     ready_sent = False
     began = time.time()
     next_poll = defaultdict(float)
+    on_air = False
+    v2 = CLIENT["mode"] == "v2"
     while not stop.is_set():
         now = time.time()
         live = None
@@ -97,12 +110,12 @@ async def coach(client: httpx.AsyncClient, room: dict, index: int, stop: asyncio
             next_poll["state"] = now + 5
         if now >= next_poll["season"]:
             await call(client, "GET", base + "/season", token)
-            next_poll["season"] = now + 5
+            next_poll["season"] = now + (15 if v2 and on_air else 5)
         if now >= next_poll["live"]:
             response = await call(client, "GET", base + "/season/live", token)
             live = response.json().get("data") if response is not None and response.status_code == 200 else None
             on_air = bool(live and live.get("live_round"))
-            next_poll["live"] = now + (2 if on_air else 6)
+            next_poll["live"] = now + ((30 if v2 else 2) if on_air else 6)
             if on_air and "live" not in START[rid]:
                 START[rid]["live"] = time.time()
             if START[rid].get("live") and live and not live.get("live_round"):
@@ -138,8 +151,11 @@ async def main() -> None:
     parser.add_argument("--max-seconds", type=float, default=200)
     parser.add_argument("--out")
     parser.add_argument("--ready-after", type=float, default=3, help="seconds of preparation before the first READY")
+    parser.add_argument("--tabs", type=int, default=1, help="WebSocket connections per coach (extra browser tabs)")
+    parser.add_argument("--client", choices=("v1", "v2"), default="v1")
     args = parser.parse_args()
     rooms = json.load(open(args.state))["rooms"]
+    CLIENT["mode"] = args.client
     stop = asyncio.Event()
     cpu0, _ = proc_stats(args.pid)
     wall0 = time.time()
@@ -149,7 +165,8 @@ async def main() -> None:
         tasks = [asyncio.create_task(health_probe(client, stop))]
         for room in rooms:
             for index in (0, 1):
-                tasks.append(asyncio.create_task(socket_reader(ws_base, room["room_id"], room["tokens"][index], f"{room['room_id']}:{index}", stop)))
+                for tab in range(args.tabs):
+                    tasks.append(asyncio.create_task(socket_reader(ws_base, room["room_id"], room["tokens"][index], f"{room['room_id']}:{index}:{tab}", stop)))
                 tasks.append(asyncio.create_task(coach(client, room, index, stop, ready_delay=args.ready_after + 2 * index)))
         while time.time() - wall0 < args.max_seconds:
             await asyncio.sleep(1)
@@ -167,7 +184,7 @@ async def main() -> None:
     total = sum(len(v) for v in LAT.values())
     every = [x for v in LAT.values() for x in v]
     report = {
-        "rooms": len(rooms), "wall_seconds": round(wall, 1), "requests": total, "rps": round(total / wall, 2),
+        "client": args.client, "rooms": len(rooms), "wall_seconds": round(wall, 1), "requests": total, "rps": round(total / wall, 2),
         "latency_ms": {"mean": round(1000 * statistics.mean(every), 1) if every else None, "p95": round(1000 * pct(every, .95), 1), "max": round(1000 * max(every), 1) if every else None},
         "per_endpoint_ms": {k: {"n": len(v), "mean": round(1000 * statistics.mean(v), 1), "p95": round(1000 * pct(v, .95), 1)} for k, v in sorted(LAT.items())},
         "http_errors": dict(ERRORS),
@@ -180,6 +197,10 @@ async def main() -> None:
         "frame_pushes_per_s": round(sum(len(v) for v in FRAMES.values()) / max(1, len(FRAMES)) / wall, 2) if FRAMES else 0,
         "max_gap_between_frame_pushes_s": round(max((max((b - a for a, b in zip(v, v[1:], strict=False)), default=0) for v in FRAMES.values()), default=0), 2),
         "ws_drops": DROPS["ws_closed"],
+        "websockets": len(rooms) * 2 * args.tabs,
+        "ws_bytes_per_s": round(sum(WS_BYTES.values()) / wall),
+        "ws_bytes_by_type": dict(WS_BYTES), "ws_messages_by_type": dict(WS_MESSAGES),
+        "http_bytes_per_s": round(HTTP_BYTES["received"] / wall),
         "server_cpu_seconds": round(cpu1 - cpu0, 2), "server_cpu_share": round((cpu1 - cpu0) / wall, 3),
         "server_rss_peak_mb": round(rss_peak / 1e6, 1),
         "server_metrics": server_metrics,

@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import time
 
@@ -109,8 +110,11 @@ async def notify_market(room_id: str, message: dict[str, object]) -> None:
 @router.get("/metrics")
 async def runtime_metrics() -> dict[str, object]:
     """CPU per subsystem and event-loop lag (operational; no personal data)."""
+    from app.services import realtime
+    from app.services.season_service import FRAME_MEMO_HITS, TICKS_SIMULATED
     return envelope({**metrics.snapshot(), "live_rounds": sum(1 for task in round_tasks.values() if not task.done()),
-                     "rooms": len(season_service._seasons)})
+                     "rooms": len(season_service._seasons), "ticks_simulated": TICKS_SIMULATED[0],
+                     "frame_memo_hits": FRAME_MEMO_HITS[0], "realtime": realtime.snapshot()})
 
 
 @router.get("/health")
@@ -508,10 +512,11 @@ def schedule_round(room_id: str) -> None:
 URGENT_BURST_SECONDS = 0.5
 SPARE_BURST_SECONDS = 0.05
 IDLE_SLEEP_SECONDS = 0.1
-TICK_NOTIFY_SECONDS = 2.0
 # Frames reach the client in batches it buffers (it renders ~1 s behind the server
 # clock), so pushing more often than this only costs CPU.
 FRAME_PUSH_SECONDS = 0.25
+# Side-panel detail (statistics, stamina, ratings) over the socket: slow-changing.
+LIVE_STATS_SECONDS = 8.0
 
 
 # Until when some live broadcast is behind schedule: background pre-simulation backs off.
@@ -550,7 +555,6 @@ async def simulate_round(room_id: str) -> bool:
 async def broadcast_round(room_id: str) -> None:
     completed = False
     crashed = False
-    last_tick_broadcast = 0.0
     last_push = 0.0
     try:
         while season_service._season(room_id).live_round:
@@ -569,14 +573,17 @@ async def broadcast_round(room_id: str) -> None:
                     snapshot_room(room_id)
             now = season_service.clock()
             if not completed and now - last_push >= FRAME_PUSH_SECONDS:
-                # Engines were advanced above; just read each coach's new frames.
+                # Engines were advanced above; read each coach's new frames (visual,
+                # disposable) and match state (reliable, sequenced) - no HTTP needed.
                 last_push = now
                 with metrics.cpu("frame_push"):
                     await hub.push_frames(room_id, lambda club, since, known: season_service.live_frames(room_id, club, since, known_timeline=known))
-            if completed or now - last_tick_broadcast >= TICK_NOTIFY_SECONDS:
-                # Frames go over the socket; this only nudges score/event refreshes.
-                await hub.broadcast(room_id, {"type": "season.round_completed" if completed else "season.tick"})
-                last_tick_broadcast = now
+                with metrics.cpu("live_state_push"):
+                    await hub.push_live_state(room_id, lambda club, known, beat: season_service.live_state(room_id, club, known, beat),
+                                              lambda club: season_service.live_stats(room_id, club), stats_every=LIVE_STATS_SECONDS)
+            if completed:
+                # Live state travels in `live.state`; only the end of the round needs a full refresh.
+                await hub.broadcast(room_id, {"type": "season.round_completed"})
             if completed:
                 break
             await asyncio.sleep(0 if behind else IDLE_SLEEP_SECONDS)
@@ -1057,19 +1064,28 @@ async def room_websocket(websocket: WebSocket, room_id: str) -> None:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
     member = room_manager._room(room_id).participants.get(identity.id)
-    await hub.connect(room_id, websocket, member.selected_club_code if member else None)
+    channel = await hub.connect(room_id, websocket, member.selected_club_code if member else None)
     try:
+        # Every write goes through the channel's single writer (no concurrent sends).
         if room_id in season_service._seasons and member and member.selected_club_code:
             club = member.selected_club_code
-            await websocket.send_json({"type": "season.sync", "data": season_service.live_view(room_id, club)})
+            channel.send_reliable({"type": "season.sync", "data": season_service.live_view(room_id, club)})
         while True:
             message = await websocket.receive_text()
             if message == "ping":
-                await websocket.send_text("pong")
+                channel.send_reliable("pong")
                 continue
             if len(message.encode("utf-8")) > 4096:
                 await websocket.close(code=status.WS_1009_MESSAGE_TOO_BIG)
                 break
+            if message.startswith("{"):
+                try:
+                    payload = json.loads(message)
+                except ValueError:
+                    continue
+                if isinstance(payload, dict) and payload.get("type") == "client.stats":
+                    # Anonymous rendering health (fps, canvas time, delay): aggregated only.
+                    metrics.record_client(room_id, payload)
     except (WebSocketDisconnect, RuntimeError, OSError):
         pass
     finally:

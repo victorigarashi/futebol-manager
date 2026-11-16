@@ -21,6 +21,7 @@ import { useSession } from "../../stores/session";
 import { ALL_ROOM_QUERIES, InvalidationBatcher, queriesForEvent } from "../../lib/roomEvents";
 import { backoffDelay } from "../../lib/serverHealth";
 import { BotSlotsCard } from "../../components/BotSlotsCard";
+import { setSocketOnline } from "../../lib/socketBus";
 
 const defaultDraft: LeagueDraft = { name: "Liga dos parças", mode: "FIVE_A_SIDE", initial_budget_cents: 5_000_000_000, market_mode: "TRADITIONAL", team_count: 20, double_round_robin: true, initial_market_duration_seconds: 300, round_preparation_duration_seconds: 300, withdrawal_penalty_percent: 5, max_human_participants: 4, privacy: "PUBLIC", match_duration_seconds: 90 };
 type ConnectionState = "connecting" | "online" | "reconnecting" | "offline";
@@ -99,6 +100,7 @@ export function LobbyPage({ needsProfile, onEditProfile, onSaveProfile }: LobbyP
       socket.onopen = () => {
         // After a reconnection the server may have moved on: resynchronise everything once.
         attempts = 0; setConnection("online"); refresh();
+        setSocketOnline(true, (text) => { if (socket?.readyState !== WebSocket.OPEN) return false; socket.send(text); return true; });
         heartbeat = window.setInterval(() => {
           if (socket?.readyState === WebSocket.OPEN) socket.send("ping");
         }, 25_000);
@@ -109,6 +111,12 @@ export function LobbyPage({ needsProfile, onEditProfile, onSaveProfile }: LobbyP
           if (event.type === "live.frames") {
             // 2D frames go straight to the canvas buffer, never through React state.
             window.dispatchEvent(new CustomEvent("bm:frames", { detail: event }));
+          } else if (event.type === "live.state" || event.type === "live.stats" || event.type === "live.resync") {
+            // Sequenced match state: merged into the cached live view (no HTTP refetch).
+            window.dispatchEvent(new CustomEvent("bm:live", { detail: event }));
+          } else if (event.type === "season.sync" && "data" in event) {
+            // The full live view arrives with the socket: use it instead of refetching.
+            queryClient.setQueryData(["live", activeRoomId], (event as { data: unknown }).data);
           } else {
             batcher.add(queriesForEvent(event.type));
           }
@@ -116,6 +124,7 @@ export function LobbyPage({ needsProfile, onEditProfile, onSaveProfile }: LobbyP
       };
       socket.onerror = () => socket?.close();
       socket.onclose = (event) => {
+        setSocketOnline(false, null);
         if (heartbeat) window.clearInterval(heartbeat);
         heartbeat = undefined;
         if (stopped) return;
@@ -135,7 +144,7 @@ export function LobbyPage({ needsProfile, onEditProfile, onSaveProfile }: LobbyP
     document.addEventListener("visibilitychange", visible);
     connect();
     return () => {
-      stopped = true; batcher.cancel(); window.clearTimeout(retry); if (heartbeat) window.clearInterval(heartbeat); socket?.close();
+      stopped = true; batcher.cancel(); setSocketOnline(false, null); window.clearTimeout(retry); if (heartbeat) window.clearInterval(heartbeat); socket?.close();
       window.removeEventListener("online", online); document.removeEventListener("visibilitychange", visible);
     };
   }, [activeRoomId, queryClient]);

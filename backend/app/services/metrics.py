@@ -18,6 +18,22 @@ STARTED = time.time()
 CPU: dict[str, float] = defaultdict(float)
 CALLS: dict[str, int] = defaultdict(int)
 LAG = {"last": 0.0, "max": 0.0, "over_1s": 0, "samples": 0}
+# Rendering health reported by browsers (anonymous, aggregated per room, bounded).
+CLIENTS: dict[str, dict[str, float]] = {}
+
+
+def record_client(room_id: str, payload: dict[str, object]) -> None:
+    def number(key: str, low: float, high: float) -> float | None:
+        value = payload.get(key)
+        return float(value) if isinstance(value, (int, float)) and low <= float(value) <= high else None
+    sample = {"fps": number("fps", 0, 240), "render_ms": number("render_ms", 0, 1000), "delay_ms": number("delay_ms", 0, 60_000)}
+    if len(CLIENTS) > 200 and room_id not in CLIENTS:
+        return
+    room = CLIENTS.setdefault(room_id, {"reports": 0})
+    room["reports"] += 1
+    for key, value in sample.items():
+        if value is not None:
+            room[key] = round(value if key not in room else room[key] * 0.8 + value * 0.2, 2)
 
 
 @contextmanager
@@ -54,4 +70,5 @@ def snapshot() -> dict[str, object]:
         "max_rss_mb": round(usage.ru_maxrss / 1024, 1),
         "cpu_by_subsystem": {name: {"seconds": round(seconds, 3), "calls": CALLS[name]} for name, seconds in sorted(CPU.items())},
         "event_loop_lag": {key: round(value, 3) if isinstance(value, float) else value for key, value in LAG.items()},
+        "client_rendering": [{key: value for key, value in room.items()} for room in CLIENTS.values()],
     }

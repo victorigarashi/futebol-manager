@@ -18,7 +18,8 @@ export function useFrameStream(roomId: string, matchId: string | undefined, acti
   const timeline = useMemo(() => new BroadcastTimeline(), []);
   const server = useMemo(() => new ServerClock(), []);
   // starvedSeconds: how far the screen has run past the broadcast it holds (real lag).
-  const status = useRef({ online: true, failures: 0, lastData: Date.now(), starvedSeconds: 0 });
+  // delayMs: how old pushed frames are when they arrive (server clock vs. its timestamp).
+  const status = useRef({ online: true, failures: 0, lastData: Date.now(), starvedSeconds: 0, delayMs: 0 });
   const view = useRef<BroadcastView>({ tick: 0, kind: "WAIT", label: "", cut: null });
 
   useEffect(() => { buffer.reset(); timeline.reset(); }, [matchId, buffer, timeline]);
@@ -36,6 +37,10 @@ export function useFrameStream(roomId: string, matchId: string | undefined, acti
       const detail = (event as CustomEvent<FramesPush>).detail;
       if (detail?.match_id !== matchId) return;
       server.observe(detail.server_now);
+      if (typeof detail.server_now === "number") {
+        const delay = Math.max(0, (server.now() - detail.server_now) * 1000);
+        status.current.delayMs = status.current.delayMs * 0.8 + delay * 0.2;
+      }
       timeline.merge(detail.broadcast);
       if (detail.frames) buffer.push(detail.frames);
       lastPush.current = Date.now();

@@ -19,7 +19,15 @@ type Props = {
   selectedIndex?: number | null;
   onSelect?: (index: number | null) => void;
   label: string;
+  /** Economy (20 fps, flat markers), standard (30 fps) or smooth (up to 60 fps). */
+  quality?: RenderQuality;
+  /** Rendering health every ~2 s: effective fps, average draw time, current fps cap. */
+  onStats?: (stats: { fps: number; renderMs: number; cap: number }) => void;
 };
+
+export type RenderQuality = "eco" | "standard" | "smooth";
+const FPS_STEPS = [20, 30, 60] as const;
+const START_STEP: Record<RenderQuality, number> = { eco: 0, standard: 1, smooth: 2 };
 
 const FX_TICKS = 6;
 
@@ -28,10 +36,10 @@ const FX_TICKS = 6;
  * frames; effects are triggered only by events the engine actually emitted. Cuts of
  * the condensed broadcast cross-fade between two real moments (nothing slides).
  */
-export function PitchCanvas({ buffer, driver, players, kits, pitch, events, homeCode, ownSide, selectedIndex, onSelect, label }: Props) {
+export function PitchCanvas({ buffer, driver, players, kits, pitch, events, homeCode, ownSide, selectedIndex, onSelect, label, quality = "standard", onStats }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const props = useRef({ driver, players, kits, pitch, events, homeCode, ownSide, selectedIndex });
-  props.current = { driver, players, kits, pitch, events, homeCode, ownSide, selectedIndex };
+  const props = useRef({ driver, players, kits, pitch, events, homeCode, ownSide, selectedIndex, quality, onStats });
+  props.current = { driver, players, kits, pitch, events, homeCode, ownSide, selectedIndex, quality, onStats };
   const lastSample = useRef<Sample | null>(null);
   const layout = useRef({ vertical: false, ox: 0, oy: 0, scale: 1 });
 
@@ -50,10 +58,45 @@ export function PitchCanvas({ buffer, driver, players, kits, pitch, events, home
     // drawing - never the simulation or the timeline), and gets them back when it copes.
     let lowQuality = false;
     let costAvg = 4;
-    let intervalAvg = 16;
+    let intervalAvg = 33;
     let lastSwitch = 0;
+    // Frame-rate cap: 30 fps by default, down to 20 when the device struggles, up to 60
+    // only when chosen and sustained. The animation is time-based, so a lower cap shows
+    // the same movement with fewer pictures (never slower or out of sync).
+    let quality: RenderQuality = props.current.quality;
+    let step = START_STEP[quality];
+    let painted = 0;
+    let statsAt = performance.now();
+    let hidden = document.hidden;
+    // Pre-rendered marker bodies (gradient discs), reused every frame instead of
+    // building a radial gradient per player per frame.
+    const sprites = new Map<string, HTMLCanvasElement>();
+    const sprite = (fill: string, radius: number, ratio: number): HTMLCanvasElement => {
+      const key = `${fill}|${radius.toFixed(2)}|${ratio}`;
+      let image = sprites.get(key);
+      if (!image) {
+        if (sprites.size > 64) sprites.clear();
+        image = document.createElement("canvas");
+        const size = Math.ceil((radius * 2 + 2) * ratio);
+        image.width = size; image.height = size;
+        const g = image.getContext("2d")!;
+        g.scale(ratio, ratio);
+        const c = radius + 1;
+        const body = g.createRadialGradient(c - radius * 0.35, c - radius * 0.4, radius * 0.1, c, c, radius);
+        body.addColorStop(0, lighten(fill, 0.3));
+        body.addColorStop(1, fill);
+        g.fillStyle = body;
+        g.beginPath(); g.arc(c, c, radius, 0, Math.PI * 2); g.fill();
+        sprites.set(key, image);
+      }
+      return image;
+    };
 
     const draw = (now: number) => {
+      if (hidden) return; // resumed by visibilitychange
+      if (props.current.quality !== quality) { quality = props.current.quality; step = START_STEP[quality]; lastSwitch = now; }
+      const cap = FPS_STEPS[step];
+      if (now - lastPaint < 1000 / cap - 2) { frame = requestAnimationFrame(draw); return; }
       const began = performance.now();
       const delta = Math.min(200, now - last);
       last = now;
@@ -63,6 +106,7 @@ export function PitchCanvas({ buffer, driver, players, kits, pitch, events, home
       const view: BroadcastView = typeof raw === "number" ? { tick: raw, kind: "PLAY", label: "", cut: null } : raw;
       if (reduced && now - lastPaint < 120) { frame = requestAnimationFrame(draw); return; }
       lastPaint = now;
+      painted += 1;
       const width = canvas.clientWidth;
       const height = canvas.clientHeight;
       const ratio = lowQuality ? 1 : Math.min(2, window.devicePixelRatio || 1);
@@ -172,15 +216,13 @@ export function PitchCanvas({ buffer, driver, players, kits, pitch, events, home
           context.globalAlpha = markerAlpha;
           const kit = player.side === "home" ? colours.home : colours.away;
           const fill = player.role === "GK" ? keeperKit(kit, player.side) : kit;
-          if (lowQuality) {
+          if (lowQuality || quality === "eco") {
             context.fillStyle = fill;
+            context.beginPath(); context.arc(px, py, radius, 0, Math.PI * 2); context.fill();
           } else {
-            const body = context.createRadialGradient(px - radius * 0.35, py - radius * 0.4, radius * 0.1, px, py, radius);
-            body.addColorStop(0, lighten(fill, 0.3));
-            body.addColorStop(1, fill);
-            context.fillStyle = body;
+            context.drawImage(sprite(fill, radius, ratio), px - radius - 1, py - radius - 1, radius * 2 + 2, radius * 2 + 2);
+            context.beginPath(); context.arc(px, py, radius, 0, Math.PI * 2);
           }
-          context.beginPath(); context.arc(px, py, radius, 0, Math.PI * 2); context.fill();
           context.lineWidth = player.side === own ? 2 : 1.2;
           context.strokeStyle = player.side === own ? "rgba(248, 250, 252, 0.95)" : "rgba(10, 14, 20, 0.75)";
           context.stroke();
@@ -235,14 +277,32 @@ export function PitchCanvas({ buffer, driver, players, kits, pitch, events, home
       context.lineWidth = 1; context.strokeStyle = "#0D1117"; context.stroke();
       context.restore();
       costAvg = costAvg * 0.9 + (performance.now() - began) * 0.1;
+      const target = 1000 / FPS_STEPS[step];
       if (now - lastSwitch > 3000) {
-        if (!lowQuality && (costAvg > 12 || intervalAvg > 34)) { lowQuality = true; lastSwitch = now; }
-        else if (lowQuality && costAvg < 5 && intervalAvg < 20) { lowQuality = false; lastSwitch = now; }
+        // Struggling: first drop the frame rate, then the expensive effects.
+        if (costAvg > 12 || intervalAvg > target * 1.35) {
+          if (step > 0) step -= 1; else lowQuality = true;
+          lastSwitch = now;
+        } else if (costAvg < 4 && intervalAvg < target * 1.1 && now - lastSwitch > 6000) {
+          if (lowQuality) lowQuality = false;
+          else if (step < START_STEP[quality]) step += 1;
+          lastSwitch = now;
+        }
+      }
+      if (now - statsAt >= 2000) {
+        props.current.onStats?.({ fps: Math.round((painted * 1000) / (now - statsAt)), renderMs: Math.round(costAvg * 10) / 10, cap: FPS_STEPS[step] });
+        painted = 0; statsAt = now;
       }
       frame = requestAnimationFrame(draw);
     };
+    // A hidden tab draws nothing (and the browser would throttle it anyway).
+    const onVisibility = () => {
+      hidden = document.hidden;
+      if (!hidden) { last = performance.now(); cancelAnimationFrame(frame); frame = requestAnimationFrame(draw); }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
     frame = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(frame);
+    return () => { cancelAnimationFrame(frame); document.removeEventListener("visibilitychange", onVisibility); };
   }, [buffer]);
 
   const handleClick = (event: React.MouseEvent<HTMLCanvasElement>) => {

@@ -39,6 +39,15 @@ from app.services.squad_service import squad_service
 # match (~5-8 ms of CPU on a desktop core, ~10x more on a 0.1 CPU host), so the event
 # loop always gets back control quickly (health check, other requests, sockets).
 LEAGUE_SIZES = (4, 6, 8, 10, 12, 16, 20)
+FRAME_MEMO_HITS = [0]
+# Engine ticks simulated by the cooperative slices (observability).
+TICKS_SIMULATED = [0]
+
+
+def _advance_counted(engine: MatchEngine, target: int, bots: tuple[int, ...], baselines: tuple) -> None:
+    before = engine.tick
+    advance_with_bots(engine, target, bots, baselines)
+    TICKS_SIMULATED[0] += engine.tick - before
 SLICE_TICKS = 40
 # Watched matches are simulated this far beyond the broadcast cursor in slices, so
 # the planner rarely has to simulate inline.
@@ -129,6 +138,8 @@ class SeasonService:
         # Match presentation before kick-off: line-ups shown, tactics still editable.
         self.intro_seconds = intro_seconds
         self._seasons: dict[str, RoomSeason] = {}
+        # Short-lived memo of visible frame windows (room, match, since, shown) -> rows.
+        self._frames_memo: dict[tuple[str, str, int, int], list[dict[str, object]]] = {}
 
     def create(self, room_id: str, market: InitialMarket, *, double_round_robin: bool = True) -> RoomSeason:
         if room_id not in self._seasons:
@@ -266,7 +277,7 @@ class SeasonService:
                 return True
             engine = prebuilt.engine
             if not engine.finished:
-                advance_with_bots(engine, engine.tick + budget, (0, 1), (engine.inputs[0].tactics, engine.inputs[1].tactics))
+                _advance_counted(engine, engine.tick + budget, (0, 1), (engine.inputs[0].tactics, engine.inputs[1].tactics))
                 return True
         return False
 
@@ -304,11 +315,11 @@ class SeasonService:
                 half_limit = TICKS_PER_HALF if cursor <= TICKS_PER_HALF else FULL_TIME_TICK
                 target = min(half_limit, cursor + PRESIM_LEAD)
                 if engine.tick < target and not engine.finished:
-                    advance_with_bots(engine, min(target, engine.tick + budget), bots, baselines)
+                    _advance_counted(engine, min(target, engine.tick + budget), bots, baselines)
                     return True, True
             if director.cursor_real < now + 1.5:
                 before = (director.cursor_real, len(director.segments))
-                director.plan(engine, lambda tick, e=engine, b=bots, base=baselines: advance_with_bots(e, tick, b, base), now)
+                director.plan(engine, lambda tick, e=engine, b=bots, base=baselines: _advance_counted(e, tick, b, base), now)
                 engine.prune_snapshots(director.shown_tick(now) - 30)
                 if (director.cursor_real, len(director.segments)) != before:
                     return True, True
@@ -319,7 +330,7 @@ class SeasonService:
                 continue
             need = FULL_TIME_TICK if now >= clock.deadline - 2 else min(FULL_TIME_TICK, clock.shown_tick(now + 3) + LINEAR_LEAD)
             if engine.tick < need:
-                advance_with_bots(engine, min(need, engine.tick + budget), (0, 1), (engine.inputs[0].tactics, engine.inputs[1].tactics))
+                _advance_counted(engine, min(need, engine.tick + budget), (0, 1), (engine.inputs[0].tactics, engine.inputs[1].tactics))
                 return True, True
             pending_more = True
         # 4. Spare CPU: finish unwatched matches early (their result is fixed anyway).
@@ -327,7 +338,7 @@ class SeasonService:
             for match_id in live["match_ids"]:
                 engine, clock = season.engines.get(match_id), season.directors.get(match_id)
                 if engine is not None and isinstance(clock, LinearClock) and not engine.finished:
-                    advance_with_bots(engine, engine.tick + budget, (0, 1), (engine.inputs[0].tactics, engine.inputs[1].tactics))
+                    _advance_counted(engine, engine.tick + budget, (0, 1), (engine.inputs[0].tactics, engine.inputs[1].tactics))
                     return False, True
         return False, False
 
@@ -541,7 +552,16 @@ class SeasonService:
             return {"frames": [], "tick": None, "finished": True}
         shown = self.shown_tick(season, match_id, now)
         since = max(int(since_tick), shown - 240)
-        rows = [row for row in engine.frames_between(since, shown) if director.visible(int(row["t"]))] if shown > since else []
+        # Both coaches of a match (and every tab) ask for the same window: compute once.
+        memo_key = (room_id, match_id, since, shown)
+        rows = self._frames_memo.get(memo_key)
+        if rows is None:
+            rows = [row for row in engine.frames_between(since, shown) if director.visible(int(row["t"]))] if shown > since else []
+            if len(self._frames_memo) >= 256:
+                self._frames_memo.clear()
+            self._frames_memo[memo_key] = rows
+        else:
+            FRAME_MEMO_HITS[0] += 1
         timeline = list(director.timeline_key(now))
         view: dict[str, object] = {"match_id": match_id, "tick": shown, "server_now": now, "frames": rows, "timeline": timeline}
         if known_timeline is None or list(known_timeline) != timeline:
@@ -551,6 +571,99 @@ class SeasonService:
             view["score"] = {"home": sum(1 for g in goals if g["team"] == engine.clubs[0]),
                              "away": sum(1 for g in goals if g["team"] == engine.clubs[1])}
         return view
+
+    # ------------------------------------------------------------------ light live messages
+    def _own_live_match(self, season: RoomSeason, club: str) -> str | None:
+        live = season.live_round
+        if not live:
+            return None
+        return next((key for key in live["match_ids"] if club in (season.matches[key]["home"], season.matches[key]["away"])), None)
+
+    @staticmethod
+    def _shown_event_count(engine: MatchEngine, shown: int, start: int = 0) -> int:
+        """Events are append-only and in tick order: count those already on screen."""
+        events = engine.events
+        index = min(max(0, start), len(events))
+        while index > 0 and int(events[index - 1]["tick"]) > shown:
+            index -= 1
+        while index < len(events) and int(events[index]["tick"]) <= shown:
+            index += 1
+        return index
+
+    def live_state(self, room_id: str, club: str, known: dict[str, object] | None = None,
+                   heartbeat: bool = False) -> dict[str, object] | None:
+        """Reliable, incremental state of the coach's live match (WebSocket `live.state`).
+
+        `seq` is the number of match events already on screen. A message carries the
+        events in (`seq_from`, `seq`], the score, the round's scores and - only when a
+        score changed - the live table. Nothing beyond the tick on screen is revealed;
+        the rival's tactical choices stay masked exactly as in the HTTP view.
+        Returns None when nothing changed (unless a heartbeat is due)."""
+        season = self._season(room_id)
+        live = season.live_round
+        if not live or season.recovering:
+            return None
+        match_id = self._own_live_match(season, club)
+        engine = season.engines.get(match_id) if match_id else None
+        if engine is None:
+            return None
+        now = self.clock()
+        known = known or {}
+        if known.get("match_id") != match_id:
+            known = {}
+        shown = self.shown_tick(season, match_id, now)
+        seq_from = int(known.get("seq", 0))
+        seq = self._shown_event_count(engine, shown, seq_from)
+        scores = [self._score(season, key, now) for key in live["match_ids"] if key in season.matches]
+        scores_key = [(s["home_goals"], s["away_goals"]) for s in scores]
+        changed_scores = scores_key != known.get("scores_key")
+        if seq == seq_from and not changed_scores and not heartbeat:
+            return None
+        meta = season.matches[match_id]
+        rival = meta["away"] if meta["home"] == club else meta["home"]
+        events = [{**event, "tactics": None, "outcome": "CHANGED"} if event.get("kind") == "TACTICS" and event.get("team") == rival else event
+                  for event in engine.events[min(seq_from, seq):seq]]
+        own = scores[live["match_ids"].index(match_id)]
+        message: dict[str, object] = {
+            "type": "live.state", "match_id": match_id, "seq_from": min(seq_from, seq), "seq": seq, "tick": shown,
+            "server_now": now, "ends_at": live["ends_at"], "score": {"home": own["home_goals"], "away": own["away_goals"]},
+            "events": events, "scores": scores,
+        }
+        if changed_scores:
+            message["table"] = self.live_table(room_id, now)
+        known.update(match_id=match_id, seq=seq, scores_key=scores_key)
+        message["_known"] = known
+        return message
+
+    def live_stats(self, room_id: str, club: str) -> dict[str, object] | None:
+        """Compact match detail for the side panels (WebSocket `live.stats`, every few s):
+        statistics, xG, line-ups (stamina, cards, ratings) and the coach's own orders,
+        at the tick on screen - without the event list and the player attributes."""
+        season = self._season(room_id)
+        if not season.live_round or season.recovering:
+            return None
+        match_id = self._own_live_match(season, club)
+        if not match_id or match_id not in season.engines:
+            return None
+        match = self._personal_match(room_id, match_id, club, self.clock())
+        # Only what changes during a match travels again; names, numbers, roles and
+        # attributes are already in the client's live view (merged by player id).
+        keep = ("statistics", "home_xg", "away_xg", "substitutions", "commands", "ordered_tactics", "tactics", "player_of_the_match")
+        slim = {key: match[key] for key in keep if key in match}
+        dynamic = ("id", "on_pitch", "sent_off", "yellow_cards", "stamina", "available", "entered_tick", "left_tick", "rating", "stats")
+        slim["lineups"] = {side: [{k: player[k] for k in dynamic if k in player} for player in players]
+                           for side, players in match["lineups"].items()}
+        card_stats = ("goals", "assists", "passes", "passes_completed", "shots", "tackles", "interceptions", "distance")
+        for side in slim["lineups"].values():
+            for player in side:
+                if isinstance(player.get("stats"), dict):
+                    player["stats"] = {k: round(player["stats"][k], 1) if isinstance(player["stats"][k], float) else player["stats"][k]
+                                       for k in card_stats if k in player["stats"]}
+                if isinstance(player.get("stamina"), float):
+                    player["stamina"] = round(player["stamina"], 3)
+                if isinstance(player.get("rating"), float):
+                    player["rating"] = round(player["rating"], 1)
+        return {"type": "live.stats", "match_id": match_id, "match": slim}
 
     def _score(self, season: RoomSeason, match_id: str, now: float | None = None) -> dict[str, object]:
         match = season.matches[match_id]

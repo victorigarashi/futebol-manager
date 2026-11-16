@@ -14,6 +14,7 @@ import { PostMatch } from "./PostMatch";
 import { PreMatch } from "./PreMatch";
 import { TacticsBoard } from "./TacticsBoard";
 import "./career.css";
+import { useLiveStream, useSocketOnline } from "./live/useLiveStream";
 
 const TABS: { id: CareerTab; label: string; icon: string }[] = [
   { id: "hub", label: "Central", icon: "◆" }, { id: "next", label: "Próxima partida", icon: "▶" }, { id: "squad", label: "Elenco", icon: "▦" },
@@ -30,7 +31,12 @@ export function CareerShell({ roomId, room, isHost, clubCode }: { roomId: string
   useEffect(() => { writeLocal(`bm_tab_${roomId}`, tab); }, [roomId, tab]);
   // The socket nudges refreshes when something changes; these intervals are only the
   // fallback. The (large) season view is barely needed while a match is on screen.
-  const live = useQuery({ queryKey: ["live", roomId], queryFn: () => api.live(roomId).then((r) => r.data), refetchInterval: (query) => query.state.data?.live_round ? 4000 : 6000 });
+  // During a match the live view is kept current by the socket (`live.state`,
+  // `live.stats`); HTTP only reconciles: on entry, reconnection, a sequence gap, the
+  // end of the round, and a slow safety refresh. Without a socket it falls back to polling.
+  const online = useSocketOnline();
+  const live = useQuery({ queryKey: ["live", roomId], queryFn: () => api.live(roomId).then((r) => r.data), refetchInterval: (query) => query.state.data?.live_round ? (online ? 30_000 : 4000) : 6000 });
+  useLiveStream(roomId);
   const season = useQuery({ queryKey: ["season", roomId], queryFn: () => api.season(roomId).then((r) => r.data), refetchInterval: live.data?.live_round ? 15000 : 5000 });
   const clubs = useQuery({ queryKey: ["clubs"], queryFn: () => api.clubs().then((r) => r.data), staleTime: Infinity });
   const refresh = () => void client.invalidateQueries({ predicate: (q) => q.queryKey.includes(roomId) });
