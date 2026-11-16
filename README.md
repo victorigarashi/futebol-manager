@@ -37,6 +37,8 @@ O demo está desligado por padrão e é recusado em produção. Sem demo, config
 - [Entrega parcial de dados reais e auditoria de fontes](docs/CATALOG_DATA_DELIVERY.md)
 - [Pipeline de importação e promoção do catálogo](data/importers/README.md)
 - [Catálogo de jogadores e clubes com fotos (lista FCM 27)](docs/CATALOGO_FCM.md)
+- [Estabilidade multiplayer no Render](docs/ESTABILIDADE_MULTIPLAYER.md)
+- [Desempenho do tempo real no Render Free (WebSocket sequenciado, backpressure, canvas adaptativo)](docs/DESEMPENHO_TEMPO_REAL.md)
 - [Testes e reprodução dos scripts de navegador](docs/TESTING.md)
 - [Auditoria de UI e correções](docs/FINAL_UI_AUDIT.md)
 - [Auditoria do backend](docs/BACKEND_AUDIT.md)

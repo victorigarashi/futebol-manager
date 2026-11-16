@@ -18,6 +18,8 @@ export function BotSlotsCard({ room, isHost, clubs }: Props) {
   const taken = room.participants.filter((p) => p.selected_club_code).length;
   const open = Math.max(0, room.team_count - taken);
   const waitingClub = people.filter((p) => !p.selected_club_code).length;
+  // Open places are filled with bots when the host starts (any league size); adding
+  // them here just lets the host choose the clubs and see the final line-up first.
   const autoFill = room.team_count === 20;
   const editable = isHost && room.phase === "WAITING";
   const apply = ({ data }: { data: RoomState }) => {
@@ -48,7 +50,7 @@ export function BotSlotsCard({ room, isHost, clubs }: Props) {
     </dl>
     {autoFill
       ? <small className="bot-slots__hint">Liga de 20 clubes: os clubes sem técnico viram bots automaticamente ao iniciar.</small>
-      : <small className="bot-slots__hint">{open === 0 ? "Todas as vagas estão preenchidas." : `Faltam ${open} clube(s). ${waitingClub ? `${waitingClub} técnico(s) ainda escolhendo clube. ` : ""}Complete com bots ou aguarde a galera.`}</small>}
+      : <small className="bot-slots__hint">{open === 0 ? "Todas as vagas estão preenchidas." : `${open} vaga(s) livre(s). ${waitingClub ? `${waitingClub} técnico(s) ainda escolhendo clube. ` : ""}Ao iniciar, as vagas livres viram bots; se preferir, escolha-os agora.`}</small>}
     {bots.length > 0 && <ul className="bot-slots__list">{bots.map((bot) => {
       const club = bot.selected_club_code ? byCode.get(bot.selected_club_code) : undefined;
       return <li key={bot.user_id}>{club && <ClubCrest club={club} size="sm" />}<span><b>{club?.name ?? bot.selected_club_code}</b><small>Treinador virtual</small></span>

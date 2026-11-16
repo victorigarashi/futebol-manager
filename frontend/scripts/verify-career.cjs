@@ -123,12 +123,18 @@ const shot = (page, file) => page.screenshot({ path: path.join(out, file), fullP
     await page.waitForSelector(".decisions .badge--applied", { timeout: 40000 }).then(() => check("substitution applied at a stoppage", true)).catch(() => check("substitution applied at a stoppage", false));
     await shot(r, "10-mobile-ao-vivo.png");
 
-    const goal = await page.waitForSelector(".goal-overlay", { timeout: 60000 }).then(() => true).catch(() => false);
+    // Half-time can come while we are still waiting for a goal (a goalless first half):
+    // watch for it from now on instead of only after the goal window.
+    let halfSeen = false;
+    const halfWatch = page.waitForSelector(".pitch-overlay--half", { timeout: 150000 }).then(() => { halfSeen = true; return true; }).catch(() => false);
+    const goal = await Promise.race([
+      page.waitForSelector(".goal-overlay", { timeout: 60000 }).then(() => true).catch(() => false),
+      halfWatch.then(() => false),
+    ]);
     if (goal) { await page.waitForTimeout(450); await shot(page, "11-gol.png"); }
-    check("goal celebration appeared (if a goal happened)", true, goal ? "goal seen" : "no goal in window");
+    check("goal celebration appeared (if a goal happened)", true, goal ? "goal seen" : "no goal before half-time");
 
-    await page.waitForSelector(".pitch-overlay--half", { timeout: 90000 });
-    check("half-time screen", true);
+    check("half-time screen", halfSeen || await halfWatch);
     await shot(page, "12-intervalo.png");
     await page.getByRole("button", { name: "Estatísticas", exact: true }).click();
     await shot(page, "13-estatisticas.png");
