@@ -291,15 +291,16 @@ export function PitchCanvas({ buffer, driver, players, kits, pitch, events, home
       const ball = main.ball;
       const [bx, by] = at(ball.x, ball.y);
       const layerAlpha = layers[layers.length - 1].alpha;
-      if (!reduced && !lowQuality && !view.cut && ball.state === 2) trail.push({ x: bx, y: by, t: now });
-      while (trail.length && (now - trail[0].t > 260 || ball.state !== 2)) trail.shift();
+      const flying = ball.state === 2 || ball.state === 3;
+      if (!reduced && !lowQuality && !view.cut && flying) trail.push({ x: bx, y: by, t: now });
+      while (trail.length && (now - trail[0].t > (ball.state === 3 ? 420 : 260) || !flying)) trail.shift();
       for (let index = 1; index < trail.length; index += 1) {
         context.strokeStyle = `rgba(255, 255, 255, ${(index / trail.length) * 0.45 * layerAlpha})`;
         context.lineWidth = Math.max(1, (index / trail.length) * 2.6);
         context.beginPath(); context.moveTo(trail[index - 1].x, trail[index - 1].y); context.lineTo(trail[index].x, trail[index].y); context.stroke();
       }
       const ballRadius = Math.max(3.2, m(dims.length > 60 ? 0.5 : 0.35));
-      const lift = ball.state === 2 ? ballRadius * 0.9 : 0;
+      const lift = ball.state === 2 || ball.state === 3 ? ballRadius * 0.9 : 0;
       context.save();
       context.globalAlpha = layerAlpha * ball.alpha;
       context.beginPath(); context.fillStyle = "rgba(0, 0, 0, 0.38)"; context.ellipse(bx + 1.5 + lift, by + 2 + lift, ballRadius, ballRadius * 0.7, 0, 0, Math.PI * 2); context.fill();

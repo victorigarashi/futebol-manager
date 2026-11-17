@@ -48,14 +48,19 @@ class Profile:
     opening: int           # ticks shown at each kick-off of a half
 
 
+# Legibility first (2D audit, docs/DIAGNOSTICO_2D.md): fewer highlights, each shown
+# from where the attack began and at a speed the eye can follow. A short match shows
+# fewer moments, not the same moments in fast-forward.
 PROFILES: dict[int, Profile] = {
-    60: Profile(halftime=3.0, final_hold=2.0, cut=0.8, rate=2.8, max_build=12, opening=4),
-    90: Profile(halftime=4.0, final_hold=2.5, cut=0.9, rate=2.6, max_build=16, opening=5),
-    120: Profile(halftime=5.0, final_hold=3.0, cut=1.0, rate=2.4, max_build=22, opening=6),
-    180: Profile(halftime=6.0, final_hold=3.0, cut=1.1, rate=2.2, max_build=28, opening=8),
+    60: Profile(halftime=3.0, final_hold=2.0, cut=0.7, rate=2.3, max_build=20, opening=4),
+    90: Profile(halftime=4.0, final_hold=2.5, cut=0.8, rate=2.2, max_build=24, opening=5),
+    120: Profile(halftime=5.0, final_hold=3.0, cut=0.9, rate=2.1, max_build=30, opening=6),
+    180: Profile(halftime=6.0, final_hold=3.0, cut=1.0, rate=2.0, max_build=38, opening=8),
 }
 
-MIN_BUILD = 6           # every highlight shows at least this much before the moment
+MIN_BUILD = 8           # every highlight shows at least this much before the moment
+PACE_MIN, PACE_MAX = 0.8, 1.3   # schedule correction of the playback speed (was 0.65-1.8)
+GOAL_PACE_MAX = 1.6     # a goal is first shortened (less build-up), only then sped up
 SLOW_TICKS = 3          # the last ticks before a shot are shown slower
 SLOW_FACTOR = 0.6
 MERGE_GAP = 5           # gaps up to this many ticks are played through instead of cut
@@ -306,8 +311,8 @@ class Director:
         credit = self._credit(self.cursor_real, tick)
         typical = self._typical_cost()
         if credit > 0:
-            return max(0.65, 1.0 - 0.35 * min(1.0, credit / (3 * typical)))
-        return min(1.8, 1.0 + 0.8 * min(1.0, -credit / (3 * typical)))
+            return max(PACE_MIN, 1.0 - (1.0 - PACE_MIN) * min(1.0, credit / (3 * typical)))
+        return min(PACE_MAX, 1.0 + (PACE_MAX - 1.0) * min(1.0, -credit / (3 * typical)))
 
     def _allowance(self, importance: float) -> float:
         if importance >= 1.0:
@@ -323,9 +328,9 @@ class Director:
         room = self.deadline - self.cursor_real - seconds - self._fixed_after(end) - self.profile.cut
         return room > 0 and left + self._allowance(moment.importance) >= 0
 
-    def _shape(self, moment: Moment, T: int, half_end: int, pace: float) -> tuple[int, int, float, bool]:
+    def _shape(self, moment: Moment, T: int, half_end: int, pace: float, build: int | None = None) -> tuple[int, int, float, bool]:
         p = self.profile
-        start = max(moment.start, moment.tick - p.max_build)
+        start = max(moment.start, moment.tick - (p.max_build if build is None else build))
         start = min(start, moment.tick - MIN_BUILD)
         start = max(T, start)
         end = min(half_end, moment.tick + moment.after)
@@ -349,12 +354,19 @@ class Director:
             future = rate * self._share(end)
             room = self.deadline - self.cursor_real - self._min_tail(end) - p.final_hold * 0.5
             share_of_room = room / (future + 1.0)
-            for _ in range(8):
-                _, end, seconds, cut = self._shape(moment, T, half_end, pace)
-                if seconds <= share_of_room or pace >= 4:
+            # Legibility: shorten the build-up first, then speed up a little, and only
+            # speed up beyond that when the deadline would otherwise be at risk.
+            build = p.max_build
+            while build > MIN_BUILD and self._shape(moment, T, half_end, pace, build)[2] > share_of_room:
+                build -= 2
+            for _ in range(12):
+                _, end, seconds, cut = self._shape(moment, T, half_end, pace, build)
+                if seconds <= share_of_room or (pace >= GOAL_PACE_MAX and seconds <= room * 0.6) or pace >= 4:
                     break
-                pace *= 1.25
-        start, end, seconds, cut = self._shape(moment, T, half_end, pace)
+                pace *= 1.12
+        else:
+            build = p.max_build
+        start, end, seconds, cut = self._shape(moment, T, half_end, pace, build)
         rate = p.rate * pace
         if cut:
             self._append("CUT", T, start, p.cut if pace < 2 else min(p.cut, 0.5))
@@ -402,7 +414,9 @@ class Director:
                 since = int(event.get("possession_since") or tick)
                 label = "GOAL" if goal else "CHANCE"
                 event_id = events[index + 1]["event_id"] if goal and index + 1 < len(events) else event["event_id"]
-                found.append(Moment(tick, since - 2, 6 if goal else 3, importance, label, str(event_id)))
+                # Show where the move began: the recovery that started it and a few seconds
+                # of the play before (most attacks follow a turnover only seconds earlier).
+                found.append(Moment(tick, since - 8, 6 if goal else 3, importance, label, str(event_id)))
             elif kind == "CARD" and event.get("outcome") in ("RED", "SECOND_YELLOW"):
                 found.append(Moment(tick, tick - 8, 3, moment_importance(event), "RED_CARD", str(event["event_id"])))
         found.extend(self._attack_moments(engine, start, end))

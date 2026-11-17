@@ -126,16 +126,20 @@ def decide(engine: MatchEngine, side: int, baseline: Tactics, command_prefix: st
 
     mentality, pressure, style = baseline.mentality, baseline.pressure, baseline.style
     if diff < 0:
-        if minute >= 75:
+        # Gradual push (realism audit: an all-out DIRECT + HIGH + two steps from 75'
+        # turned 57% of the matches into draws; real football has ~25%).
+        if minute >= 80:
             mentality, style = _shift(baseline.mentality, 2), "DIRECT"
-            pressure = "HIGH"
-        elif minute >= 55 or diff <= -2:
+            pressure = "HIGH" if stamina > 0.6 else "MEDIUM"
+        elif minute >= 62 or diff <= -2:
             mentality = _shift(baseline.mentality, 1)
             pressure = "HIGH" if stamina > 0.7 else "MEDIUM"
     elif diff > 0:
-        if minute >= 70 or diff >= 2:
-            mentality, style = _shift(baseline.mentality, -1), "COUNTER"
-            pressure = "LOW" if minute >= 80 else "MEDIUM"
+        # Protecting a lead keeps the plan that built it (realism audit: dropping into a
+        # deep COUNTER/LOW block from 70' let 13 of 28 leads slip, 42% draws). Only a
+        # two-goal cushion late in the game takes a step back.
+        if diff >= 2 and minute >= 75:
+            mentality = _shift(baseline.mentality, -1)
     elif minute >= 70 and stronger:
         mentality = _shift(baseline.mentality, 1)
     if numbers < 0:  # a man down: compact and save legs
