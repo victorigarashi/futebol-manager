@@ -1,3 +1,4 @@
+import { LiveFormation } from "../../tactics/LiveFormation";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
@@ -126,7 +127,7 @@ export function LiveMatchCenter({ roomId, data, clubCode, clubs }: { roomId: str
     onSuccess: ({ data: result }) => {
       queryClient.setQueryData<LiveView>(["live", roomId], (previous) => previous ? { ...previous, match: result.match } : previous);
       const c = result.command;
-      setFeedback(c.kind === "SUBSTITUTION"
+      setFeedback(c.kind === "FORMATION" ? `Nova formação ${c.formation_code}: os jogadores já estão trocando de posição.` : c.kind === "SUBSTITUTION"
         ? c.status === "APPLIED" ? "Substituição feita." : "Substituição pedida: entra na próxima paralisação."
         : `Ordem enviada: entra em campo no próximo lance (${Math.floor((c.applied_tick ?? 0) / 60)}′).`);
       setSubOut(null);
@@ -198,6 +199,7 @@ export function LiveMatchCenter({ roomId, data, clubCode, clubs }: { roomId: str
             <TacticRow label="Mentalidade" options={MENTALITIES} value={ownTactics.mentality} disabled={finished || command.isPending} onPick={(mentality) => command.mutate({ kind: "TACTICS", mentality })} />
             <TacticRow label="Pressão" options={PRESSURES} value={ownTactics.pressure} disabled={finished || command.isPending} onPick={(pressure) => command.mutate({ kind: "TACTICS", pressure })} />
             <TacticRow label="Estilo" options={STYLES} value={ownTactics.style} disabled={finished || command.isPending} onPick={(style) => command.mutate({ kind: "TACTICS", style })} />
+            <LiveFormation match={match} disabled={finished || command.isPending} onCommand={(payload) => command.mutate(payload)} />
             <p className="hint">{orderPending ? <><b>Ordem enviada.</b> Entra em campo no próximo lance ({Math.floor((lastOrder?.applied_tick ?? 0) / 60)}′).</> : "A ordem entra em campo no próximo lance. O adversário só percebe a nova postura em campo."}</p>
           </section>}
           <section className="coach-block"><h3>Substituições <small>{subs.used}/{match.substitutions.max}{match.substitutions.windows ? ` · janelas ${subs.windows_used}/${match.substitutions.windows}` : ""}</small></h3>

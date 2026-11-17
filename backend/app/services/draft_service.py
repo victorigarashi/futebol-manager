@@ -19,7 +19,7 @@ from app.domain.draft import (
 )
 from app.domain.market import InitialMarket
 from app.domain.rooms import DRAFT_MIN_OVERALLS
-from app.domain.squad import validate_lineup
+from app.domain.squad import formations, validate_lineup
 from app.services.market_service import MarketSession, market_service
 from app.services.squad_service import squad_service
 
@@ -206,7 +206,7 @@ class DraftService:
                 warnings.append("Todos os reservas jogam na mesma posição: poucas alternativas de substituição.")
         return {"room_id": room_id, "mode": state.mode, "catalog": state.catalog_name, "min_overall": state.min_overall,
                 "deadline": state.deadline, "server_now": self.clock(), "completed": state.completed,
-                "bench_size": state.bench_size(), "formation": squad.formation,
+                "bench_size": state.bench_size(), "formation": squad.formation, "formations": formations(state.mode),
                 "slots": {slot: instance_view(i) for slot, i in squad.slots.items()}, "bench": bench,
                 "open_offers": {key: [self.card(draft_card) for draft_card in self._cards(state, ids)] for key, ids in squad.offers.items()},
                 "warnings": warnings, "complete": state.is_complete(club),

@@ -21,6 +21,7 @@ const BY_PREFIX: [string, string[]][] = [
   ["room.match_settings", ["room-state"]],
   ["room.", ["room-state", "rooms", "my-rooms"]],
   ["market.", ["market", "market-selection", "market-reassignment", "market-review", "market-players", "room-state"]],
+  ["draft.", ["draft", "room-state"]],
   ["transfer.", ["squad", "career", "transfer-offers", "transfer-clubs", "transfer-available"]],
 ];
 

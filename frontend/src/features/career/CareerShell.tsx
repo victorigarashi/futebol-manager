@@ -13,6 +13,7 @@ import { LiveMatchCenter } from "./live/LiveMatchCenter";
 import { PostMatch } from "./PostMatch";
 import { PreMatch } from "./PreMatch";
 import { TacticsBoard } from "./TacticsBoard";
+import { CohesionPanel } from "../tactics/CohesionPanel";
 import { Bracket, CupPage, DrawCeremony } from "./Competitions";
 import { competitionOf } from "./competition";
 import { NewsCenter, StatsCenter, TrophyRoom } from "./CareerCenters";
@@ -95,7 +96,7 @@ export function CareerShell({ roomId, room, isHost, clubCode }: { roomId: string
       {tab === "hub" && <ClubHub roomId={roomId} room={room} season={data} clubCode={clubCode} clubs={clubList} onGo={setTab} onOpenMatch={setOpenMatch} />}
       {tab === "next" && <PreMatch roomId={roomId} room={room} season={data} clubCode={clubCode} clubs={clubList} onGo={setTab} isHost={isHost} />}
       {tab === "squad" && <LineupBoard roomId={roomId} locked={locked} />}
-      {tab === "tactics" && <TacticsBoard roomId={roomId} locked={locked} />}
+      {tab === "tactics" && <><TacticsBoard roomId={roomId} locked={locked} /><CohesionPanel roomId={roomId} locked={locked} /></>}
       {tab === "market" && <section className="market-tab">{data.transfer_window_open ? <>
         {isHost && <div className="host-bar"><p>Você é o anfitrião: encerre a janela quando todos terminarem as negociações.</p><button type="button" className="btn btn--primary" disabled={closeWindow.isPending} onClick={() => closeWindow.mutate()}>{closeWindow.isPending ? "Encerrando…" : "Encerrar janela e seguir →"}</button></div>}
         {data.preseason_window && room.coach_moves_enabled && <CoachMarket roomId={roomId} room={room} clubCode={clubCode} club={club} clubs={clubList} onDone={refresh} />}

@@ -25,6 +25,8 @@ const FORMATS: { value: PlayoffFormat; label: string; hint: string }[] = [
   { value: "TWO_LEGS", label: "Ida e volta", hint: "Agregado, sem gol fora; empate nos pênaltis" },
 ];
 
+const DRAFT_MINIMUMS = [0, 65, 70, 72, 75, 78, 80];
+
 const leagueRounds = (teams: number, double: boolean) => (teams - 1) * (double ? 2 : 1);
 
 function Choice<T extends string | number | boolean>({ value, current, label, hint, onPick }: { value: T; current: T; label: ReactNode; hint?: string; onPick: (value: T) => void }) {
@@ -43,6 +45,7 @@ export function LeagueSettingsDialog({ initial, title, submitLabel, isPending, o
   const submit = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); onSave({ ...draft, name: draft.name.trim().replace(/\s+/g, " ") }); };
   const teamCounts = [4, 6, 8, 10, 12, 16, 20] as const;
   const style = draft.sim_style ?? "REALISTIC";
+  const gameMode = draft.game_mode ?? "TRADITIONAL";
   const level = draft.bot_difficulty ?? "COMPETITIVE";
   const format = draft.playoff_format ?? "SINGLE";
   const duration = draft.match_duration_seconds ?? 60;
@@ -87,15 +90,28 @@ export function LeagueSettingsDialog({ initial, title, submitLabel, isPending, o
 
       <section className="settings-section" aria-labelledby="settings-market">
         <h3 id="settings-market">Configurações do mercado</h3>
-        <fieldset><legend>Tipo de mercado</legend><div className="choice-grid choice-grid--two">
+        <fieldset><legend>Modo de jogo</legend><div className="choice-grid choice-grid--two">
+          <Choice value="TRADITIONAL" current={gameMode} label="Carreira tradicional" hint="Mercado inicial, atletas exclusivos por clube, empréstimos" onPick={(v) => patch("game_mode", v)} />
+          <Choice value="DRAFT" current={gameMode} label="Draft" hint="Três cartas por posição; o mesmo craque pode estar em vários times" onPick={(v) => setDraft((current) => ({ ...current, game_mode: v, market_mode: "TRADITIONAL" }))} />
+        </div></fieldset>
+        {gameMode === "DRAFT" && <>
+          <fieldset><legend>Catálogo do Draft</legend><div className="choice-grid choice-grid--two">
+            <Choice value="BRASILEIRAO" current={draft.draft_catalog ?? "BRASILEIRAO"} label="Brasileirão" hint="320 atletas reais do catálogo nacional" onPick={(v) => patch("draft_catalog", v)} />
+            <Choice value="WORLD" current={draft.draft_catalog ?? "BRASILEIRAO"} label="Mundial" hint="2.386 atletas de 30 ligas · overall editorial próprio, não é rating oficial da EA" onPick={(v) => patch("draft_catalog", v)} />
+          </div></fieldset>
+          <label>Overall mínimo das cartas<select value={draft.draft_min_overall ?? 0} onChange={(event) => patch("draft_min_overall", Number(event.target.value))}>{DRAFT_MINIMUMS.map((value) => <option value={value} key={value}>{value ? `${value}+` : "Sem mínimo"}</option>)}</select>
+            <small>Vale para humanos e bots. Se o catálogo não tiver atletas suficientes, o servidor recusa e sugere o maior mínimo possível.</small></label>
+          <p className="muted">Sorteio equilibrado: toda oferta traz uma carta de cada faixa de qualidade. Titulares por posição; reservas livres ({draft.mode === "ELEVEN_A_SIDE" ? 5 : 3}).</p>
+        </>}
+        {gameMode === "TRADITIONAL" && <><fieldset><legend>Tipo de mercado</legend><div className="choice-grid choice-grid--two">
           <Choice value="TRADITIONAL" current={draft.market_mode} label="Tradicional — dinheiro" hint="Orçamento em R$ e valores internos dos atletas" onPick={(v) => patch("market_mode", v)} />
           <Choice value="COINS" current={draft.market_mode} label="Mercado de moedas" hint="100 moedas por técnico; lances inteiros e secretos" onPick={(v) => patch("market_mode", v)} />
-        </div></fieldset>
+        </div></fieldset></>}
         {draft.market_mode === "TRADITIONAL"
           ? <fieldset><legend>Orçamento inicial por clube</legend><div className="choice-grid choice-grid--four">{BUDGETS.map((budget) => <Choice key={budget} value={budget} current={draft.initial_budget_cents} label={money.format(budget / 100)} onPick={(v) => patch("initial_budget_cents", v)} />)}</div></fieldset>
           : <p className="muted">Cada clube recebe exatamente <strong>100 moedas</strong>, válidas só nesta sala. Não há multa por cancelar lance nesse modo.</p>}
         <div className="settings-row">
-          <label>Preparação do mercado inicial<select value={draft.initial_market_duration_seconds} onChange={(event) => patch("initial_market_duration_seconds", Number(event.target.value))}>{durationOptions.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}</select></label>
+          <label>{gameMode === "DRAFT" ? "Tempo para montar o time no Draft" : "Preparação do mercado inicial"}<select value={draft.initial_market_duration_seconds} onChange={(event) => patch("initial_market_duration_seconds", Number(event.target.value))}>{durationOptions.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}</select></label>
           <label>Multa por desistir de uma contratação vencida<select disabled={draft.market_mode === "COINS"} value={draft.market_mode === "COINS" ? 0 : draft.withdrawal_penalty_percent} onChange={(event) => patch("withdrawal_penalty_percent", Number(event.target.value) as LeagueDraft["withdrawal_penalty_percent"])}>{[0, 2, 5, 10].map((percent) => <option value={percent} key={percent}>{percent}%</option>)}</select></label>
         </div>
         <p className="muted">Janelas de transferência: na metade do campeonato e entre temporadas. Bots também fazem propostas pelos seus atletas.</p>
@@ -112,6 +128,7 @@ export function LeagueSettingsDialog({ initial, title, submitLabel, isPending, o
           <li><b>{draft.team_count}</b> clubes · até {draft.max_human_participants} humano{draft.max_human_participants > 1 ? "s" : ""} · {bots} bot{bots === 1 ? "" : "s"} no mínimo</li>
           <li><b>{rounds}</b> rodadas ({draft.double_round_robin ? "ida e volta" : "turno único"}){draft.team_count >= 8 ? ` + playoffs em ${format === "TWO_LEGS" ? "ida e volta" : "jogo único"}` : ""}{draft.copa_enabled && cupAllowed ? " + Copa do Brasil" : ""}</li>
           <li>Partidas de <b>{durationLabel(duration)}</b> · estilo {STYLES.find((s) => s.value === style)?.label} · bots {LEVELS.find((l) => l.value === level)?.label}</li>
+          {gameMode === "DRAFT" && <li>Modo <b>Draft</b> · catálogo {draft.draft_catalog === "WORLD" ? "Mundial" : "Brasileirão"}{draft.draft_min_overall ? ` · cartas ${draft.draft_min_overall}+` : ""}</li>}
           <li>{draft.market_mode === "COINS" ? <>Mercado por moedas · saldo inicial <b>100 moedas</b> por técnico</> : <>Mercado tradicional · <b>{money.format(draft.initial_budget_cents / 100)}</b> por clube</>}</li>
           {draft.morale_enabled && <li>Moral e condicionamento ativados</li>}
           {draft.coach_moves_enabled && <li>Troca de clube entre temporadas permitida</li>}
