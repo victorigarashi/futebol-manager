@@ -95,7 +95,7 @@ export type PreviewSide = { club_code: string; formation_code: string; starters:
 export type SpecialEvent = { kind: string; title: string; text: string };
 export type HeadToHead = { meetings: number; wins: Record<string, number>; draws: number; goals: Record<string, number>; last: { home: string; away: string; home_goals: number; away_goals: number; season?: number; competition?: string }[] };
 export type MatchPreview = {
-  fixture: { id: string; round_number: number; home: string; away: string; competition?: "PLAYOFF" | "CUP"; stage?: string; stage_name?: string; leg?: number | null; legs?: number | null } | null;
+  fixture: { id: string; round_number: number; home: string; away: string; competition?: "PLAYOFF" | "CUP" | "TOURNAMENT" | "SURVIVOR"; stage?: string; stage_name?: string; leg?: number | null; legs?: number | null } | null;
   home?: PreviewSide; away?: PreviewSide; waiting?: boolean; next_round?: NextRoundView;
   classic?: string | null; head_to_head?: HeadToHead; special_events?: SpecialEvent[]; morale?: Record<string, number> | null;
 };
@@ -110,7 +110,9 @@ export type KnockoutView = {
   ties: Record<string, TieView>; rounds: KnockoutRoundView[]; draws: DrawRecord[];
   cup_enabled: boolean; cup_seeds: string[]; cup_champion: string | null; cup_runner_up: string | null; playoff_runner_up: string | null;
 };
-export type NextRoundView = { kind: "LEAGUE" | "PLAYOFF" | "CUP"; round_number?: number; stage?: string; stage_name?: string; leg?: number; fixtures?: { id: string; home: string; away: string; tie_id: string }[] } | null;
+/** The server is authoritative about the next fixture.  Short modes use the same
+ * shape as league/playoff rounds, but identify their own competition here. */
+export type NextRoundView = { kind: "LEAGUE" | "PLAYOFF" | "CUP" | "TOURNAMENT" | "SURVIVOR"; round_number?: number; stage?: string; stage_name?: string; leg?: number; fixtures?: { id: string; home: string; away: string; tie_id: string }[] } | null;
 export type PlayerSeasonStats = { player_id: string; name: string; club_code: string; position: string; apps: number; minutes: number; goals: number; assists: number; rating: number | null; goals_per_match: number; saves: number; clean_sheets: number };
 export type CareerStats = {
   season_number: number; competition: string | null; scorers: PlayerSeasonStats[]; assists: PlayerSeasonStats[]; ratings: PlayerSeasonStats[]; goalkeepers: PlayerSeasonStats[];

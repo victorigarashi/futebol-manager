@@ -6,6 +6,8 @@ import { formatMoney } from "../../lib/format";
 import { POSITION_LABEL } from "./labels";
 import { PlayerPhoto } from "../../components/PlayerPhoto";
 
+/** Kept as the internal target vocabulary so existing cards can still navigate.
+ * CareerShell groups these targets into the five visible areas. */
 export type CareerTab = "hub" | "squad" | "tactics" | "market" | "season" | "table" | "stats" | "next" | "cup" | "news" | "trophies";
 type Props = { roomId: string; room: RoomState; season: SeasonView; clubCode: string; clubs: Club[]; onGo: (tab: CareerTab) => void; onOpenMatch: (id: string) => void };
 

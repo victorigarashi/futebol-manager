@@ -40,7 +40,11 @@ export function PreMatch({ roomId, room, season, clubCode, clubs, onGo, isHost =
   if (season.transfer_window_open) return <section className="prematch prematch--blocked"><h2>Janela de transferências aberta</h2><p>A rodada {season.current_round} começa depois que o anfitrião encerrar a janela. Aproveite para reforçar o elenco na aba Mercado.</p></section>;
   if (season.season_complete) return <section className="prematch prematch--blocked"><h2>Temporada encerrada</h2><p>{season.champion ? `O campeão foi definido. ` : ""}Veja a Sala de Troféus e aguarde o anfitrião abrir a próxima temporada.</p></section>;
   if (season.regular_season_complete && !Object.values(season.knockout?.ties ?? {}).some((t) => t.competition === "PLAYOFF")) return <section className="prematch prematch--blocked"><h2>Sorteio dos playoffs</h2><p>A fase de pontos terminou. O anfitrião realiza o sorteio dos potes na aba Temporada; depois cada confronto é jogado ao vivo, com sua escalação e tática.</p></section>;
-  if (data?.waiting) return <section className="prematch prematch--blocked"><h2>{data.next_round?.kind === "CUP" ? "Copa do Brasil" : "Mata-mata"} · {data.next_round?.stage_name ?? ""}</h2><p>Seu clube não disputa esta rodada. Acompanhe os confrontos na aba {data.next_round?.kind === "CUP" ? "Copa" : "Temporada"}; a próxima partida aparece aqui quando chegar a sua vez.</p></section>;
+  if (data?.waiting) {
+    const kind = data.next_round?.kind;
+    const title = kind === "CUP" ? "Copa do Brasil" : kind === "TOURNAMENT" ? "Torneio" : kind === "SURVIVOR" ? "Último Sobrevivente" : "Mata-mata";
+    return <section className="prematch prematch--blocked"><h2>{title} · {data.next_round?.stage_name ?? ""}</h2><p>Seu clube não disputa esta rodada. Acompanhe os confrontos na aba {kind === "CUP" ? "Copa" : kind === "SURVIVOR" ? "Competição" : "Temporada"}; a próxima partida aparece aqui quando chegar a sua vez.</p></section>;
+  }
   if (!data?.fixture || !data.home || !data.away) return <div className="panel-loading" role="status">{preview.error ? preview.error.message : "Montando o confronto…"}</div>;
   const ownSide = data.home.club_code === clubCode ? data.home : data.away;
 
@@ -106,7 +110,7 @@ function LineupColumn({ side, club }: { side: PreviewSide; club: Club }) {
 
 function competitionLabel(fixture: NonNullable<MatchPreview["fixture"]>): string {
   if (!fixture.competition) return `BRASILEIRÃO · RODADA ${fixture.round_number}`;
-  const name = fixture.competition === "CUP" ? "COPA DO BRASIL" : "PLAYOFFS";
+  const name = fixture.competition === "CUP" ? "COPA DO BRASIL" : fixture.competition === "TOURNAMENT" ? "TORNEIO" : fixture.competition === "SURVIVOR" ? "SOBREVIVÊNCIA" : "PLAYOFFS";
   const leg = fixture.legs === 2 ? ` · ${fixture.leg === 1 ? "IDA" : "VOLTA"}` : "";
   return `${name} · ${(fixture.stage_name ?? "").toUpperCase()}${leg}`;
 }

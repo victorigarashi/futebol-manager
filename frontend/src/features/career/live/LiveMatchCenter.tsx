@@ -19,7 +19,7 @@ import { visibleCount } from "../../../lib/liveState";
 const MENTALITIES: [Mentality, string][] = [["VERY_DEFENSIVE", "Muito def."], ["DEFENSIVE", "Defensiva"], ["BALANCED", "Equilibrada"], ["ATTACKING", "Ofensiva"], ["VERY_ATTACKING", "Muito of."]];
 const PRESSURES: [Pressure, string][] = [["LOW", "Baixa"], ["MEDIUM", "Média"], ["HIGH", "Alta"]];
 const STYLES: [PlayStyle, string][] = [["POSSESSION", "Posse"], ["COUNTER", "Contra-ataque"], ["DIRECT", "Direto"], ["SHORT_BUILDUP", "Saída curta"], ["WIDE", "Laterais"]];
-type SideTab = "coach" | "stats" | "events" | "round";
+type SideTab = "coach" | "events" | "round";
 
 export function LiveMatchCenter({ roomId, data, clubCode, clubs }: { roomId: string; data: LiveView; clubCode: string; clubs: Club[] }) {
   const match = data.match as LiveMatch;
@@ -191,7 +191,7 @@ export function LiveMatchCenter({ roomId, data, clubCode, clubs }: { roomId: str
       </div>
 
       <aside className="match-center__side">
-        <nav className="seg-tabs" aria-label="Painéis da partida">{([["coach", "Técnico"], ["stats", "Estatísticas"], ["events", "Lances"], ["round", "Rodada"]] as const).map(([key, label]) => <button type="button" key={key} aria-pressed={tab === key} className={tab === key ? "is-active" : ""} onClick={() => setTab(key)}>{label}</button>)}</nav>
+        <nav className="seg-tabs" aria-label="Painéis da partida">{([["coach", "Técnico"], ["events", "Lances"], ["round", "Rodada"]] as const).map(([key, label]) => <button type="button" key={key} aria-pressed={tab === key} className={tab === key ? "is-active" : ""} onClick={() => setTab(key)}>{label}</button>)}</nav>
         {feedback && <p className="cm-toast" role="status">{feedback}</p>}
 
         {tab === "coach" && <div className="coach-panel">
@@ -211,13 +211,13 @@ export function LiveMatchCenter({ roomId, data, clubCode, clubs }: { roomId: str
           <CommandHistory commands={match.commands ?? []} players={ownPlayers} shownTick={displayTick} />
         </div>}
 
-        {tab === "stats" && <section className="stat-bars" aria-label="Estatísticas ao vivo"><header><span>{match.home}</span><span>{match.away}</span></header>{statRows.map(([label, h, a, hv, av]) => <div className="stat-bar" key={label}><b>{h}</b><span>{label}</span><b>{a}</b><div className="stat-bar__track" aria-hidden="true"><i style={{ width: `${hv + av ? (hv / (hv + av)) * 100 : 50}%`, background: kits.home }} /><i style={{ width: `${hv + av ? (av / (hv + av)) * 100 : 50}%`, background: kits.away }} /></div></div>)}
-          <h4>Destaques do seu time</h4><ul className="ratings">{[...ownPlayers].filter((p) => p.entered_tick !== null).sort((a, b) => b.rating - a.rating).slice(0, 5).map((p) => <li key={p.id}><span>{p.name}</span><b className={ratingTone(p.rating)}>{p.rating.toFixed(1)}</b></li>)}</ul>
-        </section>}
-
         {tab === "events" && <EventTimeline events={timeline} clubName={clubName} clubCode={clubCode} />}
 
         {tab === "round" && <RoundPanel scores={data.scores} ownId={match.id} ownScore={score} table={data.table} baseline={data.official_table} clubCode={clubCode} />}
+
+        <details className="live-details"><summary>Estatísticas detalhadas</summary><section className="stat-bars" aria-label="Estatísticas ao vivo"><header><span>{match.home}</span><span>{match.away}</span></header>{statRows.map(([label, h, a, hv, av]) => <div className="stat-bar" key={label}><b>{h}</b><span>{label}</span><b>{a}</b><div className="stat-bar__track" aria-hidden="true"><i style={{ width: `${hv + av ? (hv / (hv + av)) * 100 : 50}%`, background: kits.home }} /><i style={{ width: `${hv + av ? (av / (hv + av)) * 100 : 50}%`, background: kits.away }} /></div></div>)}
+          <h4>Destaques do seu time</h4><ul className="ratings">{[...ownPlayers].filter((p) => p.entered_tick !== null).sort((a, b) => b.rating - a.rating).slice(0, 5).map((p) => <li key={p.id}><span>{p.name}</span><b className={ratingTone(p.rating)}>{p.rating.toFixed(1)}</b></li>)}</ul>
+        </section></details>
 
         {selectedPlayer && <PlayerCard player={selectedPlayer} own={selectedSide === you} club={clubName(selectedSide === "home" ? match.home : match.away)} onClose={() => setSelected(null)} onSubstitute={selectedSide === you && selectedPlayer.on_pitch && subsLeft > 0 && !finished ? () => { setTab("coach"); setSubOut(selectedPlayer.id); } : undefined} />}
       </aside>

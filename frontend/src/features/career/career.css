@@ -77,6 +77,22 @@
 .career-nav button em { font-style: normal; color: var(--green-deep); }
 .career-body { padding-top: 1.1rem; animation: rise .25s ease; }
 .career-head__cta { display: flex; align-items: center; }
+.career-area { display: grid; gap: 1rem; }
+.career-area__tabs { width: fit-content; max-width: 100%; }
+.short-competition, .survivor-view { display: grid; gap: 1rem; }
+.survivor-path { display: flex; flex-wrap: wrap; gap: .45rem; margin: .75rem 0 0; padding: 0; list-style: none; }
+.survivor-path li { border: 1px solid var(--line-2); border-radius: 999px; padding: .35rem .65rem; color: var(--muted); font-weight: 800; }
+.survivor-path li.is-done { color: var(--green); border-color: rgb(38 180 125 / 45%); }
+.survivor-path li.is-current { color: #07140c; border-color: var(--lime); background: var(--lime); }
+.survivor-table { display: grid; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.survivor-table > div { display: grid; grid-template-columns: 2rem auto minmax(0, 1fr) auto auto auto; align-items: center; gap: .55rem; min-height: 44px; border-bottom: 1px solid var(--line); padding: .35rem .55rem; }
+.survivor-table > div:last-child { border-bottom: 0; }
+.survivor-table .is-safe { background: rgb(38 180 125 / 8%); }
+.survivor-table .is-out { color: #fecaca; background: rgb(248 113 113 / 16%); animation: rise .35s ease; }
+.survivor-table em { color: var(--danger); font-size: .72rem; font-style: normal; font-weight: 800; text-transform: uppercase; }
+.survivor-eliminated { display: grid; gap: .35rem; margin: 0; padding: 0; list-style: none; }
+.survivor-eliminated li { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: .5rem; border-bottom: 1px solid var(--line); padding: .35rem 0; }
+.survivor-eliminated small { color: var(--muted); }
 
 /* Club hub */
 .hub { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 1rem; }
@@ -247,9 +263,13 @@
 .half-stats div { display: grid; grid-template-columns: 4rem 1fr 4rem; align-items: center; border-bottom: 1px solid var(--line); padding: .25rem 0; }
 .half-stats b { font: 800 1.2rem var(--display); } .half-stats span { color: var(--muted); font-size: .8rem; }
 .match-center__side { display: grid; gap: .7rem; }
-.seg-tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: .2rem; border: 1px solid var(--line); border-radius: 12px; padding: .25rem; background: var(--surface); }
+.seg-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: .2rem; border: 1px solid var(--line); border-radius: 12px; padding: .25rem; background: var(--surface); }
 .seg-tabs button { border: 0; border-radius: 9px; padding: .55rem .2rem; color: var(--muted); background: none; font: 800 .9rem var(--display); letter-spacing: .04em; text-transform: uppercase; cursor: pointer; }
 .seg-tabs button.is-active { color: #04130b; background: var(--lime); }
+.live-details { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.live-details summary { padding: .65rem .8rem; color: var(--muted); font: 800 .82rem var(--display); letter-spacing: .06em; text-transform: uppercase; cursor: pointer; }
+.live-details[open] summary { color: var(--lime); border-bottom: 1px solid var(--line); }
+.live-details .stat-bars { padding: .75rem; }
 .coach-panel { display: grid; gap: .7rem; }
 .coach-block { border: 1px solid var(--line); border-radius: var(--radius); padding: .9rem; background: var(--surface); }
 .tactic-row { margin: 0 0 .55rem; border: 0; padding: 0; }
@@ -382,6 +402,8 @@
   .career-head__facts div { text-align: left; }
   .hub-card, .hub-news, .hub-squad, .hub-market, .hub-last { grid-column: 1 / -1; }
   .lineup__grid, .prematch__grid, .postmatch__grid, .season-tab, .stats-tab, .bracket { grid-template-columns: 1fr; }
+  .survivor-table > div { grid-template-columns: 1.6rem auto minmax(0, 1fr) auto; }
+  .survivor-table small, .survivor-table em { display: none; }
   .prematch-steps { grid-template-columns: 1fr; }
   .pitch-canvas { aspect-ratio: 68 / 100; }
   .scorebug__team strong { font-size: 1rem; }
