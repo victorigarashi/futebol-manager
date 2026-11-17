@@ -29,6 +29,8 @@ from app.api.schemas import (
     MarketSelectionConfirm,
     MarketSelectionPreview,
     MatchSettingsUpdate,
+    PackBench,
+    PackPlace,
     ProfileUpdate,
     RoomCreate,
     RoomUpdate,
@@ -46,6 +48,7 @@ from app.domain.demo_catalog import create_demo_catalog
 from app.domain.draft import DraftError
 from app.domain.market import InitialMarket, MarketError
 from app.domain.match_engine import PlayerInput, derived_attributes
+from app.domain.packs import PackError
 from app.domain.rooms import RULES, room_manager
 from app.services import career_service, metrics
 from app.services.auth import (
@@ -56,7 +59,8 @@ from app.services.auth import (
     issue_guest_token,
 )
 from app.services.draft_service import draft_service, validate_configuration
-from app.services.market_service import market_service
+from app.services.market_service import MarketSession, market_service
+from app.services.pack_service import pack_service
 from app.services.realtime import hub
 from app.services.season_service import season_service
 from app.services.snapshot_store import snapshot_store
@@ -89,6 +93,7 @@ def snapshot_room(room_id: str) -> None:
         "season": season_service.export_room(room_id) if room_id in season_service._seasons else None,
         "transfers": transfer_service.export_room(room_id) if room_id in transfer_service._offers or room_id in transfer_service._operations else {"offers": [], "operations": []},
         "draft": draft_service.export_room(room_id),
+        "pack": pack_service.export_room(room_id),
     }
     with metrics.cpu("snapshot_serialize"):
         snapshot_store.update(settings.snapshot_path, room_id, result)
@@ -281,8 +286,12 @@ async def start_room(room_id: str, identity: GuestIdentity = Depends(current_ide
     # so a host can start a 4/6/8… club league without an invisible manual bot step.
     await room_manager.complete_with_bots(room_id, identity.id)
     room = room_manager._room(room_id)
-    if room.game_mode == "DRAFT":
+    if room.game_mode in ("DRAFT", "DRAFT_KNOCKOUT"):
         return await start_draft(room_id, identity.id)
+    if room.game_mode == "PACK":
+        return await start_pack(room_id, identity.id)
+    if room.game_mode == "SURVIVOR":
+        return await start_survivor(room_id, identity.id)
     settings = get_settings()
     try:
         catalog = create_demo_catalog() if settings.enable_demo_catalog else load_catalog(settings.player_catalog_path)
@@ -328,6 +337,126 @@ async def start_draft(room_id: str, host_id: str) -> dict[str, object]:
     snapshot_room(room_id)
     await hub.broadcast(room_id, {"type": "room.started", "revision": state["revision"]})
     return envelope(state, int(state["revision"]))
+
+
+async def start_pack(room_id: str, host_id: str) -> dict[str, object]:
+    """Pack & Play rooms skip the market: squads come from the cards of free packs."""
+    room = room_manager._room(room_id)
+    selected = [m.selected_club_code for m in room.participants.values() if m.selected_club_code]
+    humans = {m.selected_club_code for m in room.participants.values() if m.selected_club_code and m.role != "BOT"}
+    try:
+        async with pack_service.lock(room_id):
+            pack_service.start(room_id, room.mode, room.draft_catalog, room.pack_luck, [str(c) for c in selected],
+                               {str(c) for c in selected if c not in humans}, room.bot_difficulty,
+                               room.initial_market_duration_seconds, room.initial_budget_cents)
+    except (PackError, DraftError) as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    state = await room_manager.start(room_id, host_id)
+    pack_service.schedule_deadline(room_id, finish_pack)
+    snapshot_room(room_id)
+    await hub.broadcast(room_id, {"type": "room.started", "revision": state["revision"]})
+    return envelope(state, int(state["revision"]))
+
+
+async def finish_pack(room_id: str) -> None:
+    await progress_market(room_id, "SQUAD_MANAGEMENT")
+    await hub.broadcast(room_id, {"type": "pack.completed"})
+
+
+async def start_survivor(room_id: str, host_id: str) -> dict[str, object]:
+    """Último Sobrevivente is played with the clubs' real squads (no market)."""
+    room = room_manager._room(room_id)
+    settings = get_settings()
+    try:
+        catalog = create_demo_catalog() if settings.enable_demo_catalog else load_catalog(settings.player_catalog_path)
+    except (OSError, ValueError) as error:
+        raise HTTPException(status_code=409, detail="Catálogo de atletas inválido ou indisponível.") from error
+    clubs = [str(m.selected_club_code) for m in room.participants.values() if m.selected_club_code]
+    market = InitialMarket(catalog, room.mode, dict.fromkeys(clubs, room.initial_budget_cents))
+    for club in clubs:
+        market.teams[club].roster = [p.id for p in catalog.players if p.club_code == club]
+    market.resolved = True
+    market.selection_complete = True
+    market_service.registry._markets[room_id] = market
+    market_service.registry._locks[room_id] = asyncio.Lock()
+    market_service.sessions[room_id] = MarketSession(room_id, time.time(), market, finalized=True, selection_complete=True,
+                                                     market_phase="SQUAD_MANAGEMENT")
+    state = await room_manager.start(room_id, host_id)
+    season_service.create(room_id, market, double_round_robin=room.double_round_robin, rules=room_rules(room))
+    snapshot_room(room_id)
+    await hub.broadcast(room_id, {"type": "room.started", "revision": state["revision"]})
+    return envelope(state, int(state["revision"]))
+
+
+def pack_club(room_id: str, user_id: str) -> str:
+    club = market_club(room_id, user_id)
+    if room_manager._room(room_id).phase != "PACK":
+        raise HTTPException(status_code=409, detail="A sala não está na fase de pacotes.")
+    return club
+
+
+async def pack_action(room_id: str, user_id: str, action) -> dict[str, object]:
+    club = pack_club(room_id, user_id)
+    try:
+        async with pack_service.lock(room_id):
+            result = action(club)
+            finished = pack_service.complete_due(room_id)  # last squad confirmed: start at once
+    except PackError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    snapshot_room(room_id)
+    if finished:
+        await finish_pack(room_id)
+    else:
+        await hub.broadcast(room_id, {"type": "pack.updated"})
+    return envelope(result)
+
+
+@router.get("/rooms/{room_id}/pack")
+async def pack_state(room_id: str, identity: GuestIdentity = Depends(current_identity)) -> dict[str, object]:
+    club = market_club(room_id, identity.id)
+    try:
+        return envelope(pack_service.view(room_id, club))
+    except PackError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+
+
+@router.post("/rooms/{room_id}/pack/open")
+async def pack_open(room_id: str, identity: GuestIdentity = Depends(current_identity)) -> dict[str, object]:
+    return await pack_action(room_id, identity.id, lambda club: pack_service.open_next(room_id, club))
+
+
+@router.put("/rooms/{room_id}/pack/formation")
+async def pack_formation(room_id: str, payload: DraftFormation, identity: GuestIdentity = Depends(current_identity)) -> dict[str, object]:
+    return await pack_action(room_id, identity.id, lambda club: pack_service.set_formation(room_id, club, payload.formation_code))
+
+
+@router.put("/rooms/{room_id}/pack/slot")
+async def pack_place(room_id: str, payload: PackPlace, identity: GuestIdentity = Depends(current_identity)) -> dict[str, object]:
+    return await pack_action(room_id, identity.id, lambda club: pack_service.place(room_id, club, payload.slot_id, payload.catalog_id))
+
+
+@router.put("/rooms/{room_id}/pack/bench")
+async def pack_bench(room_id: str, payload: PackBench, identity: GuestIdentity = Depends(current_identity)) -> dict[str, object]:
+    return await pack_action(room_id, identity.id, lambda club: pack_service.set_bench(room_id, club, payload.catalog_ids))
+
+
+@router.post("/rooms/{room_id}/pack/confirm")
+async def pack_confirm(room_id: str, identity: GuestIdentity = Depends(current_identity)) -> dict[str, object]:
+    return await pack_action(room_id, identity.id, lambda club: pack_service.confirm(room_id, club))
+
+
+@router.post("/rooms/{room_id}/pack/complete")
+async def pack_force_complete(room_id: str, identity: GuestIdentity = Depends(current_identity)) -> dict[str, object]:
+    """The host closes the packs phase: absent managers get an automatic squad."""
+    room = room_manager._room(room_id)
+    if room.host_user_id != identity.id:
+        raise HTTPException(status_code=403, detail="Apenas o anfitrião pode encerrar a fase de pacotes.")
+    async with pack_service.lock(room_id):
+        finished = pack_service.complete_due(room_id, force=True)
+    snapshot_room(room_id)
+    if finished:
+        await finish_pack(room_id)
+    return envelope({"completed": finished})
 
 
 async def finish_draft(room_id: str) -> None:

@@ -28,7 +28,24 @@ PLAYOFF_STAGES = ("QF", "SF", "FINAL")
 CUP_STAGES = ("PRELIM", "R16", "QF", "SF", "FINAL")
 STAGE_NAMES = {"PRELIM": "Fase preliminar", "R16": "Oitavas de final", "QF": "Quartas de final",
                "SF": "Semifinal", "FINAL": "Final"}
-COMPETITION_NAMES = {"PLAYOFF": "Playoffs do Brasileirão", "CUP": "Copa do Brasil"}
+COMPETITION_NAMES = {"PLAYOFF": "Playoffs do Brasileirão", "CUP": "Copa do Brasil",
+                     "TOURNAMENT": "Torneio eliminatório", "SURVIVOR": "Último Sobrevivente"}
+TOURNAMENT_ORDER = ("R16", "QF", "SF", "FINAL")
+
+
+def stage_name(stage: str) -> str:
+    """Display name; survival rounds are "S1", "S2"… (see app.domain.tournaments)."""
+    if stage in STAGE_NAMES:
+        return STAGE_NAMES[stage]
+    if stage.startswith("S") and stage[1:].isdigit():
+        return f"Rodada {stage[1:]} de sobrevivência"
+    raise KeyError(stage)
+
+
+def valid_stage(competition: str, stage: str) -> bool:
+    if competition == "SURVIVOR":
+        return stage == "FINAL" or (stage.startswith("S") and stage[1:].isdigit())
+    return stage in STAGE_NAMES
 # When each Copa stage is played, as a share of the league rounds already completed.
 CUP_SCHEDULE = {"PRELIM": 0.08, "R16": 0.18, "QF": 0.32, "SF": 0.47, "FINAL": 0.66}
 
@@ -77,7 +94,7 @@ class Tie:
 
     def view(self) -> dict[str, object]:
         high, low = self.aggregate()
-        return {**asdict(self), "aggregate": [high, low], "stage_name": STAGE_NAMES[self.stage],
+        return {**asdict(self), "aggregate": [high, low], "stage_name": stage_name(self.stage),
                 "match_ids": [self.match_id(leg) for leg in range(1, self.legs + 1)],
                 "fixtures": [list(self.fixture(leg)) for leg in range(1, self.legs + 1)]}
 
@@ -94,7 +111,7 @@ class KnockoutRound:
     status: str = "PENDING"  # PENDING -> DONE
 
     def view(self) -> dict[str, object]:
-        return {**asdict(self), "stage_name": STAGE_NAMES[self.stage], "competition_name": COMPETITION_NAMES[self.competition]}
+        return {**asdict(self), "stage_name": stage_name(self.stage), "competition_name": COMPETITION_NAMES[self.competition]}
 
 
 @dataclass
@@ -128,7 +145,7 @@ class KnockoutState:
                     playoff_runner_up=raw.get("playoff_runner_up"), draws=list(raw.get("draws", [])))
         for key, value in dict(raw.get("ties", {})).items():
             tie = Tie(**{k: v for k, v in dict(value).items()})
-            if tie.legs not in (1, 2) or tie.competition not in COMPETITION_NAMES or tie.stage not in STAGE_NAMES:
+            if tie.legs not in (1, 2) or tie.competition not in COMPETITION_NAMES or not valid_stage(tie.competition, tie.stage):
                 raise ValueError("Snapshot contém confronto de mata-mata inválido.")
             state.ties[str(key)] = tie
         for value in raw.get("rounds", []):
@@ -201,7 +218,7 @@ def cup_after_round(stage: str, league_rounds: int) -> int:
 
 def add_stage(state: KnockoutState, competition: str, stage: str, pairs: list[tuple[str, str]], legs: int,
               after_round: int, draw: dict[str, object]) -> list[Tie]:
-    prefix = "po" if competition == "PLAYOFF" else "cup"
+    prefix = {"PLAYOFF": "po", "CUP": "cup", "TOURNAMENT": "tn", "SURVIVOR": "sv"}[competition]
     ties = []
     for order, (high, low) in enumerate(pairs, 1):
         tie = Tie(f"{prefix}-{stage.lower()}-{order}", competition, stage, high, low, legs, order)
@@ -210,12 +227,12 @@ def add_stage(state: KnockoutState, competition: str, stage: str, pairs: list[tu
     for leg in range(1, legs + 1):
         state.rounds.append(KnockoutRound(f"{prefix}-{stage.lower()}-leg{leg}", competition, stage, leg, after_round,
                                           [t.id for t in ties]))
-    state.draws.append({"competition": competition, "stage": stage, "stage_name": STAGE_NAMES[stage],
+    state.draws.append({"competition": competition, "stage": stage, "stage_name": stage_name(stage),
                         "pairs": [[t.high, t.low] for t in ties], **draw})
     return ties
 
 
 def next_stage(stage: str, competition: str) -> str | None:
-    stages = PLAYOFF_STAGES if competition == "PLAYOFF" else CUP_STAGES
+    stages = PLAYOFF_STAGES if competition == "PLAYOFF" else TOURNAMENT_ORDER if competition == "TOURNAMENT" else CUP_STAGES
     index = stages.index(stage)
     return stages[index + 1] if index + 1 < len(stages) else None

@@ -19,7 +19,7 @@ class RoomCreate(BaseModel):
     withdrawal_penalty_percent: Literal[0, 2, 5, 10] = 5
     # Real duration of each live match: 1:00 (default), 1:30, 2:00 or 3:00.
     match_duration_seconds: Literal[60, 90, 120, 180] = 60
-    game_mode: Literal["TRADITIONAL", "DRAFT"] = "TRADITIONAL"
+    game_mode: Literal["TRADITIONAL", "DRAFT", "DRAFT_KNOCKOUT", "SURVIVOR", "PACK"] = "TRADITIONAL"
     sim_style: Literal["REALISTIC", "EXCITING"] = "REALISTIC"
     bot_difficulty: Literal["CASUAL", "COMPETITIVE", "LEGENDARY"] = "COMPETITIVE"
     morale_enabled: bool = False
@@ -28,6 +28,8 @@ class RoomCreate(BaseModel):
     coach_moves_enabled: bool = False
     draft_catalog: Literal["BRASILEIRAO", "WORLD"] = "BRASILEIRAO"
     draft_min_overall: Literal[0, 65, 70, 72, 75, 78, 80] = 0
+    survivor_eliminations: Literal[0, 2, 4] = 0
+    pack_luck: Literal["BALANCED", "LUCK"] = "BALANCED"
 
     @field_validator("name")
     @classmethod
@@ -104,7 +106,7 @@ class ProfileUpdate(BaseModel):
 class RoomUpdate(RoomCreate):
     # Omitted by older clients: keep the room's current values.
     match_duration_seconds: Literal[60, 90, 120, 180] | None = None
-    game_mode: Literal["TRADITIONAL", "DRAFT"] | None = None
+    game_mode: Literal["TRADITIONAL", "DRAFT", "DRAFT_KNOCKOUT", "SURVIVOR", "PACK"] | None = None
     sim_style: Literal["REALISTIC", "EXCITING"] | None = None
     bot_difficulty: Literal["CASUAL", "COMPETITIVE", "LEGENDARY"] | None = None
     morale_enabled: bool | None = None
@@ -113,6 +115,8 @@ class RoomUpdate(RoomCreate):
     coach_moves_enabled: bool | None = None
     draft_catalog: Literal["BRASILEIRAO", "WORLD"] | None = None
     draft_min_overall: Literal[0, 65, 70, 72, 75, 78, 80] | None = None
+    survivor_eliminations: Literal[0, 2, 4] | None = None
+    pack_luck: Literal["BALANCED", "LUCK"] | None = None
 
 
 class MatchSettingsUpdate(BaseModel):
@@ -221,3 +225,12 @@ class TransferCounter(BaseModel):
 class TransferListingUpdate(BaseModel):
     player_id: str = Field(min_length=1, max_length=120)
     listed: bool
+
+
+class PackPlace(BaseModel):
+    slot_id: str = Field(min_length=1, max_length=40)
+    catalog_id: str | None = Field(default=None, max_length=120)
+
+
+class PackBench(BaseModel):
+    catalog_ids: list[str] = Field(default_factory=list, max_length=7)

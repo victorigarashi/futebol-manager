@@ -6,8 +6,8 @@ from statistics import mean
 import pytest
 
 from app.domain.match_engine import MatchEngine, PlayerInput, TeamInput
-from app.domain.tactics import Tactics
 from app.domain.squad import formation_slots
+from app.domain.tactics import Tactics
 
 
 def _team(code: str, mode: str) -> TeamInput:
