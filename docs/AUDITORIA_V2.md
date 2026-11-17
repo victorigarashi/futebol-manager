@@ -105,13 +105,15 @@ Legenda: ✅ existe e funciona · 🟡 existe, mas incompleto ou divergente do V
 |---|---|---|
 | 0. Auditoria | Este documento + `AUDITORIA_CARREIRA.md` | ✅ |
 | 1. Bugs críticos | Integridade de gols, placar, progressão, transição de temporada; **partida de 60 s** (novo padrão; 1:30, 2:00 e 3:00 continuam como opção; snapshots antigos mantêm 1:30) | ✅ |
-| 2. Simulação e 2D | Realista/Emocionante, câmera híbrida, jogadas, goleiro, sincronização | Pendente |
-| 3. Táticas e entrosamento | Compatibilidade, familiaridade, instruções individuais, bots usando-as, atributos na progressão | Pendente |
-| 4. Mercado e economia | Orçamentos novos, dificuldade dos bots, propostas de bots, dinheiro + jogador, prazos, empréstimos, janela entre temporadas | Pendente |
-| 5. Draft | Instâncias, 3 cartas, sorteio equilibrado mensurável, reservas livres, overall mínimo, bots, autoconclusão | Pendente |
-| 6. Catálogo mundial | Promover o staging EAFC26 (CC BY 4.0, com atribuição) sem fotos, com proveniência por campo | Pendente |
-| 7. Competições e carreira | Potes, ida e volta, prêmios, Copa do Brasil, moral, clássicos, notícias, estatísticas, troféus, mudança de técnico | Pendente |
-| 8. Redesign visual | Protótipo, depois integração incremental | Pendente |
-| 9. QA completo | Ciclo de carreira em 5×5 e 11×11, Draft, carga | Pendente |
+| 2. Simulação e 2D | Realista/Emocionante, formação ao vivo, instruções no movimento; câmera híbrida (sessão da carreira) | 🟡 motor de passes/goleiro não reescrito |
+| 3. Táticas e entrosamento | Compatibilidade, familiaridade, instruções, efeito calibrado, bots | ✅ |
+| 4. Mercado e economia | Orçamentos até 1 bi, bots por dificuldade, compra, troca, empréstimo, prazos, disputas, janela entre temporadas | ✅ |
+| 5. Draft | Instâncias, 3 cartas, sorteio equilibrado, reservas livres, overall mínimo, bots, telas | ✅ |
+| 6. Catálogo mundial | Identidade CC0 + avaliação editorial própria; sem dados da EA | ✅ |
+| 7. Competições e carreira | Playoffs e Copa ao vivo (esta branch); moral, clássicos, notícias, estatísticas, troféus, troca de técnico (sessão da carreira) | ✅ |
+| 8. Redesign visual | Telas novas de Draft, entrosamento e carreira; tela inicial e mercado inicial mantidos | 🟡 |
+| 9. QA completo | pytest, ruff, tsc, eslint, vitest, build, navegador (Draft 15/15, carreira 27/27) | ✅ |
 
 Fica fora até nova aprovação: pênaltis interativos, olheiros, química por liga ou nacionalidade, e tudo o que está listado em §25.
+
+Resultado final: [ENTREGA_V2.md](ENTREGA_V2.md).
