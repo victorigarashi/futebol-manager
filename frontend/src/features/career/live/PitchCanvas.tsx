@@ -23,7 +23,13 @@ type Props = {
   quality?: RenderQuality;
   /** Rendering health every ~2 s: effective fps, average draw time, current fps cap. */
   onStats?: (stats: { fps: number; renderMs: number; cap: number }) => void;
+  /** Hybrid camera: full pitch by default with a smooth, moderate zoom on important
+   *  moments (attacks into the box, shots, goals); "full" keeps the whole pitch. */
+  camera?: CameraMode;
 };
+
+export type CameraMode = "auto" | "full";
+const MAX_ZOOM = 1.32;
 
 export type RenderQuality = "eco" | "standard" | "smooth";
 const FPS_STEPS = [20, 30, 60] as const;
@@ -36,12 +42,12 @@ const FX_TICKS = 6;
  * frames; effects are triggered only by events the engine actually emitted. Cuts of
  * the condensed broadcast cross-fade between two real moments (nothing slides).
  */
-export function PitchCanvas({ buffer, driver, players, kits, pitch, events, homeCode, ownSide, selectedIndex, onSelect, label, quality = "standard", onStats }: Props) {
+export function PitchCanvas({ buffer, driver, players, kits, pitch, events, homeCode, ownSide, selectedIndex, onSelect, label, quality = "standard", onStats, camera = "auto" }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const props = useRef({ driver, players, kits, pitch, events, homeCode, ownSide, selectedIndex, quality, onStats });
-  props.current = { driver, players, kits, pitch, events, homeCode, ownSide, selectedIndex, quality, onStats };
+  const props = useRef({ driver, players, kits, pitch, events, homeCode, ownSide, selectedIndex, quality, onStats, camera });
+  props.current = { driver, players, kits, pitch, events, homeCode, ownSide, selectedIndex, quality, onStats, camera };
   const lastSample = useRef<Sample | null>(null);
-  const layout = useRef({ vertical: false, ox: 0, oy: 0, scale: 1 });
+  const layout = useRef({ vertical: false, ox: 0, oy: 0, scale: 1, zoom: 1, cx: 0, cy: 0, width: 0, height: 0 });
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -68,6 +74,10 @@ export function PitchCanvas({ buffer, driver, players, kits, pitch, events, home
     let painted = 0;
     let statsAt = performance.now();
     let hidden = document.hidden;
+    // Camera state (screen space), eased towards its target every frame.
+    let zoom = 1;
+    let camX = -1;
+    let camY = -1;
     // Pre-rendered marker bodies (gradient discs), reused every frame instead of
     // building a radial gradient per player per frame.
     const sprites = new Map<string, HTMLCanvasElement>();
@@ -125,10 +135,30 @@ export function PitchCanvas({ buffer, driver, players, kits, pitch, events, home
       const fieldShort = dims.width * scale;
       const ox = (width - (vertical ? fieldShort : fieldLong)) / 2;
       const oy = (height - (vertical ? fieldLong : fieldShort)) / 2;
-      layout.current = { vertical, ox, oy, scale };
       const at = (nx: number, ny: number): [number, number] => vertical
         ? [ox + ny * fieldShort, oy + (1 - nx) * fieldLong]
         : [ox + nx * fieldLong, oy + ny * fieldShort];
+      // Hybrid camera, driven by the previous frame's ball and real events only.
+      {
+        const prev = lastSample.current;
+        const hot = props.current.camera === "auto" && !reduced && !view.cut && prev !== null && (
+          prev.ball.x < 0.2 || prev.ball.x > 0.8
+          || props.current.events.some((e) => (e.kind === "SHOT" || e.kind === "GOAL" || e.kind === "SAVE") && view.tick - e.tick >= -2 && view.tick - e.tick <= 4));
+        const targetZoom = hot ? MAX_ZOOM : 1;
+        const [tx, ty] = hot && prev ? at(prev.ball.x, prev.ball.y) : [width / 2, height / 2];
+        if (camX < 0 || view.cut) { camX = width / 2; camY = height / 2; }
+        const ease = Math.min(1, delta / (view.cut ? 120 : 700));
+        zoom += (targetZoom - zoom) * ease;
+        camX += (tx - camX) * ease;
+        camY += (ty - camY) * ease;
+        const halfW = width / (2 * zoom);
+        const halfH = height / (2 * zoom);
+        camX = Math.min(width - halfW, Math.max(halfW, camX));
+        camY = Math.min(height - halfH, Math.max(halfH, camY));
+        if (zoom < 1.002) { zoom = 1; camX = width / 2; camY = height / 2; }
+        context.setTransform(ratio * zoom, 0, 0, ratio * zoom, ratio * (width / 2 - camX * zoom), ratio * (height / 2 - camY * zoom));
+      }
+      layout.current = { vertical, ox, oy, scale, zoom, cx: camX, cy: camY, width, height };
       const m = (metres: number) => metres * scale;
 
       const key = `${width}x${height}:${dims.length}:${vertical}:${ratio}`;
@@ -310,9 +340,10 @@ export function PitchCanvas({ buffer, driver, players, kits, pitch, events, home
     const canvas = canvasRef.current;
     if (!sample || !canvas || !onSelect) return;
     const rect = canvas.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
-    const { vertical, ox, oy, scale } = layout.current;
+    const { vertical, ox, oy, scale, zoom, cx, cy, width, height } = layout.current;
+    // Undo the camera: screen point -> unzoomed canvas point.
+    const x = (event.clientX - rect.left - width / 2) / zoom + cx;
+    const y = (event.clientY - rect.top - height / 2) / zoom + cy;
     const fieldLong = pitch.length * scale;
     const fieldShort = pitch.width * scale;
     let best: number | null = null;

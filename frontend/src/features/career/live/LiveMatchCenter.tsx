@@ -8,7 +8,7 @@ import { matchKits } from "../clubColors";
 import { ATTRIBUTE_LABEL, KEY_EVENTS, PHASE_LABEL, POSITION_LABEL, eventText, newKey, tacticSummary } from "../labels";
 import { GoalCelebrationOverlay, type GoalMoment } from "./GoalCelebrationOverlay";
 import { markGoalsSeen, seenGoals } from "./seenGoals";
-import { PitchCanvas, type PitchPlayer, type RenderQuality } from "./PitchCanvas";
+import { PitchCanvas, type CameraMode, type PitchPlayer, type RenderQuality } from "./PitchCanvas";
 import { readLocal, writeLocal } from "../../../lib/storage";
 import { sendOverSocket } from "../../../lib/socketBus";
 import { DISPLAY_DELAY_SECONDS, type BroadcastView } from "./broadcastClock";
@@ -30,6 +30,8 @@ export function LiveMatchCenter({ roomId, data, clubCode, clubs }: { roomId: str
   const initial = useMemo(() => ({ segments: data.broadcast, serverNow: data.server_now }), [data.broadcast, data.server_now]);
   const { buffer, driver, view: playback, server, status } = useFrameStream(roomId, match.id, true, initial);
   // Rendering quality chosen on this device; the canvas adapts below it on its own.
+  const [camera, setCamera] = useState<CameraMode>(() => (readLocal("bm_camera") as CameraMode | null) ?? "auto");
+  useEffect(() => { writeLocal("bm_camera", camera); }, [camera]);
   const [quality, setQuality] = useState<RenderQuality>(() => (readLocal("bm_render_quality") as RenderQuality | null) ?? "standard");
   useEffect(() => { writeLocal("bm_render_quality", quality); }, [quality]);
   const render = useRef({ fps: 0, renderMs: 0, cap: 30 });
@@ -175,7 +177,7 @@ export function LiveMatchCenter({ roomId, data, clubCode, clubs }: { roomId: str
 
     <div className="match-center__grid">
       <div className="match-center__pitch">
-        <PitchCanvas buffer={buffer} driver={driver} players={players} kits={kits} pitch={match.pitch} events={match.events} homeCode={match.home} ownSide={you} selectedIndex={selected} onSelect={setSelected} quality={quality} onStats={onStats}
+        <PitchCanvas buffer={buffer} driver={driver} players={players} kits={kits} pitch={match.pitch} events={match.events} homeCode={match.home} ownSide={you} selectedIndex={selected} onSelect={setSelected} quality={quality} onStats={onStats} camera={camera}
           label={`Campo 2D: ${clubName(match.home)} (camisa ${kits.home}) ataca para a direita. Clique em um jogador para ver os detalhes.`} />
         {goal && <GoalCelebrationOverlay goal={goal} onDone={closeGoal} />}
         {shown.cut && !goal && <div className="pitch-cut" aria-live="polite"><span className="pitch-cut__clock">⏩ {Math.floor(shown.cut.from / 60)}′ <i>→</i> {Math.floor(shown.cut.to / 60)}′</span>{cutEvents.length > 0 && <ul>{cutEvents.map((e) => <li key={e.event_id}><b>{e.minute}′</b> {eventText(e, clubName).title}</li>)}</ul>}</div>}
@@ -183,7 +185,7 @@ export function LiveMatchCenter({ roomId, data, clubCode, clubs }: { roomId: str
         {lagging && !finished && <div className="pitch-banner pitch-banner--warn" role="status">{offline ? "Conexão perdida — reconectando…" : "Aguardando o servidor — a transmissão continua em instantes…"}</div>}
         {phase === "PRESENTATION" && <div className="pitch-overlay pitch-overlay--intro"><p className="kicker">A BOLA VAI ROLAR</p><div className="intro-crests"><ClubCrest club={club(match.home)} size="md" /><b>×</b><ClubCrest club={club(match.away)} size="md" /></div><h2>{clubName(match.home)} × {clubName(match.away)}</h2><p>{match.formations.home} contra {match.formations.away} · Pontapé inicial em <strong>{countdown(clock?.kickoff_at)}s</strong></p><p className="muted">Você ainda pode ajustar a orientação do time no painel do técnico.</p></div>}
         {phase === "HALF_TIME" && <div className="pitch-overlay pitch-overlay--half"><p className="kicker">INTERVALO · {score.home} × {score.away}</p><h2>Hora da conversa no vestiário</h2><div className="half-stats">{statRows.slice(0, 4).map(([label, h, a]) => <div key={label}><b>{h}</b><span>{label}</span><b>{a}</b></div>)}</div><p>Substituições no intervalo <strong>não gastam janela</strong>. Segundo tempo em <strong>{countdown(clock?.halftime_ends_at)}s</strong>.</p></div>}
-        <label className="pitch-quality">Qualidade<select value={quality} onChange={(event) => setQuality(event.target.value as RenderQuality)}><option value="eco">Econômico (20 fps)</option><option value="standard">Padrão (30 fps)</option><option value="smooth">Fluido (até 60 fps)</option></select></label>
+        <button type="button" className="btn btn--ghost pitch-camera" aria-pressed={camera === "auto"} onClick={() => setCamera(camera === "auto" ? "full" : "auto")}>{camera === "auto" ? "Câmera: dinâmica" : "Câmera: campo inteiro"}</button><label className="pitch-quality">Qualidade<select value={quality} onChange={(event) => setQuality(event.target.value as RenderQuality)}><option value="eco">Econômico (20 fps)</option><option value="standard">Padrão (30 fps)</option><option value="smooth">Fluido (até 60 fps)</option></select></label>
         <div className="pitch-legend" aria-hidden="true"><span><i style={{ background: kits.home }} />{match.home} ataca para a direita (no celular, para cima)</span><span><i style={{ background: kits.away }} />{match.away}</span></div>
       </div>
 

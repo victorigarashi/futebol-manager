@@ -422,6 +422,27 @@ class RoomManager:
                 self._rooms[room_id] = draft
             return self._state(draft)
 
+    async def change_club_between_seasons(self, room_id: str, user_id: str, club_code: str) -> dict[str, object]:
+        """Coach market (optional rule): a human takes over a club no human controls."""
+        self._room(room_id)
+        async with self._locks[room_id]:
+            room = self._room(room_id)
+            member = room.participants.get(user_id)
+            if member is None or member.role == "BOT":
+                raise HTTPException(status_code=403, detail="Somente técnicos da liga podem trocar de clube.")
+            if member.selected_club_code == club_code:
+                return self._state(room)
+            holder = next((m for m in room.participants.values() if m.selected_club_code == club_code), None)
+            if holder is not None and holder.role != "BOT":
+                raise HTTPException(status_code=409, detail="Outro técnico já comanda este clube.")
+            draft = copy.deepcopy(room)
+            if holder is not None:
+                del draft.participants[holder.user_id]  # the club's bot steps aside
+            draft.participants[user_id].selected_club_code = club_code
+            draft.revision += 1
+            self._rooms[room_id] = draft
+            return self._state(draft)
+
     async def remove_bot(self, room_id: str, user_id: str, club_code: str) -> dict[str, object]:
         self._room(room_id)
         async with self._locks[room_id]:

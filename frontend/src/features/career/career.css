@@ -420,3 +420,94 @@
 .btn.is-confirmed { background: #2f8f4e; border-color: #2f8f4e; color: #fff; opacity: 1; }
 .pitch-quality { display: inline-flex; align-items: center; gap: .4rem; margin: .4rem 0 0; color: var(--muted, #94a3b8); font-size: .72rem; }
 .pitch-quality select { border: 1px solid var(--line, #2b3440); border-radius: .3rem; padding: .2rem .4rem; color: inherit; background: var(--panel, #161c24); font-size: .72rem; }
+
+/* ---------- Competitions: draw ceremony, brackets, Copa ---------- */
+.draw-ceremony__pots { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; }
+.draw-pot h3 { margin: 0 0 .4rem; font: 700 1rem var(--display); text-transform: uppercase; letter-spacing: .04em; }
+.draw-pot h3 small { color: var(--faint); font-weight: 600; }
+.draw-pot ul { display: grid; gap: .3rem; margin: 0; padding: 0; list-style: none; }
+.draw-pot li { display: flex; gap: .45rem; align-items: center; padding: .35rem .5rem; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--panel); transition: opacity .4s, transform .4s; }
+.draw-pot li.is-drawn { opacity: .35; transform: scale(.97); }
+.draw-pot li.is-own, .tie.is-own { border-color: var(--lime); }
+.draw-ceremony__pairs { display: grid; gap: .4rem; margin: .9rem 0 .4rem; padding: 0; list-style: none; }
+.draw-ceremony__pairs li { display: grid; grid-template-columns: 3rem 1fr auto 1fr; gap: .5rem; align-items: center; min-height: 44px; padding: .4rem .7rem; border: 1px dashed var(--line-2); border-radius: var(--radius-sm); }
+.draw-ceremony__pairs li > span { color: var(--faint); font: 700 .85rem var(--display); }
+.draw-ceremony__pairs li em { grid-column: 2 / -1; color: var(--muted); text-align: center; }
+.draw-ceremony__pairs li.is-revealed { border-style: solid; border-color: var(--green); background: rgb(38 180 125 / 8%); animation: draw-pop .5s ease-out; }
+.draw-ceremony__pairs b { display: flex; gap: .4rem; align-items: center; }
+.draw-ceremony__pairs b:last-child { justify-content: flex-end; }
+.draw-ceremony__pairs b.is-own { color: var(--lime); }
+.draw-ceremony__pairs i { color: var(--faint); font-style: normal; }
+@keyframes draw-pop { from { transform: scale(.94); opacity: .2; } to { transform: none; opacity: 1; } }
+.bracket-view__stages { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(200px, 1fr); gap: .8rem; overflow-x: auto; padding-bottom: .4rem; }
+.bracket-stage { display: grid; align-content: start; gap: .5rem; }
+.bracket-stage h3 { margin: 0; color: var(--muted); font: 700 .95rem var(--display); text-transform: uppercase; letter-spacing: .05em; }
+.bracket-stage.is-current h3 { color: var(--lime); }
+.tie { display: grid; gap: .25rem; padding: .5rem .6rem; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--panel); }
+.tie__club { display: grid; grid-template-columns: auto 1fr auto; gap: .45rem; align-items: center; font-size: .88rem; }
+.tie__club b { font: 800 1.1rem var(--display); }
+.tie__club.is-winner { color: var(--lime); }
+.tie__club.is-out { opacity: .5; }
+.tie__legs, .tie__pens { display: flex; flex-wrap: wrap; gap: .5rem; color: var(--faint); font-size: .72rem; }
+.tie__pens { color: var(--gold); }
+.cup-page, .news-center, .trophy-room, .stats-tab { display: grid; gap: 1rem; }
+.cup-page__head h2, .trophy-room__head h2 { margin: .2rem 0 .4rem; font: 800 1.8rem var(--display); }
+.cup-page__head p { color: var(--muted); }
+
+/* ---------- Pre-match context ---------- */
+.matchup__classic { margin: .2rem 0 0; color: var(--gold); font: 800 1.05rem var(--display); text-transform: uppercase; letter-spacing: .06em; }
+.match-context { display: grid; gap: .8rem; padding: .9rem 1rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.match-context__events { display: flex; flex-wrap: wrap; gap: .5rem; margin: 0; padding: 0; list-style: none; }
+.event-chip { display: grid; gap: .1rem; padding: .45rem .7rem; border: 1px solid var(--line-2); border-radius: 10px; background: var(--panel); font-size: .8rem; }
+.event-chip span { color: var(--muted); }
+.event-chip--classic, .event-chip--title { border-color: var(--gold); }
+.event-chip--decisive, .event-chip--leadership { border-color: var(--green); }
+.event-chip--slump { border-color: var(--danger); }
+.match-context__h2h h3 { margin: 0 0 .3rem; font-size: .9rem; color: var(--muted); }
+.match-context__h2h ol { display: flex; flex-wrap: wrap; gap: .6rem; margin: .3rem 0 0; padding: 0; list-style: none; color: var(--faint); font-size: .78rem; }
+
+/* ---------- News, stats, trophies ---------- */
+.news-center__filters, .stats-tab__filters { display: flex; flex-wrap: wrap; gap: .8rem 1.2rem; align-items: center; justify-content: space-between; }
+.news-center__filters h2, .stats-tab__filters h2 { margin: 0; }
+.news-feed { display: grid; gap: .55rem; margin: 0; padding: 0; list-style: none; }
+.news-item { display: grid; grid-template-columns: auto 1fr auto; gap: .8rem; align-items: center; padding: .75rem .9rem; border: 1px solid var(--line); border-left-width: 4px; border-radius: var(--radius-sm); background: var(--surface); }
+.news-item strong { display: block; }
+.news-item p { margin: .15rem 0 0; color: var(--muted); font-size: .86rem; }
+.news-item.is-own { background: var(--panel); }
+.news-item__tag { padding: .2rem .5rem; border-radius: 999px; background: var(--panel-2); color: var(--muted); font: 700 .72rem var(--display); text-transform: uppercase; letter-spacing: .05em; white-space: nowrap; }
+.news-item--title { border-left-color: var(--gold); } .news-item--classic { border-left-color: #f97316; } .news-item--rout, .news-item--star { border-left-color: var(--lime); }
+.news-item--leader { border-left-color: var(--green); } .news-item--rumor { border-left-color: var(--faint); border-left-style: dashed; } .news-item--transfer { border-left-color: #60a5fa; }
+.news-item__crests { display: flex; gap: .2rem; }
+.segmented { display: inline-flex; overflow: hidden; border: 1px solid var(--line); border-radius: 999px; }
+.segmented button { padding: .45rem .85rem; border: 0; background: transparent; color: var(--muted); font-weight: 700; cursor: pointer; }
+.segmented button.is-active { background: var(--green); color: #04130c; }
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; }
+.team-of-season { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: .5rem; margin: 0; padding: 0; list-style: none; }
+.team-of-season li { display: flex; gap: .4rem; align-items: center; padding: .45rem .55rem; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--panel); font-size: .85rem; }
+.team-of-season em { margin-left: auto; color: var(--lime); font-style: normal; font-weight: 800; }
+.records { display: grid; gap: .45rem; margin: 0; padding: 0; list-style: none; }
+.records li { display: grid; grid-template-columns: 1fr auto auto; gap: .5rem; align-items: center; font-size: .86rem; }
+.records li > span { color: var(--muted); }
+.records small { color: var(--faint); }
+.records .up { color: var(--lime); } .records .down { color: var(--danger); }
+.mini-table { width: 100%; border-collapse: collapse; font-size: .84rem; }
+.mini-table th, .mini-table td { padding: .4rem .35rem; border-bottom: 1px solid var(--line); text-align: left; }
+.mini-table th { color: var(--faint); font-weight: 700; }
+.mini-table tr.is-own td { color: var(--lime); }
+.trophy-shelf { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: .8rem; margin: 0; padding: 0; list-style: none; }
+.trophy { display: grid; gap: .3rem; justify-items: center; padding: 1.1rem .8rem; border: 1px solid var(--line); border-radius: var(--radius); background: radial-gradient(circle at 50% 0, rgb(245 196 81 / 14%), transparent 65%), var(--surface); text-align: center; }
+.trophy--runner_up { background: var(--surface); }
+.trophy.is-own { border-color: var(--gold); }
+.trophy__icon { font-size: 2.4rem; }
+.trophy span { display: flex; gap: .35rem; align-items: center; color: var(--muted); font-size: .84rem; }
+.trophy small { color: var(--faint); }
+.coach-market { margin-bottom: 1rem; }
+.offer-deadline { color: var(--warn); font-weight: 600; }
+.is-bot-offer { border-left: 3px solid #60a5fa; }
+.pitch-camera { font-size: .78rem; }
+@media (max-width: 640px) {
+  .draw-ceremony__pots { grid-template-columns: 1fr; }
+  .news-item { grid-template-columns: 1fr; }
+  .news-item__crests { display: none; }
+  .records li { grid-template-columns: 1fr; }
+}

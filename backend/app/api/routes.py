@@ -43,7 +43,7 @@ from app.domain.demo_catalog import create_demo_catalog
 from app.domain.market import InitialMarket, MarketError
 from app.domain.match_engine import PlayerInput, derived_attributes
 from app.domain.rooms import RULES, room_manager
-from app.services import metrics
+from app.services import career_service, metrics
 from app.services.auth import (
     SESSION_COOKIE,
     GuestIdentity,
@@ -637,6 +637,103 @@ async def broadcast_round(room_id: str) -> None:
             schedule_round(room_id)
 
 
+def room_managers(room_id: str) -> dict[str, dict[str, str]]:
+    """Human coaches by club right now (history keeps the coach of each title)."""
+    room = room_manager._room(room_id)
+    return {str(p.selected_club_code): {"user_id": p.user_id, "name": p.display_name}
+            for p in room.participants.values() if p.selected_club_code and p.role != "BOT"}
+
+
+@router.get("/rooms/{room_id}/career/stats")
+async def career_stats(room_id: str, competition: str | None = None, identity: GuestIdentity = Depends(current_identity)) -> dict[str, object]:
+    """Season statistics from committed matches, plus the history of past seasons."""
+    market_club(room_id, identity.id)
+    season = season_service._season(room_id)
+    if competition not in (None, "LEAGUE", "CUP", "PLAYOFF"):
+        raise HTTPException(status_code=422, detail="Competição inválida.")
+    rows = list(career_service.player_stats(season, competition).values())
+    results = career_service.compact_results(season)
+    catalog = market_service._session(room_id).market.catalog
+    history = season.season_history
+    all_results = [row for summary in history for row in summary.get("results", [])] + results
+    managers = room_managers(room_id)
+    humans = sorted(managers)
+    coaches = []
+    for club in humans:
+        own = [r for r in results if club in (r["home"], r["away"])]
+        wins = sum(1 for r in own if (r["home"] == club and r["home_goals"] > r["away_goals"]) or (r["away"] == club and r["away_goals"] > r["home_goals"]))
+        draws = sum(1 for r in own if r["home_goals"] == r["away_goals"])
+        coaches.append({"club_code": club, "coach": managers[club]["name"], "played": len(own), "wins": wins, "draws": draws,
+                        "losses": len(own) - wins - draws})
+    rivals = [{"clubs": [a, b], **career_service.head_to_head(all_results, a, b)} for i, a in enumerate(humans) for b in humans[i + 1:]]
+    return envelope({
+        "season_number": season.season_number, "competition": competition,
+        "scorers": sorted(rows, key=lambda r: (-int(r["goals"]), int(r["apps"]), str(r["player_id"])))[:20],
+        "assists": sorted(rows, key=lambda r: (-int(r["assists"]), int(r["apps"]), str(r["player_id"])))[:20],
+        "ratings": sorted((r for r in rows if int(r["apps"]) >= 3 and r["rating"] is not None), key=lambda r: (-float(r["rating"]), str(r["player_id"])))[:20],
+        "goalkeepers": sorted((r for r in rows if r["position"] == "GK" and int(r["apps"]) >= 3), key=lambda r: (-int(r["clean_sheets"]), -int(r["saves"])))[:10],
+        "team_of_season": career_service.team_of_season(rows, 3),
+        "records": career_service.records(all_results),
+        "coaches": coaches, "rivals": rivals,
+        "development": [{**r, "name": catalog.get(str(r["player_id"])).name if catalog.get(str(r["player_id"])) else r["player_id"]}
+                        for r in season.development_records][-200:],
+        "history": [{key: summary.get(key) for key in ("season_number", "champion", "runner_up", "cup_champion", "league_leader", "best_player", "best_goalkeeper")}
+                    for summary in history],
+    })
+
+
+@router.get("/rooms/{room_id}/career/trophies")
+async def career_trophies(room_id: str, identity: GuestIdentity = Depends(current_identity)) -> dict[str, object]:
+    market_club(room_id, identity.id)
+    season = season_service._season(room_id)
+    current = []
+    champion = season.playoffs.champion if season.playoffs else None
+    if champion or season.knockout.cup_champion:
+        current = [{"season_number": season.season_number, "champion": champion, "runner_up": season.knockout.playoff_runner_up,
+                    "cup_champion": season.knockout.cup_champion, "cup_runner_up": season.knockout.cup_runner_up,
+                    "managers": room_managers(room_id)}]
+    return envelope({"trophies": career_service.trophies([*season.season_history, *current])})
+
+
+@router.get("/rooms/{room_id}/career/news")
+async def career_news(room_id: str, club: str | None = None, kind: str | None = None, season_number: int | None = None,
+                      identity: GuestIdentity = Depends(current_identity)) -> dict[str, object]:
+    """News from real events of the career (templates, no invented facts)."""
+    market_club(room_id, identity.id)
+    season = season_service._season(room_id)
+    market = market_service._session(room_id).market
+    names = {pid: player.name for pid, player in market.catalog.items()}
+    transfers = [o for o in transfer_service.export_room(room_id)["offers"]]
+    items = career_service.news(season, season.season_history, tuple(sorted(market.teams)), room_managers(room_id), transfers, names)
+    if club:
+        items = [item for item in items if club.upper() in item["clubs"]]
+    if kind:
+        items = [item for item in items if item["kind"] == kind.upper()]
+    if season_number is not None:
+        items = [item for item in items if item["season_number"] == season_number]
+    return envelope({"items": items[:150]})
+
+
+@router.post("/rooms/{room_id}/coach/change")
+async def change_coach_club(room_id: str, payload: BotChange, identity: GuestIdentity = Depends(current_identity)) -> dict[str, object]:
+    """Optional coach market: between seasons a coach may take over a club without a
+    human coach. Squad and money stay with the clubs; the old club gets a bot coach."""
+    room = room_manager._room(room_id)
+    if not room.coach_moves_enabled:
+        raise HTTPException(status_code=409, detail="Esta liga não permite troca de clube entre temporadas.")
+    season = season_service._season(room_id)
+    if not season.preseason_window or not season.transfer_window_open or season.live_round or season_service.current_round(room_id) != 1:
+        raise HTTPException(status_code=409, detail="A troca de clube só é permitida entre temporadas, antes da primeira rodada.")
+    target = (payload.club_code or "").upper()
+    market = market_service._session(room_id).market
+    if target not in market.teams:
+        raise HTTPException(status_code=422, detail="Clube inexistente nesta liga.")
+    state = await room_manager.change_club_between_seasons(room_id, identity.id, target)
+    snapshot_room(room_id)
+    await hub.broadcast(room_id, {"type": "room.updated", "revision": state["revision"]})
+    return envelope(state, int(state["revision"]))
+
+
 async def open_window_for_bots(room_id: str) -> None:
     """Bots take the initiative as soon as a window opens (proposals, disputes)."""
     room = room_manager._room(room_id)
@@ -954,7 +1051,7 @@ async def start_next_season(room_id: str, identity: GuestIdentity = Depends(curr
         if not season.playoffs or not season.playoffs.champion or not season.progression_applied:
             raise MarketError("A temporada atual precisa terminar antes de começar outra.")
         returned = await transfer_service.end_loans(room_id)  # loans last one season
-        result = season_service.create_next_season(room_id, market_service._session(room_id).market)
+        result = season_service.create_next_season(room_id, market_service._session(room_id).market, room_managers(room_id))
     except MarketError as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
     room = room_manager._room(room_id)

@@ -13,13 +13,17 @@ import { LiveMatchCenter } from "./live/LiveMatchCenter";
 import { PostMatch } from "./PostMatch";
 import { PreMatch } from "./PreMatch";
 import { TacticsBoard } from "./TacticsBoard";
+import { Bracket, CupPage, DrawCeremony } from "./Competitions";
+import { competitionOf } from "./competition";
+import { NewsCenter, StatsCenter, TrophyRoom } from "./CareerCenters";
 import "./career.css";
 import { useLiveStream, useSocketOnline } from "./live/useLiveStream";
 
 const TABS: { id: CareerTab; label: string; icon: string }[] = [
   { id: "hub", label: "Central", icon: "◆" }, { id: "next", label: "Próxima partida", icon: "▶" }, { id: "squad", label: "Elenco", icon: "▦" },
   { id: "tactics", label: "Táticas", icon: "⟁" }, { id: "market", label: "Mercado", icon: "⇄" }, { id: "season", label: "Temporada", icon: "▤" },
-  { id: "table", label: "Classificação", icon: "≡" }, { id: "stats", label: "Estatísticas", icon: "▲" },
+  { id: "table", label: "Classificação", icon: "≡" }, { id: "cup", label: "Copa", icon: "◎" }, { id: "news", label: "Notícias", icon: "✎" },
+  { id: "stats", label: "Estatísticas", icon: "▲" }, { id: "trophies", label: "Troféus", icon: "🏆" },
 ];
 const STAGES: Record<string, string> = { QUARTERFINALS: "quartas de final", SEMIFINALS: "semifinais", FINAL: "final", COMPLETE: "temporada encerrada" };
 
@@ -84,7 +88,7 @@ export function CareerShell({ roomId, room, isHost, clubCode }: { roomId: string
       <div className="career-head__club"><ClubCrest club={club(clubCode)} size="md" /><div><p className="kicker">MODO CARREIRA · TEMPORADA {data.season_number}</p><h1>{club(clubCode).name}</h1><span>{manager ? `Técnico ${manager}` : "Seu clube"} · {room.name}</span></div></div>
       <dl className="career-head__facts"><div><dt>Rodada</dt><dd>{data.regular_season_complete ? (data.playoffs ? STAGES[data.playoffs.next_stage] ?? "playoffs" : "playoffs") : data.current_round}</dd></div><div><dt>Posição</dt><dd>{own?.position ?? "—"}º</dd></div><div><dt>Pontos</dt><dd>{own?.points ?? 0}</dd></div><div><dt>Prontos</dt><dd>{data.ready_clubs.length}/{room.participants.filter((p) => p.selected_club_code).length}</dd></div></dl>
     </header>
-    <nav className="career-nav" aria-label="Modo carreira">{TABS.map((item) => <button key={item.id} type="button" aria-current={tab === item.id ? "page" : undefined} className={tab === item.id ? "is-active" : ""} onClick={() => setTab(item.id)}><i aria-hidden="true">{item.icon}</i>{item.label}{item.id === "next" && data.ready_clubs.includes(clubCode) && <em aria-label="confirmado">✓</em>}</button>)}</nav>
+    <nav className="career-nav" aria-label="Modo carreira">{TABS.filter((item) => item.id !== "cup" || data.knockout?.cup_enabled).map((item) => <button key={item.id} type="button" aria-current={tab === item.id ? "page" : undefined} className={tab === item.id ? "is-active" : ""} onClick={() => setTab(item.id)}><i aria-hidden="true">{item.icon}</i>{item.label}{item.id === "next" && data.ready_clubs.includes(clubCode) && <em aria-label="confirmado">✓</em>}</button>)}</nav>
     {actionError && <p className="cm-toast cm-toast--error" role="alert">{actionError.message}</p>}
 
     <main className="career-body" key={tab}>
@@ -94,22 +98,21 @@ export function CareerShell({ roomId, room, isHost, clubCode }: { roomId: string
       {tab === "tactics" && <TacticsBoard roomId={roomId} locked={locked} />}
       {tab === "market" && <section className="market-tab">{data.transfer_window_open ? <>
         {isHost && <div className="host-bar"><p>Você é o anfitrião: encerre a janela quando todos terminarem as negociações.</p><button type="button" className="btn btn--primary" disabled={closeWindow.isPending} onClick={() => closeWindow.mutate()}>{closeWindow.isPending ? "Encerrando…" : "Encerrar janela e seguir →"}</button></div>}
+        {data.preseason_window && room.coach_moves_enabled && <CoachMarket roomId={roomId} room={room} clubCode={clubCode} club={club} clubs={clubList} onDone={refresh} />}
         <TransferHub roomId={roomId} />
-      </> : <div className="empty-feature"><h2>Mercado fechado</h2><p>A janela de transferências abre entre as rodadas 19 e 20. Até lá, acompanhe as finanças e o histórico de negociações do clube.</p></div>}<CareerPanel roomId={roomId} /></section>}
-      {tab === "season" && <SeasonCalendar data={data} clubCode={clubCode} club={club} isHost={isHost} onAdvance={() => advance.mutate()} advancing={advance.isPending} onNextSeason={() => nextSeason.mutate()} nextPending={nextSeason.isPending} onOpenMatch={setOpenMatch} />}
+      </> : <div className="empty-feature"><h2>Mercado fechado</h2><p>A janela de transferências abre na metade do campeonato e entre temporadas. Até lá, acompanhe as finanças e o histórico de negociações do clube.</p></div>}<CareerPanel roomId={roomId} /></section>}
+      {tab === "season" && <SeasonCalendar roomId={roomId} data={data} clubCode={clubCode} club={club} isHost={isHost} onAdvance={() => advance.mutate()} advancing={advance.isPending} onNextSeason={() => nextSeason.mutate()} nextPending={nextSeason.isPending} onOpenMatch={setOpenMatch} />}
       {tab === "table" && <section className="card card--flush"><header className="card__head"><h2>Classificação</h2><span className="badge">Oficial</span></header><StandingsTable rows={data.table} ownClub={clubCode} /></section>}
-      {tab === "stats" && <section className="stats-tab">
-        <div className="card"><h2>Artilharia</h2>{data.top_scorers.length ? <ol className="scorers">{data.top_scorers.map((s, i) => <li key={s.player_id} className={s.club_code === clubCode ? "is-own" : ""}><span>{i + 1}</span><ClubCrest club={club(s.club_code)} size="sm" /><b>{s.player_name}</b><em>{s.goals}</em></li>)}</ol> : <p className="hint">Os gols da temporada aparecem aqui.</p>}</div>
-        <div className="card"><h2>Seu clube em números</h2>{own ? <dl className="mini-stats mini-stats--wide"><div><dt>Vitórias</dt><dd>{own.wins}</dd></div><div><dt>Empates</dt><dd>{own.draws}</dd></div><div><dt>Derrotas</dt><dd>{own.losses}</dd></div><div><dt>Gols pró</dt><dd>{own.goals_for}</dd></div><div><dt>Gols contra</dt><dd>{own.goals_against}</dd></div><div><dt>Aproveitamento</dt><dd>{own.played ? Math.round((own.points / (own.played * 3)) * 100) : 0}%</dd></div></dl> : null}</div>
-        <div className="card"><h2>Evolução dos atletas</h2>{data.development_records.filter((r) => r.season_number === data.season_number).length ? <p>{data.development_records.filter((r) => r.season_number === data.season_number && r.delta > 0).length} atletas evoluíram nesta temporada.</p> : <p className="hint">A evolução (idade, potencial e minutos jogados) é calculada pelo servidor ao final da temporada.</p>}</div>
-        {data.season_history.length > 0 && <div className="card"><h2>História da liga</h2><ul className="history">{data.season_history.map((h) => <li key={h.season_number}><b>Temporada {h.season_number}</b><span>🏆 {club(h.champion).name}</span>{h.top_scorers?.[0] && <small>Artilheiro: {h.top_scorers[0].player_name} ({h.top_scorers[0].goals})</small>}</li>)}</ul></div>}
-      </section>}
+      {tab === "stats" && <StatsCenter roomId={roomId} season={data} clubCode={clubCode} club={club} />}
+      {tab === "news" && <NewsCenter roomId={roomId} season={data} clubCode={clubCode} club={club} />}
+      {tab === "trophies" && <TrophyRoom roomId={roomId} clubCode={clubCode} club={club} userId={room.participants.find((p) => p.selected_club_code === clubCode)?.user_id} />}
+      {tab === "cup" && data.knockout?.cup_enabled && <CupPage knockout={data.knockout} club={club} ownClub={clubCode} />}
     </main>
   </div>;
 }
 
-function SeasonCalendar({ data, clubCode, club, isHost, onAdvance, advancing, onNextSeason, nextPending, onOpenMatch }: {
-  data: SeasonView; clubCode: string; club: (code: string) => Club; isHost: boolean;
+function SeasonCalendar({ roomId, data, clubCode, club, isHost, onAdvance, advancing, onNextSeason, nextPending, onOpenMatch }: {
+  roomId: string; data: SeasonView; clubCode: string; club: (code: string) => Club; isHost: boolean;
   onAdvance: () => void; advancing: boolean; onNextSeason: () => void; nextPending: boolean; onOpenMatch: (id: string) => void;
 }) {
   const mine = (data.schedule ?? []).filter((f) => f.home === clubCode || f.away === clubCode);
@@ -119,12 +122,8 @@ function SeasonCalendar({ data, clubCode, club, isHost, onAdvance, advancing, on
     const theirs = f.home === clubCode ? f.result.away_goals : f.result.home_goals;
     return ours > theirs ? "V" : ours < theirs ? "D" : "E";
   };
-  const playoffs = data.playoffs;
   return <section className="season-tab">
-    {data.regular_season_complete && <div className="card playoffs"><header className="card__head"><h2>Mata-mata</h2>{isHost && !data.season_complete && <button type="button" className="btn btn--primary" disabled={advancing} onClick={onAdvance}>{advancing ? "Disputando…" : `Disputar ${playoffs?.next_stage === "SEMIFINALS" ? "semifinais" : playoffs?.next_stage === "FINAL" ? "a final" : "quartas"} →`}</button>}{isHost && data.season_complete && <button type="button" className="btn btn--primary" disabled={nextPending} onClick={onNextSeason}>{nextPending ? "Preparando…" : "Começar próxima temporada →"}</button>}</header>
-      {data.champion && <p className="champion">🏆 {club(data.champion).name} é o campeão!</p>}
-      <div className="bracket">{([["Quartas", playoffs?.quarterfinals ?? []], ["Semifinais", playoffs?.semifinals ?? []], ["Final", playoffs?.final ? [playoffs.final] : []]] as const).map(([label, list]) => <div key={label}><h3>{label}</h3>{list.length ? list.map((m) => <button type="button" key={m.id} className="bracket-match" onClick={() => (m.home === clubCode || m.away === clubCode) && onOpenMatch(m.id)}>{[m.home, m.away].map((code) => <span key={code} className={m.winner === code ? "is-winner" : ""}><ClubCrest club={club(code)} size="sm" />{club(code).name}<b>{code === m.home ? m.home_goals : m.away_goals}</b></span>)}{m.home_penalties !== null && <small>Pên. {m.home_penalties}×{m.away_penalties}</small>}</button>) : <p className="hint">A definir</p>}</div>)}</div>
-      {!isHost && !data.season_complete && <p className="hint">O anfitrião dispara cada fase. As partidas usam as escalações e táticas salvas.</p>}</div>}
+    {data.regular_season_complete && <PlayoffsCard roomId={roomId} data={data} club={club} clubCode={clubCode} isHost={isHost} onAdvance={onAdvance} advancing={advancing} onNextSeason={onNextSeason} nextPending={nextPending} />}
     <div className="card"><header className="card__head"><h2>Seu calendário</h2><span className="badge">{mine.filter((f) => f.result).length}/{mine.length} jogos</span></header>
       <ol className="calendar">{mine.map((f) => {
         const home = f.home === clubCode;
@@ -133,4 +132,36 @@ function SeasonCalendar({ data, clubCode, club, isHost, onAdvance, advancing, on
       })}</ol></div>
     <div className="card"><h2>Rodada {Math.min(38, data.current_round)}</h2><ul className="round-scores">{data.fixtures.map((f) => <li key={f.id} className={f.home === clubCode || f.away === clubCode ? "is-own" : ""}><span>{club(f.home).name}</span><b>{f.result ? `${f.result.home_goals} × ${f.result.away_goals}` : "×"}</b><span>{club(f.away).name}</span></li>)}</ul></div>
   </section>;
+}
+
+/** Optional coach market (between seasons): take over a club without a human coach. */
+function CoachMarket({ roomId, room, clubCode, club, clubs, onDone }: { roomId: string; room: RoomState; clubCode: string; club: (code: string) => Club; clubs: Club[]; onDone: () => void }) {
+  const [target, setTarget] = useState("");
+  const taken = new Set(room.participants.filter((p) => p.role !== "BOT" && p.selected_club_code).map((p) => p.selected_club_code));
+  const free = clubs.filter((c) => !taken.has(c.code) && c.code !== clubCode);
+  const change = useMutation({ mutationFn: () => api.changeCoachClub(roomId, target), onSuccess: () => { onDone(); window.location.reload(); } });
+  return <section className="card coach-market"><h2>Mercado de técnicos</h2><p>Entre temporadas você pode assumir outro clube sem técnico humano. Elenco e dinheiro ficam com os clubes; seus títulos e estatísticas continuam com você. {club(clubCode).name} passa a ter treinador virtual.</p>
+    <div className="settings-row"><label>Novo clube<select value={target} onChange={(e) => setTarget(e.target.value)}><option value="">Continuar no {club(clubCode).name}</option>{free.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}</select></label>
+      <button type="button" className="btn btn--primary" disabled={!target || change.isPending} onClick={() => change.mutate()}>{change.isPending ? "Assinando…" : "Assumir clube"}</button></div>
+    {change.error && <p className="feedback feedback--error" role="alert">{change.error.message}</p>}</section>;
+}
+
+/** Playoffs: pot draw ceremony, live rounds, bracket and the next-season button. */
+function PlayoffsCard({ roomId, data, club, clubCode, isHost, onAdvance, advancing, onNextSeason, nextPending }: {
+  roomId: string; data: SeasonView; club: (code: string) => Club; clubCode: string; isHost: boolean;
+  onAdvance: () => void; advancing: boolean; onNextSeason: () => void; nextPending: boolean;
+}) {
+  const knockout = data.knockout;
+  const playoffs = knockout ? competitionOf(knockout, "PLAYOFF") : null;
+  const drawn = Boolean(playoffs?.ties.length);
+  const next = data.next_round;
+  const nextLabel = next && next.kind !== "LEAGUE" ? `${next.kind === "CUP" ? "Copa: " : ""}${next.stage_name ?? "rodada"}${playoffs && playoffs.legs === 2 && next.kind === "PLAYOFF" ? ` (${next.leg === 1 ? "ida" : "volta"})` : ""}` : "rodada";
+  return <div className="card playoffs"><header className="card__head"><h2>Playoffs{playoffs?.currentStage && !data.champion ? ` · ${playoffs.pending?.stage_name}` : ""}</h2>
+    {isHost && !data.season_complete && !data.live_round && <button type="button" className="btn btn--primary" disabled={advancing} onClick={onAdvance}>{advancing ? "Aguarde…" : !drawn && (!next || next.kind === "LEAGUE") ? "Realizar sorteio dos potes →" : `Iniciar ${nextLabel.toLowerCase()} →`}</button>}
+    {isHost && data.season_complete && <button type="button" className="btn btn--primary" disabled={nextPending} onClick={onNextSeason}>{nextPending ? "Preparando…" : "Começar próxima temporada →"}</button>}</header>
+    {knockout && drawn ? <><DrawCeremony roomId={roomId} draw={playoffs?.draws.find((d) => d.kind === "POTS")} legs={playoffs?.legs ?? 1} club={club} ownClub={clubCode} /><Bracket knockout={knockout} kind="PLAYOFF" champion={data.champion ?? null} club={club} ownClub={clubCode} /></>
+      : data.champion ? <p className="champion">🏆 {club(data.champion).name} é o campeão!</p>
+      : <p className="hint">Os 8 primeiros vão aos playoffs. Pote 1: 1º ao 4º; pote 2: 5º ao 8º. Premiação acumulativa: R$ 50 mi por chegar às quartas, +R$ 100 mi na semifinal, +R$ 150 mi ao vice e +R$ 200 mi ao campeão.</p>}
+    {!isHost && !data.season_complete && <p className="hint">Cada confronto é jogado ao vivo. Confirme sua equipe na aba Próxima partida; o anfitrião também pode iniciar a rodada.</p>}
+  </div>;
 }

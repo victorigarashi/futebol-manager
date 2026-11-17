@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { api, ApiError, type Club, type PreviewSide, type RoomState, type SeasonView } from "../../lib/api";
+import { api, ApiError, type Club, type MatchPreview, type PreviewSide, type RoomState, type SeasonView } from "../../lib/api";
 import { ClubCrest } from "../../components/ClubCrest";
 import { MatchSettingsCard } from "../../components/MatchSettingsCard";
 import { POSITION_LABEL, tacticSummary } from "./labels";
@@ -38,13 +38,16 @@ export function PreMatch({ roomId, room, season, clubCode, clubs, onGo, isHost =
   const hasLineup = Boolean(squad.data?.lineup);
 
   if (season.transfer_window_open) return <section className="prematch prematch--blocked"><h2>Janela de transferências aberta</h2><p>A rodada {season.current_round} começa depois que o anfitrião encerrar a janela. Aproveite para reforçar o elenco na aba Mercado.</p></section>;
-  if (season.regular_season_complete) return <section className="prematch prematch--blocked"><h2>Fase de mata-mata</h2><p>Os confrontos de playoffs são disputados pelo anfitrião na aba Temporada, com as escalações e táticas salvas de cada clube.</p></section>;
+  if (season.season_complete) return <section className="prematch prematch--blocked"><h2>Temporada encerrada</h2><p>{season.champion ? `O campeão foi definido. ` : ""}Veja a Sala de Troféus e aguarde o anfitrião abrir a próxima temporada.</p></section>;
+  if (season.regular_season_complete && !Object.values(season.knockout?.ties ?? {}).some((t) => t.competition === "PLAYOFF")) return <section className="prematch prematch--blocked"><h2>Sorteio dos playoffs</h2><p>A fase de pontos terminou. O anfitrião realiza o sorteio dos potes na aba Temporada; depois cada confronto é jogado ao vivo, com sua escalação e tática.</p></section>;
+  if (data?.waiting) return <section className="prematch prematch--blocked"><h2>{data.next_round?.kind === "CUP" ? "Copa do Brasil" : "Mata-mata"} · {data.next_round?.stage_name ?? ""}</h2><p>Seu clube não disputa esta rodada. Acompanhe os confrontos na aba {data.next_round?.kind === "CUP" ? "Copa" : "Temporada"}; a próxima partida aparece aqui quando chegar a sua vez.</p></section>;
   if (!data?.fixture || !data.home || !data.away) return <div className="panel-loading" role="status">{preview.error ? preview.error.message : "Montando o confronto…"}</div>;
   const ownSide = data.home.club_code === clubCode ? data.home : data.away;
 
   return <section className="prematch" aria-label="Pré-jogo">
     <header className="matchup">
-      <p className="kicker">BRASILEIRÃO · RODADA {data.fixture.round_number} · {room.mode === "FIVE_A_SIDE" ? "5 × 5" : "11 × 11"}</p>
+      <p className="kicker">{competitionLabel(data.fixture)} · {room.mode === "FIVE_A_SIDE" ? "5 × 5" : "11 × 11"}</p>
+      {data.classic && <p className="matchup__classic">🔥 {data.classic}</p>}
       <div className="matchup__teams">
         <TeamHead side={data.home} club={club(data.home.club_code)} own={data.home.club_code === clubCode} label="Mandante" />
         <div className="matchup__vs"><b>×</b><span>{formatDuration(remaining)}</span></div>
@@ -53,6 +56,7 @@ export function PreMatch({ roomId, room, season, clubCode, clubs, onGo, isHost =
       <SectorCompare home={data.home} away={data.away} />
     </header>
     <MatchSettingsCard room={room} isHost={isHost} liveRound={Boolean(season.live_round)} compact />
+    <MatchContext data={data} club={club} />
 
     <ol className="prematch-steps" aria-label="Preparação">
       <li className={hasLineup ? "is-done" : ""}><b>1</b><div><strong>Escalação</strong><span>{hasLineup ? `${ownSide.formation_code} salva` : `Sugestão automática (${ownSide.formation_code}) — revise e salve`}</span></div><button type="button" className="btn btn--ghost" onClick={() => onGo("squad")}>{hasLineup ? "Revisar" : "Montar"}</button></li>
@@ -99,3 +103,27 @@ function LineupColumn({ side, club }: { side: PreviewSide; club: Club }) {
     <p className="hint">{side.bench_size} no banco</p>
   </section>;
 }
+
+function competitionLabel(fixture: NonNullable<MatchPreview["fixture"]>): string {
+  if (!fixture.competition) return `BRASILEIRÃO · RODADA ${fixture.round_number}`;
+  const name = fixture.competition === "CUP" ? "COPA DO BRASIL" : "PLAYOFFS";
+  const leg = fixture.legs === 2 ? ` · ${fixture.leg === 1 ? "IDA" : "VOLTA"}` : "";
+  return `${name} · ${(fixture.stage_name ?? "").toUpperCase()}${leg}`;
+}
+
+/** Story of the match: derby, decisive context and head-to-head (real records only). */
+function MatchContext({ data, club }: { data: MatchPreview; club: (code: string) => Club }) {
+  const events = data.special_events ?? [];
+  const h2h = data.head_to_head;
+  const fixture = data.fixture!;
+  if (!events.length && !h2h?.meetings && !data.morale) return null;
+  return <section className="match-context" aria-label="Contexto da partida">
+    {events.length > 0 && <ul className="match-context__events">{events.map((e, i) => <li key={`${e.kind}-${i}`} className={`event-chip event-chip--${e.kind.toLowerCase()}`}><b>{e.title}</b><span>{e.text}</span></li>)}</ul>}
+    {h2h && h2h.meetings > 0 && <div className="match-context__h2h"><h3>Retrospecto</h3>
+      <p><b>{club(fixture.home).name}</b> {h2h.wins[fixture.home] ?? 0} · {h2h.draws} empates · {h2h.wins[fixture.away] ?? 0} <b>{club(fixture.away).name}</b> <small>({h2h.meetings} jogos)</small></p>
+      <ol>{h2h.last.map((m, i) => <li key={i}>{m.home} {m.home_goals} × {m.away_goals} {m.away}</li>)}</ol></div>}
+    {data.morale && <p className="hint">Moral: {club(fixture.home).name} {moraleLabel(data.morale[fixture.home])} · {club(fixture.away).name} {moraleLabel(data.morale[fixture.away])}</p>}
+  </section>;
+}
+
+const moraleLabel = (value = 0) => value >= 2 ? "em alta" : value <= -2 ? "abalada" : "estável";

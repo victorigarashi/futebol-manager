@@ -53,6 +53,7 @@ from app.domain.progression import progress_player
 from app.domain.season import Fixture, MatchResult, SeasonState, generate_calendar, standings
 from app.domain.squad import formation_slots
 from app.domain.tactics import tactics_from_payload
+from app.services import career_service
 from app.services.squad_service import squad_service
 
 # Cooperative simulation budget. One slice simulates at most this many ticks of one
@@ -154,6 +155,10 @@ class RoomSeason:
     familiarity: dict[str, dict[str, float]] = field(default_factory=dict)
     # Live knockout competitions (playoffs, Copa do Brasil).
     knockout: KnockoutState = field(default_factory=KnockoutState)
+    # Optional morale and conditioning (rule morale_enabled): fatigue per player
+    # (0-0.3) and morale per club (-3..+3). Untouched, and without effect, when off.
+    fatigue: dict[str, float] = field(default_factory=dict)
+    morale: dict[str, int] = field(default_factory=dict)
     # Runtime only: the market of the room, remembered from the last `advance` so the
     # final whistle can settle prizes and draws without the caller passing it again.
     market_ref: InitialMarket | None = None
@@ -195,17 +200,18 @@ class SeasonService:
                 schedule_cup(season.knockout, seeds, self._regular_round_count(season))
         return self._seasons[room_id]
 
-    def create_next_season(self, room_id: str, market: InitialMarket) -> dict[str, object]:
+    def create_next_season(self, room_id: str, market: InitialMarket, managers: dict[str, dict[str, str]] | None = None) -> dict[str, object]:
         previous = self._season(room_id)
         if not previous.playoffs or not previous.playoffs.champion or not previous.progression_applied:
             raise MarketError("A temporada atual precisa terminar antes de começar outra.")
-        summary = {"season_number": previous.season_number, "champion": previous.playoffs.champion,
-                   "runner_up": previous.knockout.playoff_runner_up, "cup_champion": previous.knockout.cup_champion,
-                   "cup_runner_up": previous.knockout.cup_runner_up, "table": standings(tuple(market.teams), previous.state.fixtures, previous.state.results), "playoffs": previous.playoffs.view(), "top_scorers": self._top_scorers(previous)}
+        summary = {**career_service.season_summary(previous, tuple(market.teams), managers or {}),
+                   "champion": previous.playoffs.champion, "playoffs": previous.playoffs.view(), "top_scorers": self._top_scorers(previous)}
         history = [*previous.season_history, summary]
         self._seasons[room_id] = RoomSeason(SeasonState(generate_calendar(tuple(market.teams), double_round_robin=previous.double_round_robin)), market.mode, season_number=previous.season_number + 1, current_overalls=dict(previous.current_overalls), development_records=list(previous.development_records), season_history=history, double_round_robin=previous.double_round_robin,
                                             rules=dict(previous.rules), familiarity={club: dict(values) for club, values in previous.familiarity.items()})
         season = self._seasons[room_id]
+        # Pre-season rests the legs; morale carries over, halved.
+        season.morale = {club: int(value / 2) for club, value in previous.morale.items()}
         # "Reabrir o mercado entre temporadas": the new season starts with a window.
         season.transfer_window_open = True
         season.preseason_window = True
@@ -536,6 +542,8 @@ class SeasonService:
                 self._learn_styles(season, engine)
             match = season.matches[match_id]
             results[match_id] = MatchResult(match_id, int(match["home_goals"]), int(match["away_goals"]))
+        if season.rules.get("morale_enabled"):
+            self._update_condition(season, list(live["match_ids"]))
         kind = live.get("kind", "LEAGUE")
         if kind == "LEAGUE":
             season.state.results.update(results)
@@ -987,7 +995,18 @@ class SeasonService:
         """Pre-match comparison of the next fixture from the server's own lineup logic."""
         season = self._season(room_id)
         round_number = self.current_round(room_id)
-        fixture = next((f for f in season.state.fixtures if f.round_number == round_number and club in (f.home, f.away)), None)
+        due = None if season.live_round or (season.playoffs and season.playoffs.champion) else self._due_knockout_round(season)
+        leg_info: tuple[int | None, int | None] = (None, None)
+        extra: dict[str, object] = {}
+        if due is not None:
+            tie = next((season.knockout.ties[t] for t in due.tie_ids if club in (season.knockout.ties[t].high, season.knockout.ties[t].low)), None)
+            if tie is None:
+                return {"fixture": None, "waiting": True, "next_round": self._next_round_view(season)}
+            fixture = Fixture(tie.match_id(due.leg), round_number, *tie.fixture(due.leg))
+            leg_info = (due.leg, tie.legs)
+            extra = {"competition": due.competition, "stage": due.stage, "stage_name": STAGE_NAMES[due.stage]}
+        else:
+            fixture = next((f for f in season.state.fixtures if f.round_number == round_number and club in (f.home, f.away)), None)
         if fixture is None:
             return {"fixture": None}
         sides = {}
@@ -1005,7 +1024,18 @@ class SeasonService:
                            "average": round(sum(p.overall for p in team.starters) / max(1, len(team.starters)), 1),
                            "sectors": {key: round(sum(v) / len(v), 1) for key, v in sectors.items()},
                            "ready": code in season.ready_clubs, "human": code in season.human_clubs or None}
-        return {"fixture": {"id": fixture.id, "round_number": round_number, "home": fixture.home, "away": fixture.away}, **sides}
+        history = [row for summary in season.season_history for row in summary.get("results", [])] + career_service.compact_results(season)
+        former = [market.catalog[pid].name for side_club, other in ((fixture.home, fixture.away), (fixture.away, fixture.home))
+                  for pid in market.teams[side_club].roster if market.catalog[pid].club_code == other][:2]
+        context = {
+            "classic": career_service.rivalry(fixture.home, fixture.away),
+            "head_to_head": career_service.head_to_head(history, fixture.home, fixture.away),
+            "special_events": career_service.special_events(season, fixture.home, fixture.away, tuple(market.teams), extra.get("competition"),
+                                                            extra.get("stage"), leg_info[0], leg_info[1], former),
+            "morale": {code: season.morale.get(code, 0) for code in (fixture.home, fixture.away)} if season.rules.get("morale_enabled") else None,
+        }
+        return {"fixture": {"id": fixture.id, "round_number": round_number, "home": fixture.home, "away": fixture.away, **extra,
+                            "leg": leg_info[0], "legs": leg_info[1]}, **sides, **context}
 
     def unready(self, room_id: str, club: str) -> bool:
         season = self._seasons.get(room_id)
@@ -1013,6 +1043,41 @@ class SeasonService:
             season.ready_clubs.discard(club)
             return True
         return False
+
+    # ------------------------------------------------------------------ morale and conditioning (optional)
+    FATIGUE_PER_MATCH = 0.10
+    RECOVERY_PER_ROUND = 0.08
+
+    def _update_condition(self, season: RoomSeason, match_ids: list[str]) -> None:
+        """Once per committed round: players who played get tired, the others recover;
+        results (derbies count double) move each club's morale a little."""
+        played: dict[str, int] = {}
+        for match_id in match_ids:
+            match = season.matches.get(match_id) or {}
+            for player_id, minutes in (match.get("minutes") or {}).items():
+                played[player_id] = played.get(player_id, 0) + int(minutes)
+            home, away = str(match.get("home")), str(match.get("away"))
+            hg, ag = int(match.get("home_goals", 0)), int(match.get("away_goals", 0))
+            weight = 2 if career_service.rivalry(home, away) else 1
+            for club, own, other in ((home, hg, ag), (away, ag, hg)):
+                change = (1 if own > other else -1 if own < other else 0) * weight + (1 if own - other >= 3 else 0)
+                season.morale[club] = max(-3, min(3, season.morale.get(club, 0) + change))
+        for player_id in set(season.fatigue) | set(played):
+            if player_id in played:
+                season.fatigue[player_id] = min(0.3, season.fatigue.get(player_id, 0.0) + self.FATIGUE_PER_MATCH * played[player_id] / 90)
+            else:
+                season.fatigue[player_id] = max(0.0, season.fatigue.get(player_id, 0.0) - self.RECOVERY_PER_ROUND)
+            if season.fatigue[player_id] <= 0:
+                season.fatigue.pop(player_id)
+
+    @staticmethod
+    def condition_adjustment(season: RoomSeason, club: str, player_id: str) -> int:
+        """Moderate effect on the level a player brings to the next match (0 when off)."""
+        if not season.rules.get("morale_enabled"):
+            return 0
+        tired = -min(3, round(season.fatigue.get(player_id, 0.0) * 10))
+        mood = max(-1, min(1, int(season.morale.get(club, 0) / 2)))
+        return tired + mood
 
     def _strength(self, room_id: str, market: InitialMarket, club_code: str) -> float:
         """What any coach can read on the table of squads: the mean of the best ratings."""
@@ -1034,7 +1099,7 @@ class SeasonService:
         slots = formation_slots(market.mode, code)
 
         def player_input(player: CatalogPlayer, slot_position: str, slot_x: float, slot_y: float, number: int) -> PlayerInput:
-            current = overalls.get(player.id, player.overall)
+            current = max(1, overalls.get(player.id, player.overall) + self.condition_adjustment(season, club_code, player.id))
             # Career progression moves every component with the overall.
             attributes = {key: max(1, min(99, value + current - player.overall)) for key, value in player.attributes.items()}
             natural = slot_position if slot_position in (player.position, *player.secondary_positions) else player.position
@@ -1173,7 +1238,7 @@ class SeasonService:
         current = self.current_round(room_id)
         total_rounds = self._regular_round_count(season)
         return {"live_round": season.live_round, "server_now": self.clock(), "preparation_opened_at": season.preparation_opened_at, "live_table": self.live_table(room_id), "season_number": season.season_number, "current_round": current, "total_rounds": total_rounds, "double_round_robin": season.double_round_robin, "regular_season_complete": current > total_rounds, "season_complete": bool(season.playoffs and season.playoffs.champion), "progression_applied": season.progression_applied, "champion": season.playoffs.champion if season.playoffs else None, "playoffs": season.playoffs.view() if season.playoffs else None, "transfer_window_open": season.transfer_window_open, "ready_clubs": sorted(season.ready_clubs), "human_clubs": sorted(season.human_clubs), "round_state": self.round_state(room_id), "recovering": bool(season.recovering), "table": standings(clubs, season.state.fixtures, season.state.results), "fixtures": [{"id": fixture.id, "round_number": fixture.round_number, "home": fixture.home, "away": fixture.away, "result": self._result_view(season.state.results.get(fixture.id)), "match_id": fixture.id if fixture.id in season.matches else None} for fixture in season.state.fixtures if fixture.round_number == min(current, total_rounds)], "matches": [{"id": match_id, "round_number": next((f.round_number for f in season.state.fixtures if f.id == match_id), total_rounds + 1), "home": match["home"], "away": match["away"], "home_goals": projected["home_goals"], "away_goals": projected["away_goals"]} for match_id, match in season.matches.items() for projected in [self._score(season, match_id)]], "match_count": len(season.matches), "schedule": [{"id": f.id, "round_number": f.round_number, "home": f.home, "away": f.away, "result": self._result_view(season.state.results.get(f.id))} for f in season.state.fixtures], "season_history": season.season_history, "development_records": season.development_records, "top_scorers": self._top_scorers(season),
-                "rules": season.rules, "knockout": season.knockout.view(), "next_round": self._next_round_view(season)}
+                "rules": season.rules, "knockout": season.knockout.view(), "next_round": self._next_round_view(season), "preseason_window": season.preseason_window}
 
     def _next_round_view(self, season: RoomSeason) -> dict[str, object] | None:
         """What the next live round will be (league, Copa or playoffs) for the preparation screen."""
@@ -1233,6 +1298,7 @@ class SeasonService:
             "progression_applied": season.progression_applied,
             "rules": season.rules,
             "familiarity": season.familiarity,
+            "fatigue": season.fatigue, "morale": season.morale,
             "knockout": season.knockout.to_dict(),
             "preseason_window": season.preseason_window,
         }
@@ -1363,6 +1429,8 @@ class SeasonService:
             rules=dict(payload.get("rules", {})) if isinstance(payload.get("rules", {}), dict) else {},
             familiarity={str(club): {str(k): max(0.0, min(100.0, float(v))) for k, v in dict(values).items()}
                          for club, values in dict(payload.get("familiarity", {})).items()},
+            fatigue={str(k): max(0.0, min(0.3, float(v))) for k, v in dict(payload.get("fatigue") or {}).items()},
+            morale={str(k): max(-3, min(3, int(v))) for k, v in dict(payload.get("morale") or {}).items()},
             preseason_window=bool(payload.get("preseason_window", False)),
             knockout=KnockoutState.from_dict(dict(payload.get("knockout", {}))) if isinstance(payload.get("knockout", {}), dict) else KnockoutState(),
         )
