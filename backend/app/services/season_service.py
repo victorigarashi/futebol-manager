@@ -195,7 +195,7 @@ class SeasonService:
         if round_number > self._regular_round_count(season):
             return self._advance_playoffs(room_id, market, season)
         if round_number == self._transfer_resume_round(season) and season.transfer_window_open:
-            raise MarketError("A janela de transferências precisa ser encerrada antes da rodada 20.")
+            raise MarketError(f"A janela de transferências precisa ser encerrada antes da rodada {round_number}.")
         if not human_clubs.issubset(season.ready_clubs):
             raise MarketError("Aguardando confirmação dos técnicos para esta rodada.")
         fixtures = [fixture for fixture in season.state.fixtures if fixture.round_number == round_number]
@@ -853,28 +853,46 @@ class SeasonService:
             return
         minutes: dict[str, int] = {}
         goals: dict[str, int] = {}
+        assists: dict[str, int] = {}
+        appearances: dict[str, int] = {}
+        rating_minutes: dict[str, float] = {}
         for match in season.matches.values():
             played = match.get("minutes")
             if isinstance(played, dict):
                 for player_id, value in played.items():
                     minutes[player_id] = minutes.get(player_id, 0) + int(value)
-                continue
-            for player_id in [*match.get("home_players", []), *match.get("away_players", [])]:
-                minutes[player_id] = minutes.get(player_id, 0) + 90
+                    appearances[player_id] = appearances.get(player_id, 0) + 1
+                for side in ("home", "away"):
+                    for player in (match.get("lineups") or {}).get(side, []):
+                        if player.get("id") in played and isinstance(player.get("rating"), (int, float)):
+                            rating_minutes[player["id"]] = rating_minutes.get(player["id"], 0.0) + float(player["rating"]) * int(played[player["id"]])
+            else:
+                for player_id in [*match.get("home_players", []), *match.get("away_players", [])]:
+                    minutes[player_id] = minutes.get(player_id, 0) + 90
+                    appearances[player_id] = appearances.get(player_id, 0) + 1
+            # Goals and assists count for every record (they used to be skipped
+            # whenever per-player minutes were present).
             for event in match.get("events", []):
-                player_id = event.get("player_id")
-                if event.get("kind") == "GOAL" and player_id:
-                    goals[player_id] = goals.get(player_id, 0) + 1
+                if event.get("kind") != "GOAL":
+                    continue
+                if event.get("player_id"):
+                    goals[event["player_id"]] = goals.get(event["player_id"], 0) + 1
+                if event.get("secondary_player_id"):
+                    assists[event["secondary_player_id"]] = assists.get(event["secondary_player_id"], 0) + 1
         updated: dict[str, int] = {}
         records: list[dict[str, object]] = []
         for player_id, player in market.catalog.items():
+            played = minutes.get(player_id, 0)
             record = progress_player(
                 player_id=player_id, season_number=season.season_number,
                 age=(player.age + season.season_number - 1) if player.age is not None else None,
                 overall=season.current_overalls.get(player_id, player.overall),
                 potential=player.potential,
                 original_market_value_cents=player.market_value_cents,
-                minutes_played=minutes.get(player_id, 0), goals=goals.get(player_id, 0),
+                minutes_played=played, goals=goals.get(player_id, 0), assists=assists.get(player_id, 0),
+                matches=appearances.get(player_id, 0),
+                average_rating=(rating_minutes[player_id] / played) if played and player_id in rating_minutes else None,
+                catalog_overall=player.overall,
                 seed=zlib.crc32(f"{room_id}:{season.season_number}:{player_id}".encode()),
             )
             updated[player_id] = record.overall_after

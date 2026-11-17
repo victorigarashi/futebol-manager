@@ -69,7 +69,7 @@ def test_player_progression_is_deterministic_bounded_and_keeps_catalog_input_unc
     veteran = progress_player(player_id="veteran", season_number=1, age=38, overall=84, potential=84, original_market_value_cents=500_000_000, minutes_played=2_700, goals=2, seed=9)
     assert first == second
     assert source == {"overall": 72, "potential": 91, "value": 250_000_000}
-    assert 1 <= first.overall_after <= first.overall_before + 1
+    assert first.overall_before <= first.overall_after <= first.overall_before + 4
     assert first.overall_after <= 91
     assert veteran.overall_after <= veteran.overall_before
     assert first.internal_market_value_cents >= 0
