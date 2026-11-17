@@ -1,6 +1,6 @@
 from app.domain.market import InitialMarket
 from app.services.season_service import SeasonService
-from app.tests.fixtures.clock import finish_round
+from app.tests.fixtures.clock import finish_round, play_knockouts
 from app.tests.fixtures.market_catalog import complete_test_market, synthetic_catalog
 
 
@@ -20,11 +20,11 @@ def test_full_regular_season_playoffs_and_career_restart_in_both_modes() -> None
                 assert state["transfer_window_open"] is True
                 service.close_transfer_window(room_id)
         assert service.view(room_id)["match_count"] == 380
-        quarterfinals = service.advance(room_id, market, {"C00"})
-        semifinals = service.advance(room_id, market, {"C00"})
-        champion_state = service.advance(room_id, market, {"C00"})
-        assert len(quarterfinals["playoffs"]["quarterfinals"]) == 4
-        assert len(semifinals["playoffs"]["semifinals"]) == 2
+        drawn = service.view(room_id)  # the draw happens at the final whistle of round 38
+        assert len(drawn["knockout"]["draws"]) == 1 and drawn["next_round"]["stage"] == "QF"
+        champion_state = play_knockouts(service, room_id, market, {"C00"})
+        assert len(champion_state["playoffs"]["quarterfinals"]) == 4
+        assert len(champion_state["playoffs"]["semifinals"]) == 2
         assert champion_state["season_complete"] is True
         assert champion_state["progression_applied"] is True
         assert champion_state["champion"] in market.teams

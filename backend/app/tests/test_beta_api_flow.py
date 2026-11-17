@@ -212,8 +212,23 @@ def test_real_api_market_to_second_season_and_snapshot(beta_api, mode, starter_c
             checked(client, "GET", base + "/career", headers=identities[2][0], status=403)
             checked(client, "POST", base + "/season/transfer-window/close", headers=host)
 
-    for _ in range(3):
-        completed = checked(client, "POST", base + "/season/advance", headers=host)
+    # Playoffs are live rounds too: the draw happened at the last whistle of the league.
+    completed = checked(client, "GET", base + "/season", headers=host)
+    assert completed["next_round"]["kind"] == "PLAYOFF"
+    for _ in range(8):
+        if completed["champion"]:
+            break
+        state = {"live_round": None}
+        for headers in (host, guest):
+            state = checked(client, "POST", base + "/season/ready", headers=headers)
+            if state["live_round"]:
+                break
+        if state["live_round"]:
+            now[0] = state["live_round"]["ends_at"]
+            deadline = time.monotonic() + 60
+            while seasons._season(room_id).live_round and time.monotonic() < deadline:
+                time.sleep(.01)
+        completed = checked(client, "GET", base + "/season", headers=host)
     assert completed["season_complete"] and completed["champion"]
     assert completed["progression_applied"]
     assert len(completed["matches"]) == 387

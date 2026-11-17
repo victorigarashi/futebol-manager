@@ -713,7 +713,7 @@ async def ready_for_round(room_id: str, identity: GuestIdentity = Depends(curren
             season = season_service._season(room_id)
             season.human_clubs = set(humans)
             result = season_service.ready(room_id, club)
-            if not season.live_round and humans.issubset(season.ready_clubs):
+            if not season.live_round and season_service.required_ready(room_id, humans).issubset(season.ready_clubs):
                 result = season_service.advance(room_id, market_service._session(room_id).market, humans, room_manager._room(room_id).match_duration_seconds)
             if season.live_round:
                 schedule_round(room_id)

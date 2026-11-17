@@ -22,6 +22,17 @@ from app.domain.cohesion import (
     level_label,
     slot_role,
 )
+from app.domain.knockout import (
+    PLAYOFF_PRIZES,
+    STAGE_NAMES,
+    KnockoutState,
+    add_stage,
+    cup_after_round,
+    next_stage,
+    open_draw,
+    pot_draw,
+    schedule_cup,
+)
 from app.domain.market import InitialMarket, MarketError
 from app.domain.match_engine import (
     FULL_TIME_TICK,
@@ -36,9 +47,7 @@ from app.domain.playoffs import (
     KnockoutMatch,
     PlayoffState,
     create_bracket,
-    quarterfinal_pairings,
     resolve_penalties,
-    semifinal_pairings,
 )
 from app.domain.progression import progress_player
 from app.domain.season import Fixture, MatchResult, SeasonState, generate_calendar, standings
@@ -143,6 +152,11 @@ class RoomSeason:
     rules: dict[str, object] = field(default_factory=dict)
     # Familiaridade tática: club -> style -> 0..100. Follows the club across seasons.
     familiarity: dict[str, dict[str, float]] = field(default_factory=dict)
+    # Live knockout competitions (playoffs, Copa do Brasil).
+    knockout: KnockoutState = field(default_factory=KnockoutState)
+    # Runtime only: the market of the room, remembered from the last `advance` so the
+    # final whistle can settle prizes and draws without the caller passing it again.
+    market_ref: InitialMarket | None = None
 
     @property
     def sim_style(self) -> str:
@@ -168,24 +182,39 @@ class SeasonService:
             self._seasons[room_id] = RoomSeason(SeasonState(generate_calendar(tuple(market.teams), double_round_robin=double_round_robin)), market.mode, current_overalls={player_id: player.overall for player_id, player in market.catalog.items()},
                                                 preparation_opened_at=self.clock(), double_round_robin=double_round_robin,
                                                 rules=dict(rules or {}))
+            season = self._seasons[room_id]
+            if season.rules.get("copa_enabled") and len(market.teams) == 20:
+                overalls = season.current_overalls
+                def strength(club: str) -> float:
+                    values = sorted((overalls.get(pid, market.catalog[pid].overall) for pid in market.teams[club].roster), reverse=True)
+                    top = values[:11 if market.mode == "ELEVEN_A_SIDE" else 5]
+                    return sum(top) / max(1, len(top))
+                seeds = sorted(market.teams, key=lambda club: (-strength(club), club))
+                schedule_cup(season.knockout, seeds, self._regular_round_count(season))
         return self._seasons[room_id]
 
     def create_next_season(self, room_id: str, market: InitialMarket) -> dict[str, object]:
         previous = self._season(room_id)
         if not previous.playoffs or not previous.playoffs.champion or not previous.progression_applied:
             raise MarketError("A temporada atual precisa terminar antes de começar outra.")
-        summary = {"season_number": previous.season_number, "champion": previous.playoffs.champion, "table": standings(tuple(market.teams), previous.state.fixtures, previous.state.results), "playoffs": previous.playoffs.view(), "top_scorers": self._top_scorers(previous)}
+        summary = {"season_number": previous.season_number, "champion": previous.playoffs.champion,
+                   "runner_up": previous.knockout.playoff_runner_up, "cup_champion": previous.knockout.cup_champion,
+                   "cup_runner_up": previous.knockout.cup_runner_up, "table": standings(tuple(market.teams), previous.state.fixtures, previous.state.results), "playoffs": previous.playoffs.view(), "top_scorers": self._top_scorers(previous)}
         history = [*previous.season_history, summary]
         self._seasons[room_id] = RoomSeason(SeasonState(generate_calendar(tuple(market.teams), double_round_robin=previous.double_round_robin)), market.mode, season_number=previous.season_number + 1, current_overalls=dict(previous.current_overalls), development_records=list(previous.development_records), season_history=history, double_round_robin=previous.double_round_robin,
                                             rules=dict(previous.rules), familiarity={club: dict(values) for club, values in previous.familiarity.items()})
+        season = self._seasons[room_id]
+        if season.rules.get("copa_enabled") and len(market.teams) == 20:
+            seeds = [str(row["club_code"]) for row in summary["table"]]
+            schedule_cup(season.knockout, seeds, self._regular_round_count(season))
         return self.view(room_id)
 
     def ready(self, room_id: str, club_code: str) -> dict[str, object]:
         season = self._season(room_id)
         if season.live_round:
             return self.view(room_id)
-        if self.current_round(room_id) > self._regular_round_count(season):
-            raise MarketError("A temporada regular já terminou.")
+        if season.playoffs and season.playoffs.champion:
+            raise MarketError("A temporada já terminou.")
         season.ready_clubs.add(club_code)
         return self.view(room_id)
 
@@ -215,14 +244,25 @@ class SeasonService:
         if season.live_round:
             return self.view(room_id)
         season.human_clubs = set(human_clubs)
+        season.market_ref = market
+        self._settle_knockout(room_id, market, season)
         round_number = self.current_round(room_id)
-        if round_number > self._regular_round_count(season):
-            return self._advance_playoffs(room_id, market, season)
-        if round_number == self._transfer_resume_round(season) and season.transfer_window_open:
+        if season.transfer_window_open:
             raise MarketError(f"A janela de transferências precisa ser encerrada antes da rodada {round_number}.")
-        if not human_clubs.issubset(season.ready_clubs):
+        due = self._due_knockout_round(season)
+        if due is None and round_number > self._regular_round_count(season):
+            return self._advance_playoffs(room_id, market, season)
+        if not self.required_ready(room_id, human_clubs).issubset(season.ready_clubs):
             raise MarketError("Aguardando confirmação dos técnicos para esta rodada.")
-        fixtures = [fixture for fixture in season.state.fixtures if fixture.round_number == round_number]
+        if due is not None:
+            fixtures = [Fixture(season.knockout.ties[tie_id].match_id(due.leg), round_number, *season.knockout.ties[tie_id].fixture(due.leg))
+                        for tie_id in due.tie_ids]
+            extra = {"kind": due.competition, "stage": due.stage, "leg": due.leg, "knockout_round_id": due.id,
+                     "label": f"{'Copa do Brasil' if due.competition == 'CUP' else 'Playoffs'} · {STAGE_NAMES[due.stage]}"
+                              + (f" · jogo {due.leg}" if len([r for r in season.knockout.rounds if r.competition == due.competition and r.stage == due.stage]) > 1 else "")}
+        else:
+            fixtures = [fixture for fixture in season.state.fixtures if fixture.round_number == round_number]
+            extra = {"kind": "LEAGUE", "label": f"Rodada {round_number}"}
         prepared: dict[str, tuple[MatchEngine, dict[str, object]]] = {}
         for fixture in fixtures:
             if fixture.id in season.state.results:
@@ -235,6 +275,7 @@ class SeasonService:
             else:
                 engine = self._engine(season, fixture.id, home_input, away_input, seed)
             meta = {"id": fixture.id, "home": fixture.home, "away": fixture.away, "status": "LIVE", "seed": seed,
+                    "competition": extra["kind"], "stage": extra.get("stage"), "leg": extra.get("leg"),
                     "inputs": {"home": team_input_view(home_input), "away": team_input_view(away_input)},
                     "bot_sides": bot_sides}
             prepared[fixture.id] = (engine, meta)
@@ -255,7 +296,8 @@ class SeasonService:
             season.matches[match_id] = meta
         season.live_round = {"round_number": round_number, "announced_at": announced_at, "started_at": started_at,
                              "ends_at": started_at + match_seconds, "duration_seconds": match_seconds,
-                             "match_seconds": match_seconds, "match_ids": list(prepared), "human_clubs": sorted(human_clubs)}
+                             "match_seconds": match_seconds, "match_ids": list(prepared), "human_clubs": sorted(human_clubs),
+                             **extra}
         season.ready_clubs.clear()
         return self.view(room_id)
 
@@ -292,7 +334,7 @@ class SeasonService:
         if season.live_round or season.transfer_window_open or season.recovering:
             return False
         round_number = self.current_round(room_id)
-        if round_number > self._regular_round_count(season):
+        if round_number > self._regular_round_count(season) or self._due_knockout_round(season) is not None:
             return False
         for fixture in season.state.fixtures:
             if fixture.round_number != round_number or fixture.id in season.state.results:
@@ -489,11 +531,164 @@ class SeasonService:
                 self._learn_styles(season, engine)
             match = season.matches[match_id]
             results[match_id] = MatchResult(match_id, int(match["home_goals"]), int(match["away_goals"]))
-        season.state.results.update(results)
-        season.transfer_window_open = live["round_number"] == self._transfer_open_after_round(season)
+        kind = live.get("kind", "LEAGUE")
+        if kind == "LEAGUE":
+            season.state.results.update(results)
+            season.transfer_window_open = live["round_number"] == self._transfer_open_after_round(season)
+        else:
+            knockout_round = next(r for r in season.knockout.rounds if r.id == live["knockout_round_id"])
+            for tie_id in knockout_round.tie_ids:
+                tie = season.knockout.ties[tie_id]
+                result = results[tie.match_id(knockout_round.leg)]
+                tie.record_leg(knockout_round.leg, result.home_goals, result.away_goals)
+            knockout_round.status = "DONE"
         season.live_round = None
         season.preparation_opened_at = self.clock()
+        market = season.market_ref or self._market_of(room_id)
+        if market is not None:
+            self._settle_knockout(room_id, market, season)
         return True
+
+    @staticmethod
+    def _market_of(room_id: str) -> InitialMarket | None:
+        from app.services.market_service import market_service
+        session = market_service.sessions.get(room_id)
+        return session.market if session else None
+
+    # ------------------------------------------------------------------ knockout competitions
+    def _league_progress(self, season: RoomSeason) -> tuple[int, bool]:
+        total = self._regular_round_count(season)
+        done = 0
+        for round_number in range(1, total + 1):
+            if all(f.id in season.state.results for f in season.state.fixtures if f.round_number == round_number):
+                done = round_number
+            else:
+                break
+        return done, done >= total
+
+    def _due_knockout_round(self, season: RoomSeason):
+        done, finished = self._league_progress(season)
+        return season.knockout.due_round(done, finished)
+
+    def required_ready(self, room_id: str, human_clubs: set[str]) -> set[str]:
+        """Humans who must confirm before the next live round (only those who play it)."""
+        season = self._season(room_id)
+        due = self._due_knockout_round(season)
+        if due is None:
+            return set(human_clubs)
+        playing = {club for tie_id in due.tie_ids for club in (season.knockout.ties[tie_id].high, season.knockout.ties[tie_id].low)}
+        return set(human_clubs) & playing
+
+    def _settle_knockout(self, room_id: str, market: InitialMarket, season: RoomSeason) -> None:
+        """Idempotent: resolve finished ties, pay prizes, draw the next stages, crown champions."""
+        knockout = season.knockout
+        for tie in knockout.ties.values():
+            if tie.complete or len(tie.leg_scores) < tie.legs:
+                continue
+            high, low = tie.aggregate()
+            if high != low:
+                tie.winner = tie.high if high > low else tie.low
+                continue
+            last = season.matches.get(tie.match_id(tie.legs), {})
+            lineups = last.get("lineups", {"home": [], "away": []})
+            home, _ = tie.fixture(tie.legs)
+            on_pitch = {side: tuple(p["overall"] for p in lineups.get(side, []) if p.get("on_pitch")) for side in ("home", "away")}
+            high_r, low_r = (on_pitch["home"], on_pitch["away"]) if home == tie.high else (on_pitch["away"], on_pitch["home"])
+            seed = zlib.crc32(f"{room_id}:{season.season_number}:{tie.id}:pk".encode())
+            winner, high_pk, low_pk, kicks = resolve_penalties(tie.high, tie.low, high_r, low_r, seed)
+            tie.winner, tie.penalties, tie.penalty_kicks = winner, [high_pk, low_pk], list(kicks)
+            match_id = tie.match_id(tie.legs)
+            if match_id in season.matches:
+                season.matches[match_id] = {**season.matches[match_id], "home_penalties": high_pk if home == tie.high else low_pk,
+                                            "away_penalties": low_pk if home == tie.high else high_pk, "winner": winner}
+        done, finished = self._league_progress(season)
+        # Copa do Brasil: draw each following stage as soon as the previous one ends.
+        if knockout.cup_enabled and not knockout.cup_champion:
+            for stage in ("PRELIM", "R16", "QF", "SF", "FINAL"):
+                ties = knockout.stage_ties("CUP", stage)
+                if not ties or not all(t.complete for t in ties):
+                    break
+                following = next_stage(stage, "CUP")
+                if following is None:
+                    final = ties[0]
+                    knockout.cup_champion = final.winner
+                    knockout.cup_runner_up = final.low if final.winner == final.high else final.high
+                    break
+                if knockout.stage_ties("CUP", following):
+                    continue
+                winners = [t.winner for t in ties if t.winner]
+                seeds = knockout.cup_seeds
+                total = self._regular_round_count(season)
+                seed_text = f"{room_id}:{season.season_number}:cup:{following}"
+                if following == "R16":
+                    entrants = sorted([*seeds[:12], *winners], key=seeds.index)
+                    pairs = pot_draw(seed_text, entrants[:8], entrants[8:])
+                    draw = {"kind": "POTS", "pot1": entrants[:8], "pot2": entrants[8:], "seed": seed_text}
+                else:
+                    pairs = open_draw(seed_text, winners, seeds)
+                    draw = {"kind": "OPEN", "entrants": winners, "seed": seed_text}
+                add_stage(knockout, "CUP", following, pairs, legs=1,
+                          after_round=max(done, cup_after_round(following, total)), draw=draw)
+        if not finished:
+            return
+        if len(market.teams) < 8:
+            if not season.playoffs:
+                champion = standings(tuple(market.teams), season.state.fixtures, season.state.results)[0]["club_code"]
+                season.playoffs = PlayoffState((), champion=str(champion), next_stage="COMPLETE")
+                self._apply_progression(room_id, market, season)
+            return
+        number = season.season_number
+        legs = 2 if season.rules.get("playoff_format") == "TWO_LEGS" else 1
+        if season.playoffs is None:
+            table = standings(tuple(market.teams), season.state.fixtures, season.state.results)
+            season.playoffs = create_bracket(table)
+            qualifiers = list(season.playoffs.qualifiers)
+            seed_text = f"{room_id}:{number}:playoffs:QF"
+            pairs = pot_draw(seed_text, qualifiers[:4], qualifiers[4:])
+            add_stage(knockout, "PLAYOFF", "QF", pairs, legs, after_round=done,
+                      draw={"kind": "POTS", "pot1": qualifiers[:4], "pot2": qualifiers[4:], "seed": seed_text})
+            for club in qualifiers:
+                self._pay_award(market, club, f"season-{number}:quarterfinals", PLAYOFF_PRIZES["QF"], "Classificação às quartas dos playoffs")
+            season.playoffs.next_stage = "QUARTERFINALS"
+        for stage, attr in (("QF", "quarterfinals"), ("SF", "semifinals")):
+            ties = knockout.stage_ties("PLAYOFF", stage)
+            if not ties or not all(t.complete for t in ties):
+                return
+            setattr(season.playoffs, attr, [self._knockout_match(season, t) for t in ties])
+            following = "SF" if stage == "QF" else "FINAL"
+            if not knockout.stage_ties("PLAYOFF", following):
+                # The path follows the draw: winners of ties 1 & 2, 3 & 4 meet.
+                winners = [t.winner for t in ties]
+                table_order = list(season.playoffs.qualifiers)
+                pairs = []
+                for index in range(0, len(winners), 2):
+                    a, b = winners[index], winners[index + 1]
+                    pairs.append((a, b) if table_order.index(a) < table_order.index(b) else (b, a))
+                add_stage(knockout, "PLAYOFF", following, pairs, legs, after_round=done,
+                          draw={"kind": "BRACKET", "rule": "Chaveamento definido no sorteio das quartas"})
+                if stage == "QF":
+                    for club in winners:
+                        self._pay_award(market, club, f"season-{number}:semifinals", PLAYOFF_PRIZES["SF"], "Classificação às semifinais")
+                season.playoffs.next_stage = "SEMIFINALS" if stage == "QF" else "FINAL"
+        final_ties = knockout.stage_ties("PLAYOFF", "FINAL")
+        if not final_ties or not final_ties[0].complete or season.playoffs.champion:
+            return
+        final = final_ties[0]
+        season.playoffs.final = self._knockout_match(season, final)
+        season.playoffs.champion = final.winner
+        runner_up = final.low if final.winner == final.high else final.high
+        knockout.playoff_runner_up = runner_up
+        self._pay_award(market, runner_up, f"season-{number}:runner_up", PLAYOFF_PRIZES["RUNNER_UP"], "Vice-campeão brasileiro")
+        self._pay_award(market, final.winner, f"season-{number}:champion", PLAYOFF_PRIZES["CHAMPION"], "Título brasileiro")
+        season.playoffs.next_stage = "COMPLETE"
+        self._apply_progression(room_id, market, season)
+
+    @staticmethod
+    def _knockout_match(season: RoomSeason, tie) -> KnockoutMatch:
+        high, low = tie.aggregate()
+        return KnockoutMatch(tie.id, tie.stage, tie.high, tie.low, high, low, str(tie.winner),
+                             tie.penalties[0] if tie.penalties else None, tie.penalties[1] if tie.penalties else None,
+                             tuple(tie.penalty_kicks))
 
     def command(self, room_id: str, club: str, payload: dict[str, object]) -> dict[str, object]:
         """Coach command during a live match. Same API the bot coaches use."""
@@ -742,7 +937,7 @@ class SeasonService:
     def live_table(self, room_id: str, now: float | None = None) -> list[dict[str, object]]:
         season = self._season(room_id)
         results = dict(season.state.results)
-        if season.live_round:
+        if season.live_round and season.live_round.get("kind", "LEAGUE") == "LEAGUE":
             for match_id in season.live_round["match_ids"]:
                 score = self._score(season, match_id, now)
                 results[match_id] = MatchResult(match_id, int(score["home_goals"]), int(score["away_goals"]))
@@ -893,34 +1088,8 @@ class SeasonService:
         return self.view(room_id)
 
     def _advance_playoffs(self, room_id: str, market: InitialMarket, season: RoomSeason) -> dict[str, object]:
-        # A four- or six-club league ends on the table: eight qualifiers do not
-        # exist, so silently fabricating a knockout would be incorrect.
-        if len(market.teams) < 8:
-            if not season.playoffs:
-                champion = standings(tuple(market.teams), season.state.fixtures, season.state.results)[0]["club_code"]
-                season.playoffs = PlayoffState((), champion=str(champion), next_stage="COMPLETE")
-                self._apply_progression(room_id, market, season)
-            return self.view(room_id)
-        if season.playoffs is None:
-            season.playoffs = create_bracket(standings(tuple(market.teams), season.state.fixtures, season.state.results))
-            for club in season.playoffs.qualifiers:
-                self._pay_award(market, club, f"season-{season.season_number}:quarterfinals", 1_000_000_000, "Classificação às quartas")
-            pairings = quarterfinal_pairings(season.playoffs)
-            season.playoffs.quarterfinals = [self._play_knockout(room_id, market, "QF", index, home, away) for index, (home, away) in enumerate(pairings, 1)]
-            season.playoffs.next_stage = "SEMIFINALS"
-        elif season.playoffs.next_stage == "SEMIFINALS":
-            pairings = semifinal_pairings(season.playoffs)
-            season.playoffs.semifinals = [self._play_knockout(room_id, market, "SF", index, home, away) for index, (home, away) in enumerate(pairings, 1)]
-            for match in season.playoffs.semifinals:
-                self._pay_award(market, match.winner, f"season-{season.season_number}:semifinals", 2_000_000_000, "Classificação às semifinais")
-            season.playoffs.next_stage = "FINAL"
-        elif season.playoffs.next_stage == "FINAL":
-            first, second = (season.playoffs.semifinals[0].winner, season.playoffs.semifinals[1].winner)
-            season.playoffs.final = self._play_knockout(room_id, market, "FINAL", 1, first, second)
-            season.playoffs.champion = season.playoffs.final.winner
-            self._pay_award(market, season.playoffs.champion, f"season-{season.season_number}:champion", 5_000_000_000, "Título brasileiro")
-            self._apply_progression(room_id, market, season)
-            season.playoffs.next_stage = "COMPLETE"
+        """Nothing live is due and the league is over: settle (draws, champion) and report."""
+        self._settle_knockout(room_id, market, season)
         return self.view(room_id)
 
     @staticmethod
@@ -977,35 +1146,6 @@ class SeasonService:
         season.development_records.extend(records)
         season.progression_applied = True
 
-    def _play_knockout(self, room_id: str, market: InitialMarket, stage: str, number: int, home_code: str, away_code: str) -> KnockoutMatch:
-        season = self._season(room_id)
-        match_id = f"{stage.lower()}-{number}"
-        home_input = self._team_input(room_id, market, home_code, bot=home_code not in season.human_clubs,
-                                      opponent_strength=self._strength(room_id, market, away_code))
-        away_input = self._team_input(room_id, market, away_code, bot=away_code not in season.human_clubs,
-                                      opponent_strength=self._strength(room_id, market, home_code))
-        seed = zlib.crc32(f"{room_id}:{season.season_number}:{match_id}".encode())
-        engine = self._engine(season, match_id, home_input, away_input, seed)
-        bot_sides = tuple(side for side, club in enumerate((home_code, away_code)) if club not in season.human_clubs)
-        advance_with_bots(engine, FULL_TIME_TICK, bot_sides, (home_input.tactics, away_input.tactics))
-        meta = {"id": match_id, "stage": stage, "home": home_code, "away": away_code, "seed": seed,
-                "inputs": {"home": team_input_view(home_input), "away": team_input_view(away_input)}, "bot_sides": list(bot_sides)}
-        record = final_record(engine, meta)
-        self._learn_styles(season, engine)
-        home_penalties = away_penalties = None
-        penalty_kicks: tuple[dict[str, object], ...] = ()
-        winner = home_code if record["home_goals"] > record["away_goals"] else away_code
-        if record["home_goals"] == record["away_goals"]:
-            # Takers are the players on the pitch at the final whistle.
-            home_ratings = tuple(p["overall"] for p in record["lineups"]["home"] if p["on_pitch"])
-            away_ratings = tuple(p["overall"] for p in record["lineups"]["away"] if p["on_pitch"])
-            winner, home_penalties, away_penalties, penalty_kicks = resolve_penalties(home_code, away_code, home_ratings, away_ratings, seed ^ 0x5A17)
-        events = list(record["events"])
-        for index, kick in enumerate(penalty_kicks, 1):
-            events.append({"event_id": f"{match_id}:PK:{index:02d}", "match_id": match_id, "kind": "PENALTY", "team": kick["team"], "tick": FULL_TIME_TICK, "minute": 120, "x": .5, "y": .5, "outcome": "SCORED" if kick["scored"] else "MISSED", "player_id": None, "player_name": None, "xg": 0.0})
-        season.matches[match_id] = {**record, "events": events, "home_penalties": home_penalties, "away_penalties": away_penalties, "winner": winner}
-        return KnockoutMatch(match_id, stage, home_code, away_code, int(record["home_goals"]), int(record["away_goals"]), winner, home_penalties, away_penalties, penalty_kicks)
-
     @staticmethod
     def _pay_award(market: InitialMarket, club: str, award_id: str, amount_cents: int, description: str) -> None:
         # Coin rooms are closed virtual economies: neither a new 100-coin grant
@@ -1025,7 +1165,21 @@ class SeasonService:
         clubs = tuple(sorted({club for fixture in season.state.fixtures for club in (fixture.home, fixture.away)}))
         current = self.current_round(room_id)
         total_rounds = self._regular_round_count(season)
-        return {"live_round": season.live_round, "server_now": self.clock(), "preparation_opened_at": season.preparation_opened_at, "live_table": self.live_table(room_id), "season_number": season.season_number, "current_round": current, "total_rounds": total_rounds, "double_round_robin": season.double_round_robin, "regular_season_complete": current > total_rounds, "season_complete": bool(season.playoffs and season.playoffs.champion), "progression_applied": season.progression_applied, "champion": season.playoffs.champion if season.playoffs else None, "playoffs": season.playoffs.view() if season.playoffs else None, "transfer_window_open": season.transfer_window_open, "ready_clubs": sorted(season.ready_clubs), "human_clubs": sorted(season.human_clubs), "round_state": self.round_state(room_id), "recovering": bool(season.recovering), "table": standings(clubs, season.state.fixtures, season.state.results), "fixtures": [{"id": fixture.id, "round_number": fixture.round_number, "home": fixture.home, "away": fixture.away, "result": self._result_view(season.state.results.get(fixture.id)), "match_id": fixture.id if fixture.id in season.matches else None} for fixture in season.state.fixtures if fixture.round_number == min(current, total_rounds)], "matches": [{"id": match_id, "round_number": next((f.round_number for f in season.state.fixtures if f.id == match_id), total_rounds + 1), "home": match["home"], "away": match["away"], "home_goals": projected["home_goals"], "away_goals": projected["away_goals"]} for match_id, match in season.matches.items() for projected in [self._score(season, match_id)]], "match_count": len(season.matches), "schedule": [{"id": f.id, "round_number": f.round_number, "home": f.home, "away": f.away, "result": self._result_view(season.state.results.get(f.id))} for f in season.state.fixtures], "season_history": season.season_history, "development_records": season.development_records, "top_scorers": self._top_scorers(season)}
+        return {"live_round": season.live_round, "server_now": self.clock(), "preparation_opened_at": season.preparation_opened_at, "live_table": self.live_table(room_id), "season_number": season.season_number, "current_round": current, "total_rounds": total_rounds, "double_round_robin": season.double_round_robin, "regular_season_complete": current > total_rounds, "season_complete": bool(season.playoffs and season.playoffs.champion), "progression_applied": season.progression_applied, "champion": season.playoffs.champion if season.playoffs else None, "playoffs": season.playoffs.view() if season.playoffs else None, "transfer_window_open": season.transfer_window_open, "ready_clubs": sorted(season.ready_clubs), "human_clubs": sorted(season.human_clubs), "round_state": self.round_state(room_id), "recovering": bool(season.recovering), "table": standings(clubs, season.state.fixtures, season.state.results), "fixtures": [{"id": fixture.id, "round_number": fixture.round_number, "home": fixture.home, "away": fixture.away, "result": self._result_view(season.state.results.get(fixture.id)), "match_id": fixture.id if fixture.id in season.matches else None} for fixture in season.state.fixtures if fixture.round_number == min(current, total_rounds)], "matches": [{"id": match_id, "round_number": next((f.round_number for f in season.state.fixtures if f.id == match_id), total_rounds + 1), "home": match["home"], "away": match["away"], "home_goals": projected["home_goals"], "away_goals": projected["away_goals"]} for match_id, match in season.matches.items() for projected in [self._score(season, match_id)]], "match_count": len(season.matches), "schedule": [{"id": f.id, "round_number": f.round_number, "home": f.home, "away": f.away, "result": self._result_view(season.state.results.get(f.id))} for f in season.state.fixtures], "season_history": season.season_history, "development_records": season.development_records, "top_scorers": self._top_scorers(season),
+                "rules": season.rules, "knockout": season.knockout.view(), "next_round": self._next_round_view(season)}
+
+    def _next_round_view(self, season: RoomSeason) -> dict[str, object] | None:
+        """What the next live round will be (league, Copa or playoffs) for the preparation screen."""
+        if season.playoffs and season.playoffs.champion:
+            return None
+        due = self._due_knockout_round(season)
+        if due is not None:
+            ties = [season.knockout.ties[t] for t in due.tie_ids]
+            return {"kind": due.competition, "stage": due.stage, "stage_name": STAGE_NAMES[due.stage], "leg": due.leg,
+                    "fixtures": [{"id": t.match_id(due.leg), "home": t.fixture(due.leg)[0], "away": t.fixture(due.leg)[1],
+                                  "tie_id": t.id} for t in ties]}
+        done, finished = self._league_progress(season)
+        return None if finished else {"kind": "LEAGUE", "round_number": done + 1}
 
     @staticmethod
     def _top_scorers(season: RoomSeason) -> list[dict[str, object]]:
@@ -1072,6 +1226,7 @@ class SeasonService:
             "progression_applied": season.progression_applied,
             "rules": season.rules,
             "familiarity": season.familiarity,
+            "knockout": season.knockout.to_dict(),
         }
 
     def restore_room(self, room_id: str, payload: dict[str, object]) -> RoomSeason:
@@ -1152,17 +1307,24 @@ class SeasonService:
                 raise ValueError("Snapshot de transmissão inválido.")
             round_number = int(live.get("round_number", 0))
             ids = live.get("match_ids", [])
-            expected = {f.id for f in fixtures if f.round_number == round_number}
+            knockout_payload = KnockoutState.from_dict(dict(payload.get("knockout", {}))) if isinstance(payload.get("knockout", {}), dict) else KnockoutState()
+            knockout_round = next((r for r in knockout_payload.rounds if r.id == live.get("knockout_round_id")), None)
+            if live.get("kind", "LEAGUE") != "LEAGUE":
+                if knockout_round is None or knockout_round.status != "PENDING":
+                    raise ValueError("Snapshot de transmissão referencia rodada de mata-mata inválida.")
+                expected = {knockout_payload.ties[t].match_id(knockout_round.leg) for t in knockout_round.tie_ids}
+            else:
+                expected = {f.id for f in fixtures if f.round_number == round_number}
             if "match_seconds" not in live and "play_seconds" in live:
                 # Snapshot from the previous clock model: keep its kick-off, adopt 3:00.
                 live["match_seconds"] = live["duration_seconds"] = 180
                 live["ends_at"] = float(live.get("started_at", 0)) + 180
-            if (not isinstance(ids, list) or len(ids) != team_count // 2 or set(ids) != expected
+            if (not isinstance(ids, list) or len(ids) != len(expected) or set(ids) != expected
                     or not set(ids).issubset(matches_payload) or set(ids) & set(state.results)
                     or int(live.get("match_seconds", 0)) not in DURATIONS
                     or abs(float(live.get("ends_at", 0)) - float(live.get("started_at", 0)) - float(live.get("match_seconds", -1))) > 1e-6):
                 raise ValueError("Snapshot de transmissão tem rodada ou prazo inválido.")
-            if any(f.id not in state.results for f in fixtures if f.round_number < round_number):
+            if live.get("kind", "LEAGUE") == "LEAGUE" and any(f.id not in state.results for f in fixtures if f.round_number < round_number):
                 raise ValueError("Snapshot de transmissão omite resultados anteriores.")
             for fixture in fixtures:
                 if fixture.id in expected:
@@ -1193,6 +1355,7 @@ class SeasonService:
             rules=dict(payload.get("rules", {})) if isinstance(payload.get("rules", {}), dict) else {},
             familiarity={str(club): {str(k): max(0.0, min(100.0, float(v))) for k, v in dict(values).items()}
                          for club, values in dict(payload.get("familiarity", {})).items()},
+            knockout=KnockoutState.from_dict(dict(payload.get("knockout", {}))) if isinstance(payload.get("knockout", {}), dict) else KnockoutState(),
         )
         if room_season.live_round:
             # Every live engine is rebuilt deterministically from inputs, seed and the

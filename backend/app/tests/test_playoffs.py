@@ -9,6 +9,7 @@ from app.domain.playoffs import (
 from app.domain.progression import progress_player
 from app.domain.season import MatchResult
 from app.services.season_service import SeasonService
+from app.tests.fixtures.clock import play_knockouts
 from app.tests.fixtures.market_catalog import complete_test_market, synthetic_catalog
 
 
@@ -40,17 +41,19 @@ def test_playoff_progression_and_awards_are_idempotent() -> None:
     season = service.create("playoff-room", market)
     for fixture in season.state.fixtures:
         season.state.record(MatchResult(fixture.id, 0, 0))
-    first = service.advance("playoff-room", market, set())
-    second = service.advance("playoff-room", market, set())
-    final = service.advance("playoff-room", market, set())
-    assert len(first["playoffs"]["quarterfinals"]) == 4
-    assert len(second["playoffs"]["semifinals"]) == 2
+    final = play_knockouts(service, "playoff-room", market)
+    assert len(final["playoffs"]["quarterfinals"]) == 4
+    assert len(final["playoffs"]["semifinals"]) == 2
     assert final["season_complete"] is True
     assert final["progression_applied"] is True
     champion = final["champion"]
     assert champion is not None
-    assert market.teams[champion].budget_cents == balances_after_market[champion] + 8_000_000_000
+    runner_up = final["knockout"]["playoff_runner_up"]
+    # Cumulative prizes: champion 50 + 100 + 200 = 350 mi; runner-up 50 + 100 + 150 = 300 mi.
+    assert market.teams[champion].budget_cents == balances_after_market[champion] + 35_000_000_000
+    assert market.teams[runner_up].budget_cents == balances_after_market[runner_up] + 30_000_000_000
     service.advance("playoff-room", market, set())
+    service._settle_knockout("playoff-room", market, service._season("playoff-room"))
     assert sum(entry["type"] == "AWARD" for entry in market.teams[champion].financial_ledger) == 3
     development_count = len(service.view("playoff-room")["development_records"])
     next_season = service.create_next_season("playoff-room", market)
