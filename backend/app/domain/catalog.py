@@ -45,7 +45,10 @@ class CatalogPlayer(BaseModel):
     source_ids: dict[str, str] = Field(default_factory=dict)
     shirt_number: int | None = Field(default=None, ge=0, le=99)
     squad_role: str | None = None
-    photo_url: str | None = Field(default=None, pattern=r"^https://")
+    # Production bundles use a local static path for individually licensed assets;
+    # legacy catalogs may still reference a HTTPS image. Arbitrary schemes are not
+    # accepted so card rendering cannot be used as a URL-scheme escape hatch.
+    photo_url: str | None = Field(default=None, pattern=r"^(?:https://|/player-photos/)")
 
     @field_validator("id", "name", "source", "source_version", "nationality", "verification_status")
     @classmethod
