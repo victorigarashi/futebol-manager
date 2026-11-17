@@ -1,0 +1,77 @@
+[
+  {
+    "name": "infeasible minimum overall is refused with a suggestion",
+    "ok": true,
+    "detail": "Overall mínimo inviável: GK: 1 atletas elegíveis, são necessários 3. DF: 1 atletas elegíveis, são necessários 7. MF: 2 atletas elegíveis, são necessários 7. ST: 2 atletas elegíveis, são necessários 5. Atletas insuficientes para completar titulares e reservas. Overall mínimo viável para este catálogo: 75."
+  },
+  {
+    "name": "draft room created with the world catalog",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "start goes straight to the Draft phase",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "draft page renders",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "formation shows 11 empty positions",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "an offer has exactly three cards",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "the three cards are different athletes",
+    "ok": true,
+    "detail": "Altay Bayındır | Jan Oblak | Kamil Grabara"
+  },
+  {
+    "name": "world cards carry the editorial-rating notice",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "the chosen card fills the position",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "closing and reopening an offer shows the same cards",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "rival progress is listed (bots already drafted)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "no horizontal scroll at phone width",
+    "ok": true,
+    "detail": "overflow=0"
+  },
+  {
+    "name": "forcing completion moves the room to squad management",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "drafted squad has 16 instances including the first pick",
+    "ok": true,
+    "detail": "Altay Bayındır"
+  },
+  {
+    "name": "no browser errors",
+    "ok": true,
+    "detail": ""
+  }
+]

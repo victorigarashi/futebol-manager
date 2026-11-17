@@ -35,8 +35,8 @@ export function DraftCardView({ card, onPick, busy }: { card: DraftCard; onPick?
     <p className="draft-card__meta">{club}{card.nationality ? ` · ${card.nationality}` : ""}{card.age ? ` · ${card.age} anos` : ""}</p>
     {hasAttrs
       ? <dl className="draft-card__attrs">{ATTRS.map(([key, label]) => <div key={key}><dt>{label}</dt><dd>{card.attributes[key] ?? "–"}</dd></div>)}</dl>
-      : <p className="draft-card__estimated">Atributos detalhados não disponíveis no catálogo. O jogo usa um perfil estimado pela posição.</p>}
-    {card.source.includes("EDITORIAL") && <p className="draft-card__notice">Overall editorial próprio. Não é rating oficial da EA.</p>}
+      : <p className="draft-card__estimated" title="O catálogo não traz atributos detalhados deste atleta; o jogo usa um perfil transparente pela posição.">Atributos: perfil estimado pela posição</p>}
+    {card.source.includes("EDITORIAL") && <p className="draft-card__notice">Overall editorial · não é rating EA</p>}
   </>;
   if (!onPick) return <article className={`draft-card draft-card--${tier}`}>{body}</article>;
   return <button type="button" className={`draft-card draft-card--${tier} draft-card--pickable`} onClick={onPick} disabled={busy} aria-label={`Escolher ${card.name}, overall ${card.overall}`}>{body}</button>;
