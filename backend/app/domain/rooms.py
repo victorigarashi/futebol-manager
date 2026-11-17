@@ -19,7 +19,7 @@ DRAFT_MIN_OVERALLS = (0, 65, 70, 72, 75, 78, 80)
 # League rules chosen by the host before the season (frozen afterwards).
 # name -> (allowed values, default). Older snapshots without a rule get the default.
 RULES: dict[str, tuple[tuple[object, ...], object]] = {
-    "game_mode": (("TRADITIONAL", "DRAFT"), "TRADITIONAL"),
+    "game_mode": (("TRADITIONAL", "DRAFT", "DRAFT_KNOCKOUT", "SURVIVOR", "PACK"), "TRADITIONAL"),
     "sim_style": (("REALISTIC", "EXCITING"), "REALISTIC"),
     "bot_difficulty": (("CASUAL", "COMPETITIVE", "LEGENDARY"), "COMPETITIVE"),
     "morale_enabled": ((True, False), False),
@@ -28,7 +28,27 @@ RULES: dict[str, tuple[tuple[object, ...], object]] = {
     "coach_moves_enabled": ((True, False), False),
     "draft_catalog": (("BRASILEIRAO", "WORLD"), "BRASILEIRAO"),
     "draft_min_overall": (DRAFT_MIN_OVERALLS, 0),
+    # Último Sobrevivente: clubs eliminated per round (0 = automatic, about a quarter).
+    "survivor_eliminations": ((0, 2, 4), 0),
+    # Pack & Play: equal quality per collection, or every card drawn independently.
+    "pack_luck": (("BALANCED", "LUCK"), "BALANCED"),
 }
+
+# Clubs a mode can start with (the knockout bracket and the survival path need these).
+MODE_TEAM_COUNTS = {"DRAFT_KNOCKOUT": (4, 8, 16), "PACK": (4, 8, 16), "SURVIVOR": (8, 12, 16, 20)}
+# The phase a started room enters, per game mode.
+START_PHASE = {"TRADITIONAL": "INITIAL_MARKET", "DRAFT": "DRAFT", "DRAFT_KNOCKOUT": "DRAFT", "PACK": "PACK", "SURVIVOR": "SQUAD_MANAGEMENT"}
+
+
+def mode_error(game_mode: str, team_count: int, market_mode: str) -> str | None:
+    """Combinations a mode cannot run with (checked on create, update and start)."""
+    allowed = MODE_TEAM_COUNTS.get(game_mode)
+    if allowed and team_count not in allowed:
+        sizes = ", ".join(str(n) for n in allowed)
+        return f"Este modo começa com {sizes} clubes."
+    if game_mode != "TRADITIONAL" and market_mode == "COINS":
+        return "Este modo não usa o mercado inicial: escolha valores reais."
+    return None
 
 
 def rules_error(values: dict[str, object]) -> str | None:
@@ -73,6 +93,8 @@ class RoomState:
     coach_moves_enabled: bool = False
     draft_catalog: str = "BRASILEIRAO"
     draft_min_overall: int = 0
+    survivor_eliminations: int = 0
+    pack_luck: str = "BALANCED"
     phase: str = "WAITING"
     market_ends_at: float | None = None
     revision: int = 0
@@ -203,8 +225,9 @@ class RoomManager:
         error = rules_error(rules) or (f"Regra desconhecida: {sorted(unknown)[0]}." if unknown else None)
         if error:
             raise HTTPException(status_code=422, detail=error)
-        if rules.get("game_mode") == "DRAFT" and market_mode == "COINS":
-            raise HTTPException(status_code=422, detail="O Modo Draft não usa mercado inicial: escolha valores reais.")
+        error = mode_error(str(rules.get("game_mode", "TRADITIONAL")), team_count, market_mode)
+        if error:
+            raise HTTPException(status_code=422, detail=error)
         async with self._create_lock:
             room = RoomState(
                 id=self._id(),
@@ -319,8 +342,10 @@ class RoomManager:
             error = rules_error({name: changes[name] for name in RULES if name in changes})
             if error:
                 raise HTTPException(status_code=422, detail=error)
-            if changes.get("game_mode", room.game_mode) == "DRAFT" and changes.get("market_mode", room.market_mode) == "COINS":
-                raise HTTPException(status_code=422, detail="O Modo Draft não usa mercado inicial: escolha valores reais.")
+            error = mode_error(str(changes.get("game_mode", room.game_mode)), int(changes.get("team_count", room.team_count)),
+                               str(changes.get("market_mode", room.market_mode)))
+            if error:
+                raise HTTPException(status_code=422, detail=error)
             draft = copy.deepcopy(room)
             for field_name, value in changes.items():
                 setattr(draft, field_name, value)
@@ -366,7 +391,7 @@ class RoomManager:
             if room.team_count != 20 and len(room.participants) != room.team_count:
                 raise HTTPException(status_code=409, detail="Complete as vagas com bots até atingir a quantidade configurada de clubes.")
             draft = copy.deepcopy(room)
-            draft.phase = "DRAFT" if room.game_mode == "DRAFT" else "INITIAL_MARKET"
+            draft.phase = START_PHASE.get(room.game_mode, "INITIAL_MARKET")
             draft.revision += 1
             self._rooms[room_id] = draft
             return self._state(draft)
@@ -488,6 +513,7 @@ class RoomManager:
             "MARKET_REASSIGNMENT": {"MARKET_REVIEW"},
             "MARKET_REVIEW": {"SQUAD_MANAGEMENT"},
             "DRAFT": {"SQUAD_MANAGEMENT"},
+            "PACK": {"SQUAD_MANAGEMENT"},
         }
         async with self._locks[room_id]:
             room = self._room(room_id)

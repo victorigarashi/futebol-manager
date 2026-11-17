@@ -90,6 +90,13 @@ async def restore_snapshots() -> None:
         season = raw.get("season")
         if season is not None and not isinstance(season, dict):
             raise ValueError(f"Snapshot de temporada inválido para a sala {room_id}.")
+        pack = raw.get("pack")
+        if isinstance(pack, dict):
+            from app.api.routes import finish_pack
+            from app.services.pack_service import pack_service
+            pack_service.restore_room(room_id, pack)
+            if room_manager._room(room_id).phase == "PACK":
+                pack_service.schedule_deadline(room_id, finish_pack)
         transfers = raw.get("transfers", {"offers": [], "operations": []})
         if not isinstance(transfers, dict):
             raise ValueError(f"Snapshot de transferências inválido para a sala {room_id}.")
