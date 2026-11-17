@@ -11,6 +11,7 @@ services:
       SNAPSHOT_PATH: /data/snapshots/rooms.json
       ENABLE_DEMO_CATALOG: "false"
       PLAYER_CATALOG_PATH: /data/catalogs/players.json
+      WORLD_CATALOG_PATH: /data/catalogs/world_players.json
       REQUEST_LIMIT_PER_MINUTE: ${REQUEST_LIMIT_PER_MINUTE:-600}
       AUTH_LIMIT_PER_MINUTE: ${AUTH_LIMIT_PER_MINUTE:-120}
       MAX_REQUEST_BODY_BYTES: ${MAX_REQUEST_BODY_BYTES:-1048576}

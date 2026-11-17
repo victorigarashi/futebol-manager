@@ -220,3 +220,13 @@ def test_draft_http_flow_from_lobby_to_season():
         squad = host.get(f"{base}/squad").json()["data"]
         assert len(squad["players"]) == 8 and squad["lineup"]["formation_code"] == "2-1-1"
         assert squad["cohesion"] is not None
+
+
+def test_world_catalog_draft_offers_international_cards_with_their_club():
+    world = list(load_catalog(Path(__file__).resolve().parents[3] / "data" / "catalogs" / "world_players.json").players)
+    assert feasibility(world, "ELEVEN_A_SIDE", 80) == []
+    state = DraftState("world-room", "ELEVEN_A_SIDE", "WORLD", 80, {"FLA": DraftSquad("FLA")})
+    draft = Draft(state, world)
+    draft.auto_complete("FLA", "LEGENDARY")
+    players = draft.roster_players("FLA")
+    assert len(players) == 16 and all(p.overall >= 80 and p.club_name for p in players)

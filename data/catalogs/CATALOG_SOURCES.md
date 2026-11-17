@@ -23,3 +23,7 @@ Este registro documenta a avaliação técnica das fontes, não constitui parece
 ## Avaliação FCM 26 V5 — 13/11/2026
 
 A página pública do FC Mania anuncia uma Database FCM 26 V5 com overall, potencial, atributos, formações e elencos. Ela é suficiente para justificar um pedido de autorização, mas não para copiar o banco: os termos disponíveis descrevem o patch como produto de uso pessoal e individual. O projeto mantém o importador e um template de exportação em `data/catalogs/reports/`, porém não integra nenhum registro FCM sem autorização escrita.
+
+## Catálogo Mundial do Draft — 17/11/2026
+
+`world_players.json` usa somente a identidade do Transfermarkt-datasets (CC0-1.0, snapshot 06/07/2026, checksums do manifesto conferidos). Os ratings são o modelo editorial próprio `BRASILEIRAO_MANAGER_WORLD_RATING_V1`, sem dado da EA, sem fotos e sem atributos. Detalhes em `docs/CATALOGO_MUNDIAL.md`.

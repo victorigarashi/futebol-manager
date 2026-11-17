@@ -28,7 +28,12 @@ Finished = Callable[[str], Awaitable[None]]
 
 def catalog_path(name: str) -> Path:
     settings = get_settings()
-    return settings.player_catalog_path if name == "BRASILEIRAO" else settings.world_catalog_path
+    if name == "BRASILEIRAO":
+        return settings.player_catalog_path
+    if settings.world_catalog_path.exists():
+        return settings.world_catalog_path
+    # Deployments that only configure the national catalog ship both files side by side.
+    return settings.player_catalog_path.parent / "world_players.json"
 
 
 _catalog_cache: dict[tuple[str, float], list[CatalogPlayer]] = {}
