@@ -16,6 +16,9 @@ from fastapi import (
 from app.api.schemas import (
     BotChange,
     ClubSelectionRequest,
+    DraftFormation,
+    DraftPick,
+    DraftSlot,
     InstructionsUpdate,
     JoinByCodeRequest,
     LineupUpdate,
@@ -40,6 +43,7 @@ from app.core.config import get_settings
 from app.domain.catalog import catalog_status, load_catalog
 from app.domain.clubs import CLUBS
 from app.domain.demo_catalog import create_demo_catalog
+from app.domain.draft import DraftError
 from app.domain.market import InitialMarket, MarketError
 from app.domain.match_engine import PlayerInput, derived_attributes
 from app.domain.rooms import RULES, room_manager
@@ -51,6 +55,7 @@ from app.services.auth import (
     identity_from_token,
     issue_guest_token,
 )
+from app.services.draft_service import draft_service, validate_configuration
 from app.services.market_service import market_service
 from app.services.realtime import hub
 from app.services.season_service import season_service
@@ -83,6 +88,7 @@ def snapshot_room(room_id: str) -> None:
         "lineups": squad_service.export_room(room_id),
         "season": season_service.export_room(room_id) if room_id in season_service._seasons else None,
         "transfers": transfer_service.export_room(room_id) if room_id in transfer_service._offers or room_id in transfer_service._operations else {"offers": [], "operations": []},
+        "draft": draft_service.export_room(room_id),
     }
     with metrics.cpu("snapshot_serialize"):
         snapshot_store.update(settings.snapshot_path, room_id, result)
@@ -94,6 +100,16 @@ async def finalize_market(completed_room_id: str) -> None:
     human_clubs = {member.selected_club_code for member in room.participants.values() if member.role != "BOT" and member.selected_club_code}
     managers = {member.selected_club_code: member.display_name for member in room.participants.values() if member.role != "BOT" and member.selected_club_code}
     await market_service.start_selection(completed_room_id, set(human_clubs), managers, room.initial_market_duration_seconds, progress_market)
+
+
+def check_draft_rules(mode: str, game_mode: str | None, catalog: str | None, min_overall: int | None) -> None:
+    """A Draft room must be able to fill every position with its catalog and minimum overall."""
+    if game_mode != "DRAFT":
+        return
+    try:
+        validate_configuration(str(catalog or "BRASILEIRAO"), mode, int(min_overall or 0))
+    except DraftError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
 
 
 def room_rules(room) -> dict[str, object]:
@@ -181,6 +197,7 @@ def get_catalog_status() -> dict[str, object]:
 async def create_room(
     payload: RoomCreate, identity: GuestIdentity = Depends(current_identity)
 ) -> dict[str, object]:
+    check_draft_rules(payload.mode, payload.game_mode, payload.draft_catalog, payload.draft_min_overall)
     state = await room_manager.create(
         user_id=identity.id,
         display_name=identity.display_name,
@@ -207,6 +224,9 @@ async def create_room(
 async def update_room(
     room_id: str, payload: RoomUpdate, identity: GuestIdentity = Depends(current_identity)
 ) -> dict[str, object]:
+    room = room_manager._room(room_id)
+    check_draft_rules(payload.mode, payload.game_mode or room.game_mode, payload.draft_catalog or room.draft_catalog,
+                      payload.draft_min_overall if payload.draft_min_overall is not None else room.draft_min_overall)
     state = await room_manager.update(room_id, identity.id, **payload.model_dump(exclude_none=True))
     snapshot_room(room_id)
     await hub.broadcast(room_id, {"type": "room.updated", "revision": state["revision"]})
@@ -261,6 +281,8 @@ async def start_room(room_id: str, identity: GuestIdentity = Depends(current_ide
     # so a host can start a 4/6/8… club league without an invisible manual bot step.
     await room_manager.complete_with_bots(room_id, identity.id)
     room = room_manager._room(room_id)
+    if room.game_mode == "DRAFT":
+        return await start_draft(room_id, identity.id)
     settings = get_settings()
     try:
         catalog = create_demo_catalog() if settings.enable_demo_catalog else load_catalog(settings.player_catalog_path)
@@ -286,6 +308,104 @@ async def start_room(room_id: str, identity: GuestIdentity = Depends(current_ide
     snapshot_room(room_id)
     await hub.broadcast(room_id, {"type": "room.started", "revision": state["revision"]})
     return envelope(state, int(state["revision"]))
+
+
+async def start_draft(room_id: str, host_id: str) -> dict[str, object]:
+    """Draft rooms skip the initial market: squads come from three-card offers."""
+    room = room_manager._room(room_id)
+    selected = [m.selected_club_code for m in room.participants.values() if m.selected_club_code]
+    clubs = selected if len(selected) == room.team_count else [club.code for club in CLUBS]
+    humans = {m.selected_club_code for m in room.participants.values() if m.selected_club_code and m.role != "BOT"}
+    try:
+        async with draft_service.lock(room_id):
+            draft_service.start(room_id, room.mode, room.draft_catalog, room.draft_min_overall, [str(c) for c in clubs],
+                                {str(c) for c in clubs if c not in humans}, room.bot_difficulty,
+                                room.initial_market_duration_seconds, room.initial_budget_cents)
+    except DraftError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    state = await room_manager.start(room_id, host_id)
+    draft_service.schedule_deadline(room_id, finish_draft)
+    snapshot_room(room_id)
+    await hub.broadcast(room_id, {"type": "room.started", "revision": state["revision"]})
+    return envelope(state, int(state["revision"]))
+
+
+async def finish_draft(room_id: str) -> None:
+    await progress_market(room_id, "SQUAD_MANAGEMENT")
+    await hub.broadcast(room_id, {"type": "draft.completed"})
+
+
+def draft_club(room_id: str, user_id: str) -> str:
+    club = market_club(room_id, user_id)
+    if room_manager._room(room_id).phase != "DRAFT":
+        raise HTTPException(status_code=409, detail="A sala não está na fase de Draft.")
+    return club
+
+
+@router.get("/rooms/{room_id}/draft")
+async def draft_state(room_id: str, identity: GuestIdentity = Depends(current_identity)) -> dict[str, object]:
+    club = market_club(room_id, identity.id)
+    try:
+        return envelope(draft_service.view(room_id, club))
+    except DraftError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+
+
+@router.put("/rooms/{room_id}/draft/formation")
+async def draft_formation(room_id: str, payload: DraftFormation, identity: GuestIdentity = Depends(current_identity)) -> dict[str, object]:
+    club = draft_club(room_id, identity.id)
+    try:
+        async with draft_service.lock(room_id):
+            result = draft_service.set_formation(room_id, club, payload.formation_code)
+    except DraftError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    snapshot_room(room_id)
+    return envelope(result)
+
+
+@router.post("/rooms/{room_id}/draft/offer")
+async def draft_offer(room_id: str, payload: DraftSlot, identity: GuestIdentity = Depends(current_identity)) -> dict[str, object]:
+    """Three cards for a slot. Asking again returns the same three (no re-roll)."""
+    club = draft_club(room_id, identity.id)
+    try:
+        async with draft_service.lock(room_id):
+            result = draft_service.open_slot(room_id, club, payload.slot_id)
+    except DraftError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    snapshot_room(room_id)
+    return envelope(result)
+
+
+@router.post("/rooms/{room_id}/draft/pick")
+async def draft_pick(room_id: str, payload: DraftPick, identity: GuestIdentity = Depends(current_identity)) -> dict[str, object]:
+    club = draft_club(room_id, identity.id)
+    finished = False
+    try:
+        async with draft_service.lock(room_id):
+            result = draft_service.pick(room_id, club, payload.slot_id, payload.catalog_id)
+            finished = draft_service.complete_due(room_id)  # last manager done: start at once
+    except DraftError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    if finished:
+        await finish_draft(room_id)
+        result = {**result, "completed": True}
+    snapshot_room(room_id)
+    await hub.broadcast(room_id, {"type": "draft.progress", "club_code": club})
+    return envelope(result)
+
+
+@router.post("/rooms/{room_id}/draft/complete")
+async def draft_force_complete(room_id: str, identity: GuestIdentity = Depends(current_identity)) -> dict[str, object]:
+    """Host: finish now; every missing pick is made automatically."""
+    if room_manager._room(room_id).host_user_id != identity.id:
+        raise HTTPException(status_code=403, detail="Apenas o anfitrião pode encerrar o Draft.")
+    draft_club(room_id, identity.id)
+    async with draft_service.lock(room_id):
+        finished = draft_service.complete_due(room_id, force=True)
+    if finished:
+        await finish_draft(room_id)
+    snapshot_room(room_id)
+    return envelope({"completed": True})
 
 
 def market_club(room_id: str, user_id: str) -> str:

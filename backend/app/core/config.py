@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     enable_json_snapshots: bool = False
     snapshot_path: Path = Path("data/snapshots/rooms.json")
     player_catalog_path: Path = Path("/data/catalogs/players.json")
+    # International catalog used only by the Draft "Mundial" (see docs/CATALOGO_MUNDIAL.md).
+    world_catalog_path: Path = Path("/data/catalogs/world_players.json")
     app_environment: str = "development"
     enable_demo_catalog: bool = False
     demo_snapshot_path: Path = Path("data/snapshots/demo-rooms.json")

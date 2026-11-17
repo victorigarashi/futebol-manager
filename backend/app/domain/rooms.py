@@ -366,7 +366,7 @@ class RoomManager:
             if room.team_count != 20 and len(room.participants) != room.team_count:
                 raise HTTPException(status_code=409, detail="Complete as vagas com bots até atingir a quantidade configurada de clubes.")
             draft = copy.deepcopy(room)
-            draft.phase = "INITIAL_MARKET"
+            draft.phase = "DRAFT" if room.game_mode == "DRAFT" else "INITIAL_MARKET"
             draft.revision += 1
             self._rooms[room_id] = draft
             return self._state(draft)
@@ -487,6 +487,7 @@ class RoomManager:
             "MARKET_SELECTION": {"MARKET_REASSIGNMENT", "MARKET_REVIEW"},
             "MARKET_REASSIGNMENT": {"MARKET_REVIEW"},
             "MARKET_REVIEW": {"SQUAD_MANAGEMENT"},
+            "DRAFT": {"SQUAD_MANAGEMENT"},
         }
         async with self._locks[room_id]:
             room = self._room(room_id)

@@ -170,6 +170,18 @@ class TacticsUpdate(BaseModel):
     style: Style
 
 
+class DraftFormation(BaseModel):
+    formation_code: str = Field(min_length=2, max_length=12)
+
+
+class DraftSlot(BaseModel):
+    slot_id: str = Field(min_length=2, max_length=20)
+
+
+class DraftPick(DraftSlot):
+    catalog_id: str = Field(min_length=1, max_length=120)
+
+
 class InstructionsUpdate(BaseModel):
     # player id -> instruction code; validated against the slot by the server.
     instructions: dict[str, str] = Field(max_length=11)

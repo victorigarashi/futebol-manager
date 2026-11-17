@@ -132,6 +132,9 @@ async def restore_snapshots() -> None:
             if isinstance(season, dict) and "fixtures" in season:
                 staged_seasons.restore_room(room_id, season)
             staged_transfers.restore_room(room_id, raw.get("transfers", {"offers": [], "operations": []}))
+        if isinstance(raw.get("draft"), dict):
+            from app.domain.draft import DraftState
+            DraftState.from_dict(dict(raw["draft"]["state"]))  # validates instances before hydrating
 
     from app.api.routes import finalize_market, notify_market, progress_market, room_rules
 
@@ -155,6 +158,13 @@ async def restore_snapshots() -> None:
                 season_service.create(room_id, market_service._session(room_id).market, double_round_robin=room_manager._room(room_id).double_round_robin, rules=room_rules(room_manager._room(room_id)))
         elif room_id in market_service.sessions and market_service._session(room_id).market.selection_complete:
             season_service.create(room_id, market_service._session(room_id).market, double_round_robin=room_manager._room(room_id).double_round_robin, rules=room_rules(room_manager._room(room_id)))
+        draft = raw.get("draft")
+        if isinstance(draft, dict):
+            from app.api.routes import finish_draft
+            from app.services.draft_service import draft_service
+            draft_service.restore_room(room_id, draft)
+            if room_manager._room(room_id).phase == "DRAFT":
+                draft_service.schedule_deadline(room_id, finish_draft)
         transfers = raw.get("transfers", {"offers": [], "operations": []})
         if isinstance(transfers, dict):
             transfer_service.restore_room(room_id, transfers)

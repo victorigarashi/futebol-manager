@@ -27,6 +27,8 @@ class CatalogPlayer(BaseModel):
     id: str = Field(min_length=1)
     name: str = Field(min_length=1)
     club_code: str = Field(min_length=3, max_length=3)
+    # Real club name for international records (club_code "WLD"); absent for national ones.
+    club_name: str | None = Field(default=None, max_length=80)
     age: int | None = Field(default=None, ge=14, le=50)
     nationality: str | None = Field(default=None, min_length=1)
     verification_status: str | None = Field(default=None, min_length=1)
