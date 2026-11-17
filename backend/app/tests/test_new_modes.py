@@ -196,7 +196,7 @@ def test_a_squad_is_built_only_from_opened_cards_of_the_own_collection(real_cata
     packs_ = open_packs("room:FLA:packs", "FIVE_A_SIDE", real_catalog)
     state = PackState("room", "FIVE_A_SIDE", "BRASILEIRAO", "BALANCED", {"FLA": PackCollection("FLA", packs_)})
     rules = Packs(state, real_catalog)
-    rules.set_formation("FLA", rules.collection_view("FLA")["formations"][0])
+    rules.set_formation("FLA", rules.collection_view("FLA")["formations"][0]["code"])
     slot = next(iter(state.clubs["FLA"].slots))
     with pytest.raises(PackError):
         rules.place("FLA", slot, packs_[0][0])  # packs still closed

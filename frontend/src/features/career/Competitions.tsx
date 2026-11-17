@@ -6,7 +6,7 @@ import { ClubCrest } from "../../components/ClubCrest";
 import { readLocal, writeLocal } from "../../lib/storage";
 
 type ClubOf = (code: string) => Club;
-type Kind = "PLAYOFF" | "CUP";
+type Kind = "PLAYOFF" | "CUP" | "TOURNAMENT";
 
 /** Pot draw ceremony: the stored server draw revealed one pair at a time (once per
  *  browser). The pairs are fixed by the server and never re-drawn on the client. */

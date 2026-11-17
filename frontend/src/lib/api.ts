@@ -6,8 +6,21 @@ export type MatchStyle = "REALISTIC" | "EXCITING";
 export type BotDifficulty = "CASUAL" | "COMPETITIVE" | "LEGENDARY";
 export type PlayoffFormat = "SINGLE" | "TWO_LEGS";
 /** League rules chosen when the room is created (editable until the season starts). */
-export type GameMode = "TRADITIONAL" | "DRAFT";
-export type LeagueRules = { game_mode: GameMode; sim_style: MatchStyle; bot_difficulty: BotDifficulty; morale_enabled: boolean; copa_enabled: boolean; coach_moves_enabled: boolean; playoff_format: PlayoffFormat; draft_catalog: "BRASILEIRAO" | "WORLD"; draft_min_overall: number };
+export type GameMode = "TRADITIONAL" | "DRAFT" | "DRAFT_KNOCKOUT" | "SURVIVOR" | "PACK";
+export type LeagueRules = { game_mode: GameMode; sim_style: MatchStyle; bot_difficulty: BotDifficulty; morale_enabled: boolean; copa_enabled: boolean; coach_moves_enabled: boolean; playoff_format: PlayoffFormat; draft_catalog: "BRASILEIRAO" | "WORLD"; draft_min_overall: number; survivor_eliminations: 0 | 2 | 4; pack_luck: "BALANCED" | "LUCK" };
+export type SurvivorRow = { club_code: string; position: number; points: number; gf: number; ga: number; gd: number; total_points: number; total_gd: number };
+export type SurvivorView = {
+  seed: string; clubs: string[]; configured: number; active: string[]; remaining: number; path: number[];
+  eliminated: { club: string; round: number; position: number }[];
+  rounds: { number: number; pairs: string[][]; results: Record<string, number[]>; table: SurvivorRow[]; eliminated: string[]; final: boolean }[];
+  totals: Record<string, number[]>; champion: string | null; runner_up: string | null;
+};
+export type PackCard = { id: string; name: string; position: string; secondary_positions: string[]; overall: number; club_code: string; photo_url?: string | null; tier: "OURO" | "PRATA" | "BRONZE"; attributes: Record<string, number> };
+export type PackView = {
+  club: string; packs_total: number; opened: number; packs: PackCard[][]; formation: string | null; slots: Record<string, string | null>; bench: string[];
+  confirmed: boolean; bench_size: number; problems: string[]; formations: Formation[]; deadline: number | null; server_now: number; completed: boolean;
+  luck: "BALANCED" | "LUCK"; catalog: string; mode: "FIVE_A_SIDE" | "ELEVEN_A_SIDE"; managers: { club_code: string; confirmed: boolean; opened: number; bot: boolean }[];
+};
 export type Club = { code: string; name: string; sort_order: number };
 export type Room = {
   id: string;
@@ -86,12 +99,13 @@ export type MatchPreview = {
   home?: PreviewSide; away?: PreviewSide; waiting?: boolean; next_round?: NextRoundView;
   classic?: string | null; head_to_head?: HeadToHead; special_events?: SpecialEvent[]; morale?: Record<string, number> | null;
 };
+export type Competition = "PLAYOFF" | "CUP" | "TOURNAMENT" | "SURVIVOR";
 export type TieView = {
-  id: string; competition: "PLAYOFF" | "CUP"; stage: string; stage_name: string; high: string; low: string; legs: 1 | 2; order: number;
+  id: string; competition: Competition; stage: string; stage_name: string; high: string; low: string; legs: 1 | 2; order: number;
   leg_scores: number[][]; penalties: number[] | null; winner: string | null; aggregate: [number, number]; match_ids: string[]; fixtures: string[][];
 };
-export type KnockoutRoundView = { id: string; competition: "PLAYOFF" | "CUP"; stage: string; leg: number; after_round: number; tie_ids: string[]; status: "PENDING" | "DONE"; stage_name: string; competition_name: string };
-export type DrawRecord = { competition: "PLAYOFF" | "CUP"; stage: string; stage_name: string; pairs: string[][]; kind: string; pot1?: string[]; pot2?: string[]; rule?: string; seed?: string };
+export type KnockoutRoundView = { id: string; competition: Competition; stage: string; leg: number; after_round: number; tie_ids: string[]; status: "PENDING" | "DONE"; stage_name: string; competition_name: string };
+export type DrawRecord = { competition: Competition; stage: string; stage_name: string; pairs: string[][]; kind: string; pot1?: string[]; pot2?: string[]; rule?: string; seed?: string };
 export type KnockoutView = {
   ties: Record<string, TieView>; rounds: KnockoutRoundView[]; draws: DrawRecord[];
   cup_enabled: boolean; cup_seeds: string[]; cup_champion: string | null; cup_runner_up: string | null; playoff_runner_up: string | null;
@@ -125,7 +139,7 @@ export type DevelopmentRecord = { player_id: string; season_number: number; over
 export type SeasonTopScorer = { player_id: string; player_name: string; club_code: string; goals: number };
 export type ScheduleRow = { id: string; round_number: number; home: string; away: string; result: { home_goals: number; away_goals: number } | null };
 export type RoundState = "PREPARING" | "READY" | "STARTING" | "LIVE" | "FINISHED" | "RECOVERING";
-export type SeasonView = { knockout?: KnockoutView; next_round?: NextRoundView; rules?: Partial<LeagueRules>; preseason_window?: boolean; total_rounds?: number; round_state?: RoundState; human_clubs?: string[]; recovering?: boolean; live_round: LiveRound | null; server_now: number; preparation_opened_at?: number | null; schedule?: ScheduleRow[]; live_table: SeasonTableRow[]; season_number: number; current_round: number; regular_season_complete: boolean; season_complete: boolean; progression_applied: boolean; champion: string | null; playoffs: PlayoffView | null; transfer_window_open: boolean; ready_clubs: string[]; table: SeasonTableRow[]; fixtures: { id: string; round_number: number; home: string; away: string; match_id?: string | null; result: { home_goals: number; away_goals: number } | null }[]; matches: { id: string; round_number: number; home: string; away: string; home_goals: number; away_goals: number }[]; top_scorers: SeasonTopScorer[]; development_records: DevelopmentRecord[]; season_history: { season_number: number; champion: string; table: SeasonTableRow[]; top_scorers?: SeasonTopScorer[] }[] };
+export type SeasonView = { game_mode?: GameMode; survivor?: SurvivorView | null; knockout?: KnockoutView; next_round?: NextRoundView; rules?: Partial<LeagueRules>; preseason_window?: boolean; total_rounds?: number; round_state?: RoundState; human_clubs?: string[]; recovering?: boolean; live_round: LiveRound | null; server_now: number; preparation_opened_at?: number | null; schedule?: ScheduleRow[]; live_table: SeasonTableRow[]; season_number: number; current_round: number; regular_season_complete: boolean; season_complete: boolean; progression_applied: boolean; champion: string | null; playoffs: PlayoffView | null; transfer_window_open: boolean; ready_clubs: string[]; table: SeasonTableRow[]; fixtures: { id: string; round_number: number; home: string; away: string; match_id?: string | null; result: { home_goals: number; away_goals: number } | null }[]; matches: { id: string; round_number: number; home: string; away: string; home_goals: number; away_goals: number }[]; top_scorers: SeasonTopScorer[]; development_records: DevelopmentRecord[]; season_history: { season_number: number; champion: string; table: SeasonTableRow[]; top_scorers?: SeasonTopScorer[] }[] };
 
 export type CareerView = { club_code: string; season_number: number; budget_cents: number; reserved_transfer_cents: number; available_transfer_cents: number; financial_ledger: { operation_id?: string; type?: string; amount_cents?: number; description?: string; player_id?: string }[]; transfers: TransferOffer[]; development_records: DevelopmentRecord[]; season_history: SeasonView["season_history"]; players: MarketPlayer[] };
 /** network: no answer at all · unavailable: proxy/server down (502/503/504) · client: the game said no (4xx). */
@@ -227,6 +241,13 @@ export const api = {
   saveLineup: (roomId: string, payload: { formation_code: string; assignments: Record<string, string> }) => request<Envelope<Lineup & { ready_cancelled?: boolean }>>(`/rooms/${roomId}/squad/lineup`, { method: "PUT", body: JSON.stringify(payload) }),
   saveInstructions: (roomId: string, instructions: Record<string, string>) => request<Envelope<{ instructions: Record<string, string>; ready_cancelled: boolean }>>(`/rooms/${roomId}/squad/instructions`, { method: "PUT", body: JSON.stringify({ instructions }) }),
   cohesion: (roomId: string) => request<Envelope<CohesionView>>(`/rooms/${roomId}/squad/cohesion`),
+  pack: (roomId: string) => request<Envelope<PackView>>(`/rooms/${roomId}/pack`),
+  packOpen: (roomId: string) => request<Envelope<PackView>>(`/rooms/${roomId}/pack/open`, { method: "POST" }),
+  packFormation: (roomId: string, formation_code: string) => request<Envelope<PackView>>(`/rooms/${roomId}/pack/formation`, { method: "PUT", body: JSON.stringify({ formation_code }) }),
+  packPlace: (roomId: string, slot_id: string, catalog_id: string | null) => request<Envelope<PackView>>(`/rooms/${roomId}/pack/slot`, { method: "PUT", body: JSON.stringify({ slot_id, catalog_id }) }),
+  packBench: (roomId: string, catalog_ids: string[]) => request<Envelope<PackView>>(`/rooms/${roomId}/pack/bench`, { method: "PUT", body: JSON.stringify({ catalog_ids }) }),
+  packConfirm: (roomId: string) => request<Envelope<PackView>>(`/rooms/${roomId}/pack/confirm`, { method: "POST" }),
+  packComplete: (roomId: string) => request<Envelope<{ completed: boolean }>>(`/rooms/${roomId}/pack/complete`, { method: "POST" }),
   draft: (roomId: string) => request<Envelope<DraftView>>(`/rooms/${roomId}/draft`),
   draftFormation: (roomId: string, formation_code: string) => request<Envelope<DraftView>>(`/rooms/${roomId}/draft/formation`, { method: "PUT", body: JSON.stringify({ formation_code }) }),
   draftOffer: (roomId: string, slot_id: string) => request<Envelope<{ slot_id: string; cards: DraftCard[]; note: string | null }>>(`/rooms/${roomId}/draft/offer`, { method: "POST", body: JSON.stringify({ slot_id }) }),

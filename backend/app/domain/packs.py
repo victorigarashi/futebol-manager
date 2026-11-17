@@ -28,7 +28,7 @@ from dataclasses import asdict, dataclass, field
 
 from app.domain.catalog import CatalogPlayer
 from app.domain.draft import BENCH_SIZE, eligible_pool, fits
-from app.domain.squad import FORMATION_LINES, formation_slots
+from app.domain.squad import FORMATION_LINES, formation_slots, formations
 
 TIERS = ("OURO", "PRATA", "BRONZE")
 TIER_SHARE = {"OURO": 0.15, "PRATA": 0.35, "BRONZE": 0.50}
@@ -278,4 +278,4 @@ class Packs:
         return {"club": club, "packs_total": len(col.packs), "opened": col.opened, "packs": [[card(c) for c in pack] for pack in visible],
                 "formation": col.formation, "slots": col.slots, "bench": col.bench, "confirmed": col.confirmed,
                 "bench_size": BENCH_SIZE[self.state.mode], "problems": self.problems(club) if col.opened == len(col.packs) else [],
-                "formations": list(FORMATION_LINES[self.state.mode])}
+                "formations": formations(self.state.mode)}
