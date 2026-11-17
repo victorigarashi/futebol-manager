@@ -104,7 +104,7 @@ def teammates_on_ball(frames: dict, home_count: int, side: int, first: int, last
 
 def test_goal_highlights_show_the_build_up_and_the_ball_moving_between_teammates():
     built, buildups, total = 0, 0, 0
-    for seed in range(1, 7):
+    for seed in range(1, 13):  # the calibrated engine scores less between identical sides
         engine, director, _ = run_broadcast(120, seed=seed)
         frames = engine.all_frames
         home_count = len(engine.team_agents[0])

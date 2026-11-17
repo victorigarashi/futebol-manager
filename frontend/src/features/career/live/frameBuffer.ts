@@ -18,6 +18,8 @@ export type Sample = {
 
 /** A player covering more than this (normalised pitch length) in one tick is a reposition. */
 export const JUMP = 0.14;
+/** Frame state of the tick in which a shot was struck (see the engine's `_record_frame`). */
+export const SHOT = 3;
 /** A dead ball moving more than this in one tick is being placed (fade, not a flight). */
 const BALL_PLACE_JUMP = 0.12;
 
@@ -126,7 +128,9 @@ function toSample(before: FrameRow | undefined, a: FrameRow, b: FrameRow, after:
     const [px, py] = players[ownerA]!;
     ball = { ...ball, x: px, y: py };
   }
-  if ((stateA === 1 || stateB === 1) && Math.hypot(ballBx - ballAx, ballBy - ballAy) > BALL_PLACE_JUMP) {
+  // State 3 = the tick of a shot: the ball flies to where the shot ended (net, keeper's
+  // hands, wide, a blocker). Only a dead ball being placed for a restart fades.
+  if (stateB !== SHOT && stateA !== SHOT && (stateA === 1 || stateB === 1) && Math.hypot(ballBx - ballAx, ballBy - ballAy) > BALL_PLACE_JUMP) {
     // A dead ball being placed for the restart: fade instead of flying across the pitch.
     ball = { ...ball, x: mix < 0.5 ? ballAx : ballBx, y: mix < 0.5 ? ballAy : ballBy, alpha: Math.abs(1 - mix * 2) };
   }

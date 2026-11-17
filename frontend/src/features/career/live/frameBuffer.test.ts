@@ -86,3 +86,29 @@ describe("smooth, honest motion", () => {
     expect(mid.ball.alpha).toBeLessThan(1);
   });
 });
+
+describe("shots", () => {
+  it("flies the ball to where the shot ended instead of fading it", () => {
+    const buffer = new FrameBuffer();
+    const players = [0.5, 0.5];
+    buffer.push([
+      { t: 10, b: [0.8, 0.5, 0, 0], p: players },
+      { t: 11, b: [1.0, 0.52, -1, 3], p: players },
+      { t: 12, b: [1.0, 0.52, -1, 1], p: players },
+    ]);
+    const mid = buffer.sample(10.5)!;
+    expect(mid.ball.alpha).toBe(1);
+    expect(mid.ball.x).toBeGreaterThan(0.85);
+    expect(mid.ball.x).toBeLessThan(0.95);
+  });
+
+  it("still fades a dead ball that is only being placed for a restart", () => {
+    const buffer = new FrameBuffer();
+    const players = [0.5, 0.5];
+    buffer.push([
+      { t: 20, b: [1.0, 0.52, -1, 1], p: players },
+      { t: 21, b: [0.5, 0.5, -1, 1], p: players },
+    ]);
+    expect(buffer.sample(20.5)!.ball.alpha).toBeLessThan(0.2);
+  });
+});

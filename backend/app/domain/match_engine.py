@@ -31,8 +31,8 @@ PITCH = {
     # create futsal-like scorelines (more than ten goals per match).  It is applied
     # before xG is recorded, so the displayed xG always remains the probability
     # actually used by the goal resolution.
-    "ELEVEN_A_SIDE": {"length": 105.0, "width": 68.0, "goal": 7.32, "box": 16.5, "shot_range": 30.0, "xg_scale": 1.0, "finish_scale": 0.86, "max_subs": 5, "windows": 3},
-    "FIVE_A_SIDE": {"length": 40.0, "width": 22.0, "goal": 3.0, "box": 6.0, "shot_range": 15.0, "xg_scale": 1.6, "finish_scale": 0.55, "max_subs": 3, "windows": 99},
+    "ELEVEN_A_SIDE": {"length": 105.0, "width": 68.0, "goal": 7.32, "box": 16.5, "shot_range": 30.0, "xg_scale": 1.0, "finish_scale": 0.70, "max_subs": 5, "windows": 3},
+    "FIVE_A_SIDE": {"length": 40.0, "width": 22.0, "goal": 3.0, "box": 6.0, "shot_range": 15.0, "xg_scale": 1.6, "finish_scale": 0.36, "max_subs": 3, "windows": 99},
 }
 
 # Real engine parameters per tactic. Every number is consumed below.
@@ -46,17 +46,22 @@ MENTALITY = {
 }
 PRESSURE = {
     #          pressers trigger(depth) tackle_rate foul_extra line_push drain
-    "LOW":    (1, 0.38, 0.08, 0.000, -0.03, 0.80),
-    "MEDIUM": (1, 0.62, 0.11, 0.015, 0.00, 1.00),
-    "HIGH":   (2, 1.10, 0.14, 0.035, 0.03, 1.90),
+    # tackle_rate is per tick and per defender within reach (realism audit: the old
+    # 0.08-0.14 meant ~160 won tackles a match; real football has ~35-45).
+    "LOW":    (1, 0.38, 0.055, 0.000, -0.03, 0.80),
+    "MEDIUM": (1, 0.62, 0.060, 0.015, 0.00, 1.00),
+    "HIGH":   (2, 1.10, 0.080, 0.035, 0.03, 1.90),
 }
 STYLE = {
     #                 risk  progress long_bonus width  hold  counter cross
+    # Risk aversion kept close between styles (2D/realism audit): with 1.30-1.32 the
+    # direct styles produced 6-7 goals a match between equal sides and beat
+    # possession 3.2-0.9. Styles now change how a team plays, not how much it scores.
     "POSSESSION":    (1.55, 0.80, -0.04, 1.00, 0.06, 0.0, 0.6),
-    "COUNTER":       (1.32, 1.10, 0.02, 0.95, 0.00, 1.0, 0.8),
-    "DIRECT":        (1.30, 1.25, 0.05, 0.95, 0.00, 0.3, 1.0),
-    "SHORT_BUILDUP": (1.50, 0.90, -0.08, 1.00, 0.03, 0.0, 0.7),
-    "WIDE":          (1.40, 1.00, 0.00, 1.18, 0.02, 0.0, 1.6),
+    "COUNTER":       (1.48, 1.10, 0.02, 0.95, 0.00, 1.0, 0.8),
+    "DIRECT":        (1.46, 1.12, 0.03, 0.95, 0.00, 0.3, 1.0),
+    "SHORT_BUILDUP": (1.52, 0.90, -0.08, 1.00, 0.03, 0.0, 0.7),
+    "WIDE":          (1.50, 1.00, 0.00, 1.18, 0.02, 0.0, 1.6),
 }
 
 # Simulation style chosen by the host. Both obey the same rules and are reproducible
@@ -76,6 +81,17 @@ INSTRUCTION_SHIFT = {
     "BALL_PLAYING": (0.02, 0.0), "COVER": (0.0, 0.0),
 }
 RUN_INSTRUCTIONS = {"OVERLAP": 0.35, "ARRIVE": 0.35, "IN_BEHIND": 0.30}
+
+# Inertia (2D audit): the most a player's velocity can change in one tick (m/s per s).
+# Without it a whole team reversed at full speed in one second at every turnover (47% of
+# moving players at possession changes), which read as jerky, aimless movement.
+ACCEL = {"GK": 6.0, "OUTFIELD": 4.5}
+
+# Fixed cost of giving the ball away (shape lost, transition against). Without it a
+# turnover in the opponent's half cost almost nothing (their possession value there is
+# tiny), so carriers forced risky passes: ~200 interceptions a match and play that
+# flipped direction every few seconds (realism audit, docs/DIAGNOSTICO_2D.md).
+TURNOVER_COST = 0.010
 
 STAT_KEYS = ("passes", "passes_completed", "key_passes", "shots", "shots_on_target", "goals", "assists",
              "tackles", "interceptions", "fouls", "saves", "dribbles", "losses", "distance")
@@ -165,7 +181,7 @@ def xg_grid(mode: str) -> tuple[list[list[float]], float]:
 class Agent:
     __slots__ = ("id", "name", "side", "number", "role", "position", "ax", "ay", "x", "y", "pace", "passing",
                  "shooting", "dribbling", "defending", "physical", "keeping", "stamina", "yellow", "sent_off",
-                 "active", "stun", "index", "stats", "entered_tick", "left_tick", "overall", "intensity", "instr")
+                 "active", "stun", "index", "stats", "entered_tick", "left_tick", "overall", "intensity", "instr", "vx", "vy")
 
     def __init__(self, player: PlayerInput, side: int, index: int) -> None:
         a = derived_attributes(player)
@@ -179,6 +195,7 @@ class Agent:
         self.pace, self.passing, self.shooting = a["pace"], a["passing"], a["shooting"]
         self.dribbling, self.defending, self.physical, self.keeping = a["dribbling"], a["defending"], a["physical"], a["keeping"]
         self.x = self.y = 0.0
+        self.vx = self.vy = 0.0  # current velocity (m per tick): players accelerate and brake
         self.stamina = 1.0
         self.yellow = 0
         self.sent_off = False
@@ -250,6 +267,9 @@ class MatchEngine:
         self.owner: Agent | None = None
         self.received_tick = 0
         self.flight: dict[str, object] | None = None
+        # Tick of the last shot: its frame is marked as a shot in flight (state 3) so the
+        # viewer sees the ball travel to the net, the keeper or wide (never a fade).
+        self.shot_tick = -1
         self.dead: dict[str, object] | None = None
         self.last_pass: tuple[Agent, int] | None = None
         self.possession_side = 0
@@ -318,8 +338,10 @@ class MatchEngine:
         for agent in self.agents:
             if agent.active:
                 agent.x, agent.y = self._formation_spot(agent, kickoff=True)
+                agent.vx = agent.vy = 0.0
         taker = self._kickoff_taker(side)
         taker.x, taker.y = self.L / 2, self.W / 2
+        taker.vx = taker.vy = 0.0
         self.bx, self.by = self.L / 2, self.W / 2
         self._give(taker, kickoff=True)
 
@@ -425,6 +447,7 @@ class MatchEngine:
                 # Re-evaluate the incoming player for the vacated slot (out-of-position cost).
                 in_agent.active, in_agent.entered_tick = True, self.tick
                 in_agent.x, in_agent.y = self.L / 2, 0.0 if out_agent.y < self.W / 2 else self.W
+                in_agent.vx = in_agent.vy = 0.0
                 out_agent.active, out_agent.left_tick = False, self.tick
                 self._refresh_active()
                 if self.owner is out_agent:
@@ -521,6 +544,7 @@ class MatchEngine:
         if not taker.active:
             taker = min(self.active(dead["side"]), key=lambda a: (a.x - dead["x"]) ** 2 + (a.y - dead["y"]) ** 2)
         taker.x, taker.y = dead["x"], dead["y"]
+        taker.vx = taker.vy = 0.0
         restart, side = dead["restart"], dead["side"]
         self.dead = None
         if restart == "KICK_OFF":
@@ -603,9 +627,11 @@ class MatchEngine:
         owner = self.owner
         if owner is not None and self.tick > self.received_tick:
             # Tempo: a first touch, then the player looks up. Calmer styles keep it longer.
-            settle = 0.62 if self.tactics[owner.side].style in ("POSSESSION", "SHORT_BUILDUP") else 0.50
+            # (Realism audit: players used to release after ~1 s, ~620 passes a team and a
+            # turnover every ~10 s; a controlled first touch makes moves readable.)
+            settle = 0.78 if self.tactics[owner.side].style in ("POSSESSION", "SHORT_BUILDUP") else 0.68
             held = self.tick - self.received_tick
-            if (held == 1 and self.rng.random() < settle) or (held == 2 and self.rng.random() < settle * 0.6):
+            if (held == 1 and self.rng.random() < settle) or (held == 2 and self.rng.random() < settle * 0.55):
                 return
             self._decide(owner)
 
@@ -721,15 +747,18 @@ class MatchEngine:
         cohesion = self.cohesion[side]
         held = self.tick - self.received_tick
         counter_phase = style[5] > 0 and self.tick - self.possession_since < 10
-        progress_weight = style[1] * (1.3 if counter_phase else 1.0) * (0.85 + 0.1 * mentality[2])
+        progress_weight = style[1] * (1.15 if counter_phase else 1.0) * (0.85 + 0.1 * mentality[2])
         v_here = self.value(side, owner.x, owner.y)
         loss_here = self.value(1 - side, owner.x, owner.y)
         # A well-drilled team reads the play better: less randomness in its choices.
         noise = 0.0035 * (1 - 0.35 * cohesion)
+        # Losing the ball near our own goal costs more: the defence is not set (2D audit:
+        # ~75% of goals came from balls won in the final third and shot at once).
+        turnover_cost = TURNOVER_COST * (1.0 + 2.5 * max(0.0, 0.40 - f_owner / self.L) / 0.40)
 
         p_hold = 0.985 - 0.35 * press
         best_kind, best_target = "hold", None
-        best_value = p_hold * v_here - (1 - p_hold) * loss_here * risk - 0.0012 * held + style[4] * 0.01 + rng.random() * noise
+        best_value = p_hold * v_here - (1 - p_hold) * (loss_here * risk + turnover_cost) - 0.0012 * held + style[4] * 0.01 + rng.random() * noise
         if owner.instr == "TARGET" and held < 3:
             best_value += 0.003  # the pivot holds the ball up for the runners
 
@@ -765,8 +794,12 @@ class MatchEngine:
                 md = ((opp.x - mate.x) ** 2 + (opp.y - mate.y) ** 2) ** 0.5
                 if md < marked:
                     marked = md
+            if owner.role == "GK" and (lane > 0.0 or marked < (6.0 if self.mode == "ELEVEN_A_SIDE" else 3.0)):
+                continue  # a keeper plays short only to a free team-mate with a clear lane
+            if f_owner < self.L * 0.25 and marked < 2.0 and lane > 0.3:
+                continue  # no square ball to a marked team-mate across our own box
             long_ball = dist > (28 if self.mode == "ELEVEN_A_SIDE" else 14)
-            success = 0.995 - dist * 0.0028 * (1.55 - pass_skill / 100) - lane * 0.055 - max(0.0, 3.0 - marked) * (0.05 + 0.10 * (f_mate > self.L * 0.7)) - press * 0.06
+            success = 0.995 - dist * 0.0024 * (1.55 - pass_skill / 100) - lane * 0.038 - max(0.0, 3.0 - marked) * (0.04 + 0.08 * (f_mate > self.L * 0.7)) - press * 0.05
             if long_ball:
                 success -= 0.10 * (1.2 - pass_skill / 100)
             if tactics.style == "SHORT_BUILDUP" and long_ball and f_owner < self.L * 0.4:
@@ -781,7 +814,7 @@ class MatchEngine:
             if cross:
                 v_mate *= 0.55 + 0.25 * style[6]  # a header is worse than a shot on the ground
             mid_x, mid_y = (owner.x + mate.x) / 2, (owner.y + mate.y) / 2
-            value = success * (v_mate + 0.02 * progress * progress_weight) - (1 - success) * self.value(1 - side, mid_x, mid_y) * risk
+            value = success * (v_mate + 0.02 * progress * progress_weight) - (1 - success) * (self.value(1 - side, mid_x, mid_y) * risk + turnover_cost)
             if long_ball:
                 value += style[2] * 0.02
             if width_bias and abs(mate.y - self.W / 2) > self.W * 0.3:
@@ -822,7 +855,7 @@ class MatchEngine:
             # Even a well-timed ball in behind is often overhit, read by the keeper or caught
             # by a recovering defender: the raw race model overstated completion (up to 90%).
             success = max(0.04, min(0.72, success * 0.80 + 0.02 * cohesion))
-            value = success * (self.value(side, tx, ty) + 0.02 * progress_weight) - (1 - success) * self.value(1 - side, (owner.x + tx) / 2, (owner.y + ty) / 2) * risk
+            value = success * (self.value(side, tx, ty) + 0.02 * progress_weight) - (1 - success) * (self.value(1 - side, (owner.x + tx) / 2, (owner.y + ty) / 2) * risk + turnover_cost)
             value += (style[5] * 0.004 if counter_phase else 0.0) + style[2] * 0.01 + rng.random() * noise
             if mate.instr == "IN_BEHIND":
                 value += 0.006
@@ -838,12 +871,17 @@ class MatchEngine:
             in_box = self.fwd(side, cx) > self.L - self.cfg["box"]
             p_keep = 0.965 - 0.30 * press_ahead - 0.15 * press - (0.12 if in_box else 0.0) + (owner.skill(owner.dribbling) - 65) / 600
             v_new = self.value(side, cx, cy)
-            value = p_keep * (v_new + 0.012 * progress_weight * step / self.L * 10) - (1 - p_keep) * self.value(1 - side, cx, cy) * risk
+            value = p_keep * (v_new + 0.012 * progress_weight * step / self.L * 10) - (1 - p_keep) * (self.value(1 - side, cx, cy) * risk + turnover_cost)
             value -= 0.0015 + 0.002 * held  # carries end: players look up and release
             value += rng.random() * noise
             if value > best_value:
                 best_kind, best_value, best_target = "carry", value, (cx, cy)
 
+        if owner.role == "GK" and best_kind != "pass" and (held >= 3 or press > 0.2):
+            # No safe short option: the keeper kicks it long (2D audit: 13 of 35 goals came
+            # from a keeper's short pass intercepted at the edge of his own box).
+            self._clearance(owner)
+            return
         if best_kind == "shoot":
             self._shoot(owner)
         elif best_kind == "pass":
@@ -854,7 +892,9 @@ class MatchEngine:
             self._pass(owner, mate, success, dist, target=point, min_duration=math.ceil(run_time))
             self.team_stats[side]["through_balls"] += 1
         elif best_kind == "carry":
-            owner.x, owner.y = self._clamp(best_target[0], best_target[1])
+            nx, ny = self._clamp(best_target[0], best_target[1])
+            owner.vx, owner.vy = nx - owner.x, ny - owner.y  # the carry keeps its momentum
+            owner.x, owner.y = nx, ny
             self._check_entry(owner)
 
     def _check_entry(self, agent: Agent) -> None:
@@ -881,12 +921,17 @@ class MatchEngine:
         if self.rng.random() >= success:
             # Find who reads the lane best; with nobody close the ball runs out.
             opponents = self.active(1 - side)
+            # Where along the path the ball can be won: a lofted long ball only where it
+            # comes down, a ground pass not at the passer's feet (2D audit: a forward
+            # pressing the keeper "intercepted" 40 m kicks at the edge of the box).
+            lofted = math.hypot(tx - owner.x, ty - owner.y) > (28 if self.mode == "ELEVEN_A_SIDE" else 14)
+            t_min = 0.6 if lofted else 0.15
             def lane_distance(o: Agent) -> float:
                 dx, dy = tx - owner.x, ty - owner.y
-                t = max(0.0, min(1.0, ((o.x - owner.x) * dx + (o.y - owner.y) * dy) / max(1e-6, dx * dx + dy * dy)))
+                t = max(t_min, min(1.0, ((o.x - owner.x) * dx + (o.y - owner.y) * dy) / max(1e-6, dx * dx + dy * dy)))
                 return math.hypot(o.x - owner.x - t * dx, o.y - owner.y - t * dy) - o.defending / 40
             interceptor = min(opponents, key=lane_distance) if opponents else None
-            if interceptor and lane_distance(interceptor) < 6.0:
+            if interceptor and lane_distance(interceptor) < 4.0:
                 outcome = "INTERCEPTED"
                 tx, ty = interceptor.x, interceptor.y
             else:
@@ -987,6 +1032,7 @@ class MatchEngine:
         stats = self.team_stats[side]
         shooter.stats["shots"] += 1
         stats["shots"] += 1
+        self.shot_tick = self.tick
         stats["xg"] += xg
         assist = None
         if self.last_pass and self.last_pass[0].side == side and self.last_pass[0] is not shooter and self.tick - self.last_pass[1] <= 4:
@@ -1012,6 +1058,7 @@ class MatchEngine:
                 assist.stats["assists"] += 1
             self._event("SHOT", side, shooter, shooter.x, shooter.y, "GOAL", xg=xg, extra={"header": header, "possession_since": self.possession_since})
             self._event("GOAL", side, shooter, gx, goal_y, "SCORED", other=assist, xg=xg, extra={"header": header})
+            self._keeper_dive(keeper, gx, goal_y, reaches=False)
             self._stop("KICK_OFF", 1 - side, self.L / 2, self.W / 2, 30)
             # The ball rests in the net until the restart (no jump to the centre spot).
             self.bx, self.by = gx + (1.2 if side == 0 else -1.2), goal_y
@@ -1023,11 +1070,14 @@ class MatchEngine:
             self.team_stats[1 - side]["saves"] += 1
             self._event("SHOT", side, shooter, shooter.x, shooter.y, "ON_TARGET", xg=xg, extra={"header": header, "possession_since": self.possession_since})
             self._event("SAVE", 1 - side, keeper, gx, goal_y, "SAVED", other=shooter, xg=xg)
+            self._keeper_dive(keeper, gx, goal_y, reaches=True)
             parry = rng.random()
             if parry < 0.30:
                 stats["corners"] += 1
                 self._event("CORNER", side, None, gx, 0 if shooter.y < self.W / 2 else self.W, "AWARDED")
                 self._stop("CORNER", side, gx, 0.3 if shooter.y < self.W / 2 else self.W - 0.3, 14)
+                if keeper:  # the shot ends at the keeper's hands; the corner is set up after
+                    self.bx, self.by = keeper.x, keeper.y
             elif parry < 0.42:
                 self.owner = None
                 self.bx = self.abs_x(side, self.L - self.cfg["box"] * 0.5)
@@ -1040,6 +1090,7 @@ class MatchEngine:
                 stats["corners"] += 1
                 self._event("CORNER", side, None, gx, 0 if shooter.y < self.W / 2 else self.W, "AWARDED")
                 self._stop("CORNER", side, gx, 0.3 if shooter.y < self.W / 2 else self.W - 0.3, 14)
+                self.bx, self.by = shooter.x + (1.5 if side == 0 else -1.5), shooter.y  # off the blocker
             else:
                 self.owner = None
                 self.bx = shooter.x + (1.5 if side == 1 else -1.5)
@@ -1051,6 +1102,22 @@ class MatchEngine:
             wide = self.cfg["goal"] / 2 + 2.5
             self.bx = gx + (1.5 if side == 0 else -1.5)
             self.by = self.W / 2 + (wide if goal_y >= self.W / 2 else -wide)
+
+    def _keeper_dive(self, keeper: Agent | None, gx: float, goal_y: float, reaches: bool) -> None:
+        """The keeper reacts to the shot: to the ball on a save, short of it when beaten.
+
+        Purely positional (no random draw), so the outcome of the shot is unchanged."""
+        if keeper is None:
+            return
+        line_x = gx + (-0.6 if gx > self.L / 2 else 0.6)
+        dx, dy = line_x - keeper.x, goal_y - keeper.y
+        dist = math.hypot(dx, dy)
+        if dist < 0.05:
+            return
+        reach = dist if reaches else min(dist * 0.6, 2.5)
+        reach = min(reach, 5.0)
+        keeper.x, keeper.y = self._clamp(keeper.x + dx / dist * reach, keeper.y + dy / dist * reach)
+        keeper.vx = keeper.vy = 0.0
 
     # ------------------------------------------------------------------ movement
     def _clamp(self, x: float, y: float) -> tuple[float, float]:
@@ -1104,7 +1171,9 @@ class MatchEngine:
                 width = style[3]
                 follow = 0.18
             else:
-                line = max(0.08 * L, min(0.52 * L, (ment[0] + press_cfg[4]) * L + 0.30 * (ball_f - 0.5 * L)))
+                # A counter-attacking side waits in a deeper block for the ball to win.
+                block = -0.015 if tactics.style == "COUNTER" else 0.0
+                line = max(0.08 * L, min(0.52 * L, (ment[0] + press_cfg[4] + block) * L + 0.30 * (ball_f - 0.5 * L)))
                 # The back line is never caught behind the ball: drop goal-side of it.
                 line = min(line, max(4.5, ball_f - 3.0))
                 length = ment[1] * L * 0.80 * (0.75 if ball_f < 0.3 * L else 1.0)
@@ -1135,9 +1204,9 @@ class MatchEngine:
                 ranked = sorted((a for a in outfield if a is not self.owner), key=lambda a: (a.x - ball_x) ** 2 + (a.y - ball_y) ** 2)
                 supporters = {a.index for a in ranked[: ment[2] + (1 if tactics.style in ("POSSESSION", "SHORT_BUILDUP") else 0)]}
                 forwards = sorted(outfield, key=lambda a: -a.ax)
-                run_p = ment[3] + (0.25 if tactics.style == "COUNTER" else 0.10 if tactics.style == "DIRECT" else 0) + self.sim["runners"]
-                if self.tick - self.possession_since < 12 and tactics.style == "COUNTER":
-                    run_p += 0.3
+                run_p = ment[3] + (0.03 if tactics.style == "COUNTER" else 0.03 if tactics.style == "DIRECT" else 0) + self.sim["runners"]
+                if self.tick - self.possession_since < 10 and tactics.style == "COUNTER":
+                    run_p += 0.06
                 for a in forwards[:3]:
                     if self.rng.random() < run_p + RUN_INSTRUCTIONS.get(a.instr, 0.0):
                         runners.add(a.index)
@@ -1253,14 +1322,24 @@ class MatchEngine:
                 speed *= 1 + 0.05 * self.cohesion[agent.side]
             dx, dy = tx - agent.x, ty - agent.y
             dist = hypot(dx, dy)
-            if dist > 0.05:
-                move = dist if dist < speed else speed
-                agent.x += dx / dist * move
-                agent.y += dy / dist * move
+            # Desired velocity: toward the target, braking on arrival (never overshoot).
+            want = dist if dist < speed else speed
+            wx, wy = (dx / dist * want, dy / dist * want) if dist > 0.05 else (0.0, 0.0)
+            ax_, ay_ = wx - agent.vx, wy - agent.vy
+            change = hypot(ax_, ay_)
+            limit = ACCEL["GK" if agent.role == "GK" else "OUTFIELD"]
+            if change > limit:
+                ax_, ay_ = ax_ / change * limit, ay_ / change * limit
+            agent.vx += ax_
+            agent.vy += ay_
+            move = hypot(agent.vx, agent.vy)
+            if move > 0.05:
+                agent.x, agent.y = self._clamp(agent.x + agent.vx, agent.y + agent.vy)
                 agent.stats["distance"] += move
                 team_stats[agent.side]["distance"] += move
                 actual = move / top
             else:
+                agent.vx = agent.vy = 0.0
                 actual = 0.1
             agent.intensity = actual
             stamina = agent.stamina - (0.000032 + 0.000115 * actual * actual * drain_factor) * (1.18 - agent.physical / 250)
@@ -1281,7 +1360,7 @@ class MatchEngine:
         # Raw metres; normalised and rounded only when a client asks for frames.
         positions = tuple((a.x, a.y) if a.active else None for a in self.agents)
         owner = self.owner.index if self.owner is not None else -1
-        state = 1 if (self.dead is not None or self.phase in ("HALF_TIME", "FULL_TIME")) else 2 if self.flight is not None else 0
+        state = 3 if self.shot_tick == self.tick else 1 if (self.dead is not None or self.phase in ("HALF_TIME", "FULL_TIME")) else 2 if self.flight is not None else 0
         self.frames.append((self.tick, self.bx, self.by, owner, positions, state))
         # Every tick with an event gets a snapshot, so the statistics shown at any tick
         # always agree with the events (and the score) released up to that tick.
