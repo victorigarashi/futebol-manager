@@ -765,7 +765,7 @@ class SeasonService:
                 "broadcast": director.window(now) if director else None,
                 "match": self._personal_match(room_id, own_id, club, now) if own_id else None,
                 "scores": scores, "table": self.live_table(room_id, now),
-                "official_table": standings(tuple(sorted({f.home for f in season.state.fixtures})),
+                "official_table": standings(tuple(sorted({club_code for fixture in season.state.fixtures for club_code in (fixture.home, fixture.away)})),
                                             season.state.fixtures, season.state.results),
                 "current_round": self.current_round(room_id), "ready_clubs": sorted(season.ready_clubs),
                 "round_state": self.round_state(room_id, now), "recovering": False}

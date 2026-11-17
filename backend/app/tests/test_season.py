@@ -28,6 +28,20 @@ def test_results_are_idempotent_and_table_is_sorted() -> None:
     assert table[0]["club_code"] == fixture.home and table[0]["points"] == 3
 
 
+def test_live_view_keeps_away_only_club_in_single_round_custom_league() -> None:
+    clubs = ("C00", "C01", "C02", "C03")
+    market = InitialMarket(synthetic_catalog("FIVE_A_SIDE", teams=4), "FIVE_A_SIDE", {club: 1_000_000_000 for club in clubs})
+    complete_test_market(market, "single-round-live")
+    service = SeasonService()
+    season = service.create("single-round", market, double_round_robin=False)
+    # A single round can place a club only away. The live endpoint must still
+    # build a complete official table after that club's fixture is recorded.
+    fixture = next(fixture for fixture in season.state.fixtures if fixture.away not in {item.home for item in season.state.fixtures})
+    season.state.record(MatchResult(fixture.id, 1, 0))
+    view = service.live_view("single-round", "C00")
+    assert {row["club_code"] for row in view["official_table"]} == set(clubs)
+
+
 def test_top_scorers_come_from_persisted_match_events() -> None:
     fixture = Fixture("r1-1", 1, "A", "B")
     season = RoomSeason(SeasonState([fixture]), "FIVE_A_SIDE")
