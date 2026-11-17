@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from app.domain.cohesion import instruction_catalog
 from app.domain.market import InitialMarket, MarketError
-from app.domain.squad import formations, validate_lineup
+from app.domain.squad import formation_slots, formations, validate_lineup
 from app.domain.tactics import LEGACY_STRATEGIES, Tactics, tactics_catalog, tactics_from_payload
 from app.services.market_service import market_service
 
@@ -13,6 +14,8 @@ class SquadService:
         self._lineups: dict[tuple[str, str], dict[str, object]] = {}
         self._strategies: dict[tuple[str, str], str] = {}
         self._tactics: dict[tuple[str, str], Tactics] = {}
+        # Individual instructions: (room, club) -> player id -> code.
+        self._instructions: dict[tuple[str, str], dict[str, str]] = {}
 
     @staticmethod
     def _current_players(room_id: str, market: InitialMarket):
@@ -45,7 +48,45 @@ class SquadService:
             "strategies": [{"code": code, "name": STRATEGY_NAMES[code], "effect": self._strategy_effect(code)} for code in LEGACY_STRATEGIES],
             "tactics": self.tactics_for(room_id, club_code).view(),
             "tactics_options": tactics_catalog(),
+            "instructions": self.instructions_for(room_id, club_code),
+            "instruction_options": instruction_catalog(),
+            "cohesion": self._cohesion(room_id, market, club_code),
         }
+
+    @staticmethod
+    def _cohesion(room_id: str, market: InitialMarket, club_code: str) -> dict[str, object] | None:
+        from app.services.season_service import season_service
+        if room_id not in season_service._seasons:
+            return None
+        return season_service.cohesion_view(room_id, market, club_code)
+
+    def save_instructions(self, room_id: str, club_code: str, instructions: dict[str, str]) -> dict[str, object]:
+        """Validate per-player instructions against the slot each player occupies."""
+        from app.services.season_service import INSTRUCTION_CODES, starter_roles
+        session = market_service._session(room_id)
+        market = session.market
+        lineup = self._lineups.get((room_id, club_code))
+        if not lineup:
+            raise MarketError("Salve a escalação antes de definir instruções individuais.")
+        slots = formation_slots(market.mode, str(lineup["formation_code"]))
+        roles = starter_roles(slots)
+        slot_of = {player_id: slot_id for slot_id, player_id in dict(lineup["assignments"]).items()}
+        clean: dict[str, str] = {}
+        for player_id, code in instructions.items():
+            if player_id not in slot_of:
+                raise MarketError("Instruções individuais valem apenas para titulares.")
+            if code not in INSTRUCTION_CODES[roles[slot_of[player_id]]]:
+                raise MarketError("Instrução individual inválida para a posição do atleta.")
+            clean[player_id] = code
+        self._instructions[(room_id, club_code)] = clean
+        return {"instructions": clean}
+
+    def instructions_for(self, room_id: str, club_code: str) -> dict[str, str]:
+        return dict(self._instructions.get((room_id, club_code), {}))
+
+    def set_instructions(self, room_id: str, club_code: str, instructions: dict[str, str]) -> None:
+        """Server-side (bots): already validated by the caller."""
+        self._instructions[(room_id, club_code)] = dict(instructions)
 
     def save_lineup(self, room_id: str, club_code: str, formation_code: str, assignments: dict[str, str]) -> dict[str, object]:
         session = market_service._session(room_id)
@@ -100,6 +141,7 @@ class SquadService:
             "lineups": {club: lineup for (saved_room, club), lineup in self._lineups.items() if saved_room == room_id},
             "strategies": {club: strategy for (saved_room, club), strategy in self._strategies.items() if saved_room == room_id},
             "tactics": {club: tactics.view() for (saved_room, club), tactics in self._tactics.items() if saved_room == room_id},
+            "instructions": {club: dict(values) for (saved_room, club), values in self._instructions.items() if saved_room == room_id},
         }
 
     def restore_room(self, room_id: str, payload: dict[str, object]) -> None:
@@ -125,6 +167,12 @@ class SquadService:
                 self._tactics[(room_id, str(club))] = tactics_from_payload(value)
             except ValueError as error:
                 raise ValueError("Snapshot contém táticas inválidas.") from error
+        instructions = payload.get("instructions", {})
+        if not isinstance(instructions, dict):
+            raise ValueError("Snapshot contém instruções inválidas.")
+        for club, values in instructions.items():
+            if isinstance(values, dict):
+                self._instructions[(room_id, str(club))] = {str(k): str(v) for k, v in values.items()}
 
     @staticmethod
     def _strategy_effect(strategy: str) -> str:

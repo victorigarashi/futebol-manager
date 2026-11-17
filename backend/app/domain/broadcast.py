@@ -5,7 +5,7 @@ Three clocks are kept apart:
 * simulation time – the engine's ticks (1 tick = 1 s of football, 5400 per match);
 * presentation time – how fast those ticks are shown on screen (about 2–2.6× real
   speed during a highlight, so a pass or a run looks like football);
-* match duration – the wall-clock length the host chose (90, 120 or 180 s).
+* match duration – the wall-clock length the host chose (60, 90, 120 or 180 s).
 
 The director simulates a little ahead of what is on screen (lookahead), finds the
 moments worth showing (goals first, then chances by quality, then attacks), and lays
@@ -34,8 +34,8 @@ from dataclasses import dataclass
 
 from app.domain.match_engine import FULL_TIME_TICK, TICKS_PER_HALF, MatchEngine
 
-DURATIONS = (90, 120, 180)
-DEFAULT_DURATION = 90
+DURATIONS = (60, 90, 120, 180)
+DEFAULT_DURATION = 60
 
 
 @dataclass(frozen=True)
@@ -49,6 +49,7 @@ class Profile:
 
 
 PROFILES: dict[int, Profile] = {
+    60: Profile(halftime=3.0, final_hold=2.0, cut=0.8, rate=2.8, max_build=12, opening=4),
     90: Profile(halftime=4.0, final_hold=2.5, cut=0.9, rate=2.6, max_build=16, opening=5),
     120: Profile(halftime=5.0, final_hold=3.0, cut=1.0, rate=2.4, max_build=22, opening=6),
     180: Profile(halftime=6.0, final_hold=3.0, cut=1.1, rate=2.2, max_build=28, opening=8),
@@ -68,7 +69,7 @@ LATE_RESERVE = 4.0      # real seconds held back for a late goal
 
 def duration_profile(duration: int) -> Profile:
     if duration not in PROFILES:
-        raise ValueError("Duração de partida inválida: escolha 90, 120 ou 180 segundos.")
+        raise ValueError("Duração de partida inválida: escolha 60, 90, 120 ou 180 segundos.")
     return PROFILES[duration]
 
 

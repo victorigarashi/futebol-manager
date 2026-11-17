@@ -9,9 +9,19 @@ from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 
 from app.core.config import get_settings
-from app.domain.bot_coach import advance_with_bots, choose_lineup
+from app.domain.bot_coach import advance_with_bots, choose_lineup, plan_match
 from app.domain.broadcast import DEFAULT_DURATION, DURATIONS, Director, LinearClock, clock_from_dict
 from app.domain.catalog import CatalogPlayer
+from app.domain.cohesion import (
+    INSTRUCTIONS,
+    cohesion_factor,
+    compatibility,
+    default_instruction,
+    familiarity_after_match,
+    familiarity_of,
+    level_label,
+    slot_role,
+)
 from app.domain.market import InitialMarket, MarketError
 from app.domain.match_engine import (
     FULL_TIME_TICK,
@@ -19,6 +29,7 @@ from app.domain.match_engine import (
     MatchEngine,
     PlayerInput,
     TeamInput,
+    derived_attributes,
     replay_engine,
 )
 from app.domain.playoffs import (
@@ -92,6 +103,8 @@ class ReplayJob:
                     engine.queue_substitution(side, str(command["out"]), str(command["in"]), str(command["command_id"]))
                 except ValueError:
                     pass
+            elif command["kind"] == "FORMATION":
+                engine.queue_formation(side, str(command["formation_code"]), str(command["command_id"]))
             self.index += 1
         engine.advance_to(target)
 
@@ -126,6 +139,14 @@ class RoomSeason:
     prebuilt: dict[str, PrebuiltMatch] = field(default_factory=dict)
     # Live engines being rebuilt after a restart (replayed in slices, never in one go).
     recovering: dict[str, ReplayJob] = field(default_factory=dict)
+    # League rules frozen when the season was created (see app.domain.rooms.RULES).
+    rules: dict[str, object] = field(default_factory=dict)
+    # Familiaridade tática: club -> style -> 0..100. Follows the club across seasons.
+    familiarity: dict[str, dict[str, float]] = field(default_factory=dict)
+
+    @property
+    def sim_style(self) -> str:
+        return str(self.rules.get("sim_style", "REALISTIC"))
 
 
 class SeasonService:
@@ -141,10 +162,12 @@ class SeasonService:
         # Short-lived memo of visible frame windows (room, match, since, shown) -> rows.
         self._frames_memo: dict[tuple[str, str, int, int], list[dict[str, object]]] = {}
 
-    def create(self, room_id: str, market: InitialMarket, *, double_round_robin: bool = True) -> RoomSeason:
+    def create(self, room_id: str, market: InitialMarket, *, double_round_robin: bool = True,
+               rules: dict[str, object] | None = None) -> RoomSeason:
         if room_id not in self._seasons:
             self._seasons[room_id] = RoomSeason(SeasonState(generate_calendar(tuple(market.teams), double_round_robin=double_round_robin)), market.mode, current_overalls={player_id: player.overall for player_id, player in market.catalog.items()},
-                                                preparation_opened_at=self.clock(), double_round_robin=double_round_robin)
+                                                preparation_opened_at=self.clock(), double_round_robin=double_round_robin,
+                                                rules=dict(rules or {}))
         return self._seasons[room_id]
 
     def create_next_season(self, room_id: str, market: InitialMarket) -> dict[str, object]:
@@ -153,7 +176,8 @@ class SeasonService:
             raise MarketError("A temporada atual precisa terminar antes de começar outra.")
         summary = {"season_number": previous.season_number, "champion": previous.playoffs.champion, "table": standings(tuple(market.teams), previous.state.fixtures, previous.state.results), "playoffs": previous.playoffs.view(), "top_scorers": self._top_scorers(previous)}
         history = [*previous.season_history, summary]
-        self._seasons[room_id] = RoomSeason(SeasonState(generate_calendar(tuple(market.teams), double_round_robin=previous.double_round_robin)), market.mode, season_number=previous.season_number + 1, current_overalls=dict(previous.current_overalls), development_records=list(previous.development_records), season_history=history, double_round_robin=previous.double_round_robin)
+        self._seasons[room_id] = RoomSeason(SeasonState(generate_calendar(tuple(market.teams), double_round_robin=previous.double_round_robin)), market.mode, season_number=previous.season_number + 1, current_overalls=dict(previous.current_overalls), development_records=list(previous.development_records), season_history=history, double_round_robin=previous.double_round_robin,
+                                            rules=dict(previous.rules), familiarity={club: dict(values) for club, values in previous.familiarity.items()})
         return self.view(room_id)
 
     def ready(self, room_id: str, club_code: str) -> dict[str, object]:
@@ -209,7 +233,7 @@ class SeasonService:
                 # Simulated during preparation from exactly these inputs: identical result.
                 engine = prebuilt.engine
             else:
-                engine = MatchEngine(fixture.id, season.mode, home_input, away_input, seed)
+                engine = self._engine(season, fixture.id, home_input, away_input, seed)
             meta = {"id": fixture.id, "home": fixture.home, "away": fixture.away, "status": "LIVE", "seed": seed,
                     "inputs": {"home": team_input_view(home_input), "away": team_input_view(away_input)},
                     "bot_sides": bot_sides}
@@ -236,14 +260,22 @@ class SeasonService:
         return self.view(room_id)
 
     @staticmethod
+    def _engine(season: RoomSeason, match_id: str, home: TeamInput, away: TeamInput, seed: int) -> MatchEngine:
+        engine = MatchEngine(match_id, season.mode, home, away, seed, season.sim_style)
+        engine.bot_difficulty = str(season.rules.get("bot_difficulty", "COMPETITIVE"))
+        return engine
+
+    @staticmethod
     def _watched(meta: dict[str, object]) -> bool:
         return len(meta.get("bot_sides", [])) < 2
 
     def _fixture_inputs(self, room_id: str, market: InitialMarket, fixture: Fixture,
                         human_clubs: set[str]) -> tuple[TeamInput, TeamInput, int, list[int]]:
         season = self._season(room_id)
-        home_input = self._team_input(room_id, market, fixture.home)
-        away_input = self._team_input(room_id, market, fixture.away)
+        home_input = self._team_input(room_id, market, fixture.home, bot=fixture.home not in human_clubs,
+                                      opponent_strength=self._strength(room_id, market, fixture.away))
+        away_input = self._team_input(room_id, market, fixture.away, bot=fixture.away not in human_clubs,
+                                      opponent_strength=self._strength(room_id, market, fixture.home))
         seed = zlib.crc32(f"{room_id}:{season.season_number}:{fixture.id}".encode())
         bot_sides = [side for side, club in enumerate((fixture.home, fixture.away)) if club not in human_clubs]
         return home_input, away_input, seed, bot_sides
@@ -271,7 +303,7 @@ class SeasonService:
             prebuilt = season.prebuilt.get(fixture.id)
             if prebuilt is None:
                 home_input, away_input, seed, bot_sides = self._fixture_inputs(room_id, market, fixture, human_clubs)
-                engine = MatchEngine(fixture.id, season.mode, home_input, away_input, seed)
+                engine = self._engine(season, fixture.id, home_input, away_input, seed)
                 engine.record_frames = False
                 season.prebuilt[fixture.id] = PrebuiltMatch(_fingerprint(home_input, away_input, seed, bot_sides), engine)
                 return True
@@ -454,6 +486,7 @@ class SeasonService:
                 # The broadcast has reached the final whistle; finishing is a no-op guard.
                 advance_with_bots(engine, FULL_TIME_TICK, tuple(meta.get("bot_sides", [])), (engine.inputs[0].tactics, engine.inputs[1].tactics))
                 season.matches[match_id] = final_record(engine, meta)
+                self._learn_styles(season, engine)
             match = season.matches[match_id]
             results[match_id] = MatchResult(match_id, int(match["home_goals"]), int(match["away_goals"]))
         season.state.results.update(results)
@@ -496,6 +529,8 @@ class SeasonService:
                 status = engine.queue_tactics(side, tactics, command_id)
             elif kind == "SUBSTITUTION":
                 status = engine.queue_substitution(side, str(payload.get("out_player_id", "")), str(payload.get("in_player_id", "")), command_id)
+            elif kind == "FORMATION":
+                status = engine.queue_formation(side, str(payload.get("formation_code", "")), command_id)
             else:
                 raise MarketError("Tipo de comando inválido.")
         except ValueError as error:
@@ -744,7 +779,7 @@ class SeasonService:
             raise MarketError("Janela de replay inválida (máximo de 15 minutos de jogo).")
         engine = replay_engine(match_id, season.mode, team_input_from_view(match["inputs"]["home"]),
                                team_input_from_view(match["inputs"]["away"]), int(match["seed"]),
-                               list(match.get("command_log", [])), end)
+                               list(match.get("command_log", [])), end, sim_style=season.sim_style)
         return {"match_id": match_id, "start": start, "end": end,
                 "frames": [frame for frame in engine.frames_since(start - 1, limit=1200) if frame["t"] <= end]}
 
@@ -779,7 +814,15 @@ class SeasonService:
             return True
         return False
 
-    def _team_input(self, room_id: str, market: InitialMarket, club_code: str) -> TeamInput:
+    def _strength(self, room_id: str, market: InitialMarket, club_code: str) -> float:
+        """What any coach can read on the table of squads: the mean of the best ratings."""
+        overalls = self._season(room_id).current_overalls
+        values = sorted((overalls.get(pid, market.catalog[pid].overall) for pid in market.teams[club_code].roster), reverse=True)
+        top = values[:11 if market.mode == "ELEVEN_A_SIDE" else 5]
+        return sum(top) / max(1, len(top))
+
+    def _team_input(self, room_id: str, market: InitialMarket, club_code: str, *, bot: bool = False,
+                    opponent_strength: float | None = None) -> TeamInput:
         season = self._season(room_id)
         overalls = season.current_overalls
         roster = [market.catalog[player_id] for player_id in market.teams[club_code].roster]
@@ -803,7 +846,40 @@ class SeasonService:
         order = {"GK": 0, "DF": 1, "MF": 2, "ST": 3}
         bench_players = sorted((p for p in roster if p.id not in used), key=lambda p: (order.get(p.position, 9), -overalls.get(p.id, p.overall)))
         bench = tuple(player_input(p, p.position, 50, 50, len(starters) + index + 1) for index, p in enumerate(bench_players[:7]))
-        return TeamInput(club_code, code, starters, bench, squad_service.tactics_for(room_id, club_code))
+        tactics = squad_service.tactics_for(room_id, club_code)
+        roles = starter_roles(slots)
+        saved = squad_service.instructions_for(room_id, club_code)
+        if bot:
+            rows = cohesion_rows(starters, slots, {}, {p.id: bool(market.catalog[p.id].attributes) for p in starters})
+            tactics, saved = plan_match(rows, season.familiarity.get(club_code, {}), str(season.rules.get("bot_difficulty", "COMPETITIVE")),
+                                        self._strength(room_id, market, club_code), opponent_strength)
+        instructions = {}
+        for player, slot in zip(starters, slots, strict=True):
+            wanted = saved.get(player.id)
+            role = roles[slot.id]
+            instructions[player.id] = wanted if wanted in INSTRUCTION_CODES[role] else default_instruction(role)
+        report = cohesion_report(starters, slots, tactics, instructions, season.familiarity.get(club_code, {}),
+                                 {p.id: bool(market.catalog[p.id].attributes) for p in starters})
+        return TeamInput(club_code, code, starters, bench, tactics, report["factor"], instructions)
+
+    def cohesion_view(self, room_id: str, market: InitialMarket, club_code: str) -> dict[str, object]:
+        """What the tactical centre shows: compatibility, familiarity and the engine factor."""
+        season = self._season(room_id)
+        team = self._team_input(room_id, market, club_code)
+        slots = formation_slots(market.mode, team.formation_code)
+        report = cohesion_report(team.starters, slots, team.tactics, team.instructions, season.familiarity.get(club_code, {}),
+                                 {p.id: bool(market.catalog[p.id].attributes) for p in team.starters})
+        familiarity = {style: round(familiarity_of(season.familiarity.get(club_code, {}), style), 1)
+                       for style in ("POSSESSION", "COUNTER", "DIRECT", "SHORT_BUILDUP", "WIDE")}
+        return {**report, "familiarity_by_style": familiarity, "formation_code": team.formation_code,
+                "instructions": team.instructions}
+
+    @staticmethod
+    def _learn_styles(season: RoomSeason, engine: MatchEngine) -> None:
+        """Familiarity grows with the style each club started the official match with."""
+        for side in (0, 1):
+            club = engine.clubs[side]
+            season.familiarity[club] = familiarity_after_match(season.familiarity.get(club, {}), engine.inputs[side].tactics.style)
 
     def close_transfer_window(self, room_id: str) -> dict[str, object]:
         season = self._season(room_id)
@@ -904,14 +980,18 @@ class SeasonService:
     def _play_knockout(self, room_id: str, market: InitialMarket, stage: str, number: int, home_code: str, away_code: str) -> KnockoutMatch:
         season = self._season(room_id)
         match_id = f"{stage.lower()}-{number}"
-        home_input, away_input = self._team_input(room_id, market, home_code), self._team_input(room_id, market, away_code)
+        home_input = self._team_input(room_id, market, home_code, bot=home_code not in season.human_clubs,
+                                      opponent_strength=self._strength(room_id, market, away_code))
+        away_input = self._team_input(room_id, market, away_code, bot=away_code not in season.human_clubs,
+                                      opponent_strength=self._strength(room_id, market, home_code))
         seed = zlib.crc32(f"{room_id}:{season.season_number}:{match_id}".encode())
-        engine = MatchEngine(match_id, market.mode, home_input, away_input, seed)
+        engine = self._engine(season, match_id, home_input, away_input, seed)
         bot_sides = tuple(side for side, club in enumerate((home_code, away_code)) if club not in season.human_clubs)
         advance_with_bots(engine, FULL_TIME_TICK, bot_sides, (home_input.tactics, away_input.tactics))
         meta = {"id": match_id, "stage": stage, "home": home_code, "away": away_code, "seed": seed,
                 "inputs": {"home": team_input_view(home_input), "away": team_input_view(away_input)}, "bot_sides": list(bot_sides)}
         record = final_record(engine, meta)
+        self._learn_styles(season, engine)
         home_penalties = away_penalties = None
         penalty_kicks: tuple[dict[str, object], ...] = ()
         winner = home_code if record["home_goals"] > record["away_goals"] else away_code
@@ -990,6 +1070,8 @@ class SeasonService:
             "development_records": season.development_records,
             "season_history": season.season_history,
             "progression_applied": season.progression_applied,
+            "rules": season.rules,
+            "familiarity": season.familiarity,
         }
 
     def restore_room(self, room_id: str, payload: dict[str, object]) -> RoomSeason:
@@ -1108,6 +1190,9 @@ class SeasonService:
             human_clubs=set(map(str, payload.get("human_clubs", []))),
             preparation_opened_at=float(payload["preparation_opened_at"]) if payload.get("preparation_opened_at") is not None else None,
             double_round_robin=double_round_robin,
+            rules=dict(payload.get("rules", {})) if isinstance(payload.get("rules", {}), dict) else {},
+            familiarity={str(club): {str(k): max(0.0, min(100.0, float(v))) for k, v in dict(values).items()}
+                         for club, values in dict(payload.get("familiarity", {})).items()},
         )
         if room_season.live_round:
             # Every live engine is rebuilt deterministically from inputs, seed and the
@@ -1119,7 +1204,7 @@ class SeasonService:
                 log = list(meta.pop("command_log", []))
                 home, away = team_input_from_view(meta["inputs"]["home"]), team_input_from_view(meta["inputs"]["away"])
                 until = max([int(meta.pop("frontier", 0) or 0), *(int(c["tick"]) for c in log)])
-                engine = MatchEngine(match_id, room_season.mode, home, away, int(meta["seed"]))
+                engine = self._engine(room_season, match_id, home, away, int(meta["seed"]))
                 broadcast = meta.pop("broadcast", None)
                 live_round = room_season.live_round
                 clock = (clock_from_dict(broadcast) if isinstance(broadcast, dict)
@@ -1178,7 +1263,8 @@ class SeasonService:
 
 def team_input_view(team: TeamInput) -> dict[str, object]:
     return {"club_code": team.club_code, "formation_code": team.formation_code, "tactics": team.tactics.view(),
-            "starters": [asdict(p) for p in team.starters], "bench": [asdict(p) for p in team.bench]}
+            "starters": [asdict(p) for p in team.starters], "bench": [asdict(p) for p in team.bench],
+            "cohesion": team.cohesion, "instructions": dict(team.instructions)}
 
 
 def team_input_from_view(raw: dict[str, object]) -> TeamInput:
@@ -1187,7 +1273,42 @@ def team_input_from_view(raw: dict[str, object]) -> TeamInput:
                            float(row["slot_x"]), float(row["slot_y"]), int(row["overall"]),
                            {str(k): int(v) for k, v in dict(row.get("attributes", {})).items()}, int(row.get("number", 0)))
     return TeamInput(str(raw["club_code"]), str(raw["formation_code"]), tuple(player(r) for r in raw["starters"]),
-                     tuple(player(r) for r in raw["bench"]), tactics_from_payload(raw["tactics"]))
+                     tuple(player(r) for r in raw["bench"]), tactics_from_payload(raw["tactics"]),
+                     float(raw.get("cohesion", 0.0)), {str(k): str(v) for k, v in dict(raw.get("instructions", {})).items()})
+
+
+INSTRUCTION_CODES = {role: set(options) for role, options in INSTRUCTIONS.items()}
+
+
+def starter_roles(slots) -> dict[str, str]:
+    """Slot id -> instruction role (GK, FB, CB, MF, ST)."""
+    lines: dict[int, int] = {}
+    for slot in slots:
+        lines[slot.y] = lines.get(slot.y, 0) + 1
+    return {slot.id: slot_role(slot.position, slot.x, lines[slot.y]) for slot in slots}
+
+
+def cohesion_rows(starters, slots, instructions: dict[str, str], has_catalog_attributes: dict[str, bool]) -> list[dict[str, object]]:
+    roles = starter_roles(slots)
+    rows = []
+    for player, slot in zip(starters, slots, strict=True):
+        rows.append({"player_id": player.id, "attributes": derived_attributes(player), "overall": player.overall,
+                     "slot_position": slot.position, "natural": player.position == slot.position,
+                     "role": roles[slot.id], "instruction": instructions.get(player.id, default_instruction(roles[slot.id])),
+                     "estimated": not has_catalog_attributes.get(player.id, False)})
+    return rows
+
+
+def cohesion_report(starters, slots, tactics, instructions: dict[str, str], familiarity: dict[str, float],
+                    has_catalog_attributes: dict[str, bool]) -> dict[str, object]:
+    rows = cohesion_rows(starters, slots, instructions, has_catalog_attributes)
+    compat = compatibility(rows, tactics.style, tactics.pressure, tactics.mentality)
+    fam = familiarity_of(familiarity, tactics.style)
+    factor = cohesion_factor(float(compat["score"]), fam)
+    return {"compatibility": compat["score"], "compatibility_label": level_label(float(compat["score"])),
+            "familiarity": round(fam, 1), "familiarity_label": level_label(fam), "factor": factor,
+            "players": compat["players"], "estimated_share": compat["estimated_share"], "notes": compat["notes"],
+            "style": tactics.style}
 
 
 def final_record(engine: MatchEngine, meta: dict[str, object]) -> dict[str, object]:

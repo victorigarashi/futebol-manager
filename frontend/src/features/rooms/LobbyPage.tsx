@@ -23,7 +23,7 @@ import { backoffDelay } from "../../lib/serverHealth";
 import { BotSlotsCard } from "../../components/BotSlotsCard";
 import { setSocketOnline } from "../../lib/socketBus";
 
-const defaultDraft: LeagueDraft = { name: "Liga dos parças", mode: "FIVE_A_SIDE", initial_budget_cents: 5_000_000_000, market_mode: "TRADITIONAL", team_count: 20, double_round_robin: true, initial_market_duration_seconds: 300, round_preparation_duration_seconds: 300, withdrawal_penalty_percent: 5, max_human_participants: 4, privacy: "PUBLIC", match_duration_seconds: 90 };
+const defaultDraft: LeagueDraft = { name: "Liga dos parças", mode: "FIVE_A_SIDE", initial_budget_cents: 5_000_000_000, market_mode: "TRADITIONAL", team_count: 20, double_round_robin: true, initial_market_duration_seconds: 300, round_preparation_duration_seconds: 300, withdrawal_penalty_percent: 5, max_human_participants: 4, privacy: "PUBLIC", match_duration_seconds: 60 };
 type ConnectionState = "connecting" | "online" | "reconnecting" | "offline";
 type LobbyPageProps = { needsProfile: boolean; onEditProfile: () => void; onSaveProfile: (name: string) => Promise<void> };
 

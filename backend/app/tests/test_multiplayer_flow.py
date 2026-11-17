@@ -108,7 +108,7 @@ def test_bots_never_block_the_start_and_starting_twice_is_a_no_op(room):
 
 
 # ---------------------------------------------------------------- cooperative simulation
-@pytest.mark.parametrize("duration", [90, 120, 180])
+@pytest.mark.parametrize("duration", [60, 90, 120, 180])
 def test_sliced_simulation_keeps_up_and_ends_exactly_at_the_deadline(room, duration):
     service, market, now = room
     for club in HUMANS:

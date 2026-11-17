@@ -1,7 +1,7 @@
 import { reportServerHealth } from "./serverHealth";
 import { readLocal, writeLocal } from "./storage";
 
-export type MatchDuration = 90 | 120 | 180;
+export type MatchDuration = 60 | 90 | 120 | 180;
 export type Club = { code: string; name: string; sort_order: number };
 export type Room = {
   id: string;
@@ -18,7 +18,7 @@ export type Room = {
   initial_market_duration_seconds: number;
   round_preparation_duration_seconds: number;
   withdrawal_penalty_percent: 0 | 2 | 5 | 10;
-  /** Real duration of each live match (90 game minutes condensed): 90, 120 or 180 s. */
+  /** Real duration of each live match (90 game minutes condensed): 60, 90, 120 or 180 s. */
   match_duration_seconds?: MatchDuration;
   phase: string;
   revision: number;

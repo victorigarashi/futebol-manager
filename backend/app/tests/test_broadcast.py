@@ -201,10 +201,10 @@ def test_round_uses_the_room_duration_for_all_ten_matches_and_bots(season, durat
     assert len(room.state.results) == 10
 
 
-def test_default_duration_is_ninety_seconds(season):
+def test_default_duration_is_sixty_seconds(season):
     service, market, now = season
     service.ready("room", "FLA")
-    assert service.advance("room", market, {"FLA"})["live_round"]["match_seconds"] == 90
+    assert service.advance("room", market, {"FLA"})["live_round"]["match_seconds"] == 60
     with pytest.raises(ValueError):
         SeasonService(match_seconds=75)
 
@@ -306,7 +306,7 @@ def test_room_duration_setting_host_only_synced_and_locked_during_a_round(monkey
         room_id = created["id"]
         base = f"/api/v1/rooms/{room_id}"
         try:
-            assert created["match_duration_seconds"] == 90  # 4: default 1:30
+            assert created["match_duration_seconds"] == 60  # 4: default 1:00 (V2)
             assert client.post(f"{base}/join", headers=guest).status_code == 200
             with client.websocket_connect(f"/api/v1/ws/rooms/{room_id}", headers=guest) as ws:
                 # 5: only the host may change it.
@@ -360,6 +360,6 @@ def test_room_snapshot_keeps_the_duration():
     legacy = {**payload, "id": "r2", "code": "ABC124"}
     legacy.pop("match_duration_seconds")
     manager.restore(legacy)
-    assert manager._room("r2").match_duration_seconds == 90
+    assert manager._room("r2").match_duration_seconds == 90  # legacy snapshots keep 1:30
     with pytest.raises(ValueError):
         manager.restore({**payload, "id": "r3", "code": "ABC125", "match_duration_seconds": 45})

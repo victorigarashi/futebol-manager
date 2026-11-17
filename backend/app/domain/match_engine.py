@@ -59,6 +59,24 @@ STYLE = {
     "WIDE":          (1.40, 1.00, 0.00, 1.18, 0.02, 0.0, 1.6),
 }
 
+# Simulation style chosen by the host. Both obey the same rules and are reproducible
+# from the seed; "EXCITING" only makes teams more ambitious (less risk aversion,
+# earlier shots, more runners) and finishing slightly sharper.
+SIM_STYLES: dict[str, dict[str, float]] = {
+    "REALISTIC": {"finish": 1.00, "risk": 1.00, "shot_bias": 0.000, "runners": 0.00},
+    "EXCITING": {"finish": 1.16, "risk": 0.78, "shot_bias": 0.005, "runners": 0.12},
+}
+
+# Individual instructions: depth shift of the player's target (share of the pitch
+# length) when his team has the ball / defends. Consumed in `_move_agents`.
+INSTRUCTION_SHIFT = {
+    "STAY_BACK": (-0.07, 0.0), "OVERLAP": (0.10, 0.0), "SUPPORT": (0.0, 0.0),
+    "HOLD": (-0.08, -0.03), "ARRIVE": (0.08, 0.0), "BALANCED": (0.0, 0.0),
+    "FALSE_9": (-0.09, 0.0), "TARGET": (0.0, 0.0), "IN_BEHIND": (0.03, 0.02), "COMPLETE": (0.0, 0.0),
+    "BALL_PLAYING": (0.02, 0.0), "COVER": (0.0, 0.0),
+}
+RUN_INSTRUCTIONS = {"OVERLAP": 0.35, "ARRIVE": 0.35, "IN_BEHIND": 0.30}
+
 STAT_KEYS = ("passes", "passes_completed", "key_passes", "shots", "shots_on_target", "goals", "assists",
              "tackles", "interceptions", "fouls", "saves", "dribbles", "losses", "distance")
 
@@ -86,6 +104,10 @@ class TeamInput:
     starters: tuple[PlayerInput, ...]
     bench: tuple[PlayerInput, ...]
     tactics: Tactics = Tactics()
+    # Entrosamento tático in [-1, 1] (app.domain.cohesion.cohesion_factor). 0 = neutral.
+    cohesion: float = 0.0
+    # player id -> individual instruction code (app.domain.cohesion.INSTRUCTIONS).
+    instructions: dict[str, str] = field(default_factory=dict)
 
 
 def derived_attributes(player: PlayerInput) -> dict[str, float]:
@@ -143,7 +165,7 @@ def xg_grid(mode: str) -> tuple[list[list[float]], float]:
 class Agent:
     __slots__ = ("id", "name", "side", "number", "role", "position", "ax", "ay", "x", "y", "pace", "passing",
                  "shooting", "dribbling", "defending", "physical", "keeping", "stamina", "yellow", "sent_off",
-                 "active", "stun", "index", "stats", "entered_tick", "left_tick", "overall", "intensity")
+                 "active", "stun", "index", "stats", "entered_tick", "left_tick", "overall", "intensity", "instr")
 
     def __init__(self, player: PlayerInput, side: int, index: int) -> None:
         a = derived_attributes(player)
@@ -165,6 +187,7 @@ class Agent:
         self.entered_tick: int | None = None
         self.left_tick: int | None = None
         self.intensity = 0.0
+        self.instr = ""
         self.stats = dict.fromkeys(STAT_KEYS, 0)
 
     def skill(self, value: float) -> float:
@@ -173,9 +196,17 @@ class Agent:
 
 
 class MatchEngine:
-    def __init__(self, match_id: str, mode: str, home: TeamInput, away: TeamInput, seed: int) -> None:
+    def __init__(self, match_id: str, mode: str, home: TeamInput, away: TeamInput, seed: int,
+                 sim_style: str = "REALISTIC") -> None:
         if mode not in PITCH:
             raise ValueError("Modo inválido.")
+        if sim_style not in SIM_STYLES:
+            raise ValueError("Estilo de simulação inválido.")
+        self.sim_style = sim_style
+        self.sim = SIM_STYLES[sim_style]
+        # Read by app.domain.bot_coach (decision quality only; never touches the match).
+        self.bot_difficulty = "COMPETITIVE"
+        self.cohesion = (max(-1.0, min(1.0, float(home.cohesion))), max(-1.0, min(1.0, float(away.cohesion))))
         self.match_id, self.mode, self.seed = match_id, mode, seed
         self.cfg = PITCH[mode]
         self.L, self.W = self.cfg["length"], self.cfg["width"]
@@ -183,11 +214,13 @@ class MatchEngine:
         self.inputs = (home, away)
         self.clubs = (home.club_code, away.club_code)
         self.tactics = [home.tactics, away.tactics]
+        self.formation_codes = [home.formation_code, away.formation_code]
         self.agents: list[Agent] = []
         self.team_agents: list[list[Agent]] = [[], []]
         for side, team in enumerate((home, away)):
             for player in (*team.starters, *team.bench):
                 agent = Agent(player, side, len(self.agents))
+                agent.instr = team.instructions.get(player.id, "")
                 self.agents.append(agent)
                 self.team_agents[side].append(agent)
             for agent in self.team_agents[side][:len(team.starters)]:
@@ -322,6 +355,27 @@ class MatchEngine:
             self._event("TACTICS", side, None, self.bx, self.by, ",".join(f"{k}={v}" for k, v in changes.items()), extra={"tactics": tactics.view()})
         return status
 
+    def queue_formation(self, side: int, formation_code: str, command_id: str) -> dict[str, object]:
+        """Live change of shape: players on the pitch take the new slots, deepest first.
+
+        Same pipeline as tactics (logged, replayed); a send-off leaves the most advanced
+        slots empty."""
+        from app.domain.squad import formation_slots  # local: squad imports catalog models
+        try:
+            slots = [slot for slot in formation_slots(self.mode, formation_code) if slot.position != "GK"]
+        except Exception as error:
+            raise ValueError("Formação inválida para este modo.") from error
+        self.command_log.append({"tick": self.tick, "side": side, "kind": "FORMATION", "command_id": command_id, "formation_code": formation_code})
+        outfield = sorted((a for a in self.active(side) if a.role != "GK"), key=lambda a: (a.ax, a.ay))
+        slots.sort(key=lambda slot: (-slot.y, slot.x))
+        for agent, slot in zip(outfield, slots, strict=False):
+            agent.role, agent.ax, agent.ay = slot.position, (100 - slot.y) / 100, slot.x / 100
+        self.formation_codes[side] = formation_code
+        status = {"command_id": command_id, "kind": "FORMATION", "status": "APPLIED", "applied_tick": self.tick, "formation_code": formation_code}
+        self.applied_commands[command_id] = status
+        self._event("TACTICS", side, None, self.bx, self.by, f"formation={formation_code}", extra={"formation_code": formation_code})
+        return status
+
     def substitution_error(self, side: int, out_id: str, in_id: str) -> str | None:
         out_agent, in_agent = self.by_id.get(out_id), self.by_id.get(in_id)
         if not out_agent or not in_agent or out_agent.side != side or in_agent.side != side:
@@ -367,6 +421,7 @@ class MatchEngine:
                     status.update(status="REJECTED", reason="O jogador saiu de campo antes da paralisação.")
                     continue
                 in_agent.role, in_agent.ax, in_agent.ay = out_agent.role, out_agent.ax, out_agent.ay
+                in_agent.instr = out_agent.instr  # the substitute takes over the role's instruction
                 # Re-evaluate the incoming player for the vacated slot (out-of-position cost).
                 in_agent.active, in_agent.entered_tick = True, self.tick
                 in_agent.x, in_agent.y = self.L / 2, 0.0 if out_agent.y < self.W / 2 else self.W
@@ -583,6 +638,7 @@ class MatchEngine:
                 self._foul(defender, owner)
                 return True
             win_p = 0.50 + (defender.skill(defender.defending) - owner.skill(owner.dribbling)) / 110
+            win_p += 0.012 * (self.cohesion[side] - self.cohesion[owner.side])
             if self.rng.random() < max(0.15, min(0.85, win_p)):
                 defender.stats["tackles"] += 1
                 owner.stats["losses"] += 1
@@ -661,22 +717,26 @@ class MatchEngine:
         f_owner = self.fwd(side, owner.x)
         nearest_opp = min(((o.x - owner.x) ** 2 + (o.y - owner.y) ** 2 for o in opponents), default=400.0) ** 0.5
         press = max(0.0, 1 - nearest_opp / 4.0)
-        risk = mentality[5] * style[0] * 1.8  # losing the ball also costs shape and a transition
+        risk = mentality[5] * style[0] * 1.8 * self.sim["risk"]  # losing the ball also costs shape and a transition
+        cohesion = self.cohesion[side]
         held = self.tick - self.received_tick
         counter_phase = style[5] > 0 and self.tick - self.possession_since < 10
         progress_weight = style[1] * (1.3 if counter_phase else 1.0) * (0.85 + 0.1 * mentality[2])
         v_here = self.value(side, owner.x, owner.y)
         loss_here = self.value(1 - side, owner.x, owner.y)
-        noise = 0.0035
+        # A well-drilled team reads the play better: less randomness in its choices.
+        noise = 0.0035 * (1 - 0.35 * cohesion)
 
         p_hold = 0.985 - 0.35 * press
         best_kind, best_target = "hold", None
         best_value = p_hold * v_here - (1 - p_hold) * loss_here * risk - 0.0012 * held + style[4] * 0.01 + rng.random() * noise
+        if owner.instr == "TARGET" and held < 3:
+            best_value += 0.003  # the pivot holds the ball up for the runners
 
         dist_goal = math.hypot(self.goal_x(side) - owner.x, owner.y - self.W / 2)
         if dist_goal < self.cfg["shot_range"] and owner.role != "GK":
             xg = self.shot_xg(side, owner.x, owner.y) * (1 - 0.35 * press)
-            value = xg * self._shot_lane_factor(owner) * 1.1 + 0.005 + mentality[4] + (owner.shooting - 65) / 4000 + rng.random() * noise
+            value = xg * self._shot_lane_factor(owner) * 1.1 + 0.005 + mentality[4] + self.sim["shot_bias"] + (owner.shooting - 65) / 4000 + rng.random() * noise
             if value > best_value:
                 best_kind, best_value = "shoot", value
 
@@ -714,6 +774,7 @@ class MatchEngine:
             cross = crossing_zone and f_mate > self.L - self.cfg["box"] and abs(mate.y - self.W / 2) < self.cfg["box"]
             if cross:
                 success -= 0.18
+            success += 0.022 * cohesion  # players know where the team-mate will be
             success = max(0.08, min(0.97, success))
             progress = (f_mate - f_owner) / self.L
             v_mate = self.value(side, mate.x, mate.y)
@@ -725,6 +786,12 @@ class MatchEngine:
                 value += style[2] * 0.02
             if width_bias and abs(mate.y - self.W / 2) > self.W * 0.3:
                 value += width_bias * 0.012
+            if mate.instr == "TARGET" and long_ball:
+                value += 0.006
+            elif owner.instr == "FALSE_9" and progress > 0:
+                value += 0.003
+            elif owner.instr == "BALL_PLAYING" and progress > 0.15:
+                value += 0.004
             value += rng.random() * noise
             if value > best_value:
                 best_kind, best_value, best_target = "pass", value, (mate, success, dist)
@@ -732,7 +799,9 @@ class MatchEngine:
         # Through balls: race a runner against the defence into the space behind the line.
         opp_line_abs = self.L - self._last_defender_f(1 - side)
         for mate in self.team_agents[side]:
-            if not mate.active or mate is owner or mate.role in ("GK", "DF") and tactics.mentality not in ("ATTACKING", "VERY_ATTACKING"):
+            if not mate.active or mate is owner or mate.role == "GK":
+                continue
+            if mate.role == "DF" and tactics.mentality not in ("ATTACKING", "VERY_ATTACKING") and mate.instr != "OVERLAP":
                 continue
             f_mate = self.fwd(side, mate.x)
             # Only an onside runner (level with or behind the last defender) can be found.
@@ -752,9 +821,11 @@ class MatchEngine:
             success = 1 / (1 + math.exp(-1.4 * (margin - 0.2))) * (1.02 - dist * 0.004 * (1.6 - pass_skill / 100)) - press * 0.08
             # Even a well-timed ball in behind is often overhit, read by the keeper or caught
             # by a recovering defender: the raw race model overstated completion (up to 90%).
-            success = max(0.04, min(0.72, success * 0.80))
+            success = max(0.04, min(0.72, success * 0.80 + 0.02 * cohesion))
             value = success * (self.value(side, tx, ty) + 0.02 * progress_weight) - (1 - success) * self.value(1 - side, (owner.x + tx) / 2, (owner.y + ty) / 2) * risk
             value += (style[5] * 0.004 if counter_phase else 0.0) + style[2] * 0.01 + rng.random() * noise
+            if mate.instr == "IN_BEHIND":
+                value += 0.006
             if value > best_value:
                 best_kind, best_value, best_target = "through", value, (mate, success, dist, (tx, ty), run_time)
 
@@ -912,7 +983,7 @@ class MatchEngine:
         # Keep the event's xG aligned with the conversion probability.  Applying
         # this after contextual modifiers preserves relative effects of player
         # finishing, goalkeeper quality, pressure, blocked lanes and tactics.
-        xg = max(0.003, min(0.85, xg * (0.80 + shooting / 250) * self.cfg["finish_scale"]))
+        xg = max(0.003, min(0.85, xg * (0.80 + shooting / 250) * self.cfg["finish_scale"] * self.sim["finish"]))
         stats = self.team_stats[side]
         shooter.stats["shots"] += 1
         stats["shots"] += 1
@@ -1064,11 +1135,16 @@ class MatchEngine:
                 ranked = sorted((a for a in outfield if a is not self.owner), key=lambda a: (a.x - ball_x) ** 2 + (a.y - ball_y) ** 2)
                 supporters = {a.index for a in ranked[: ment[2] + (1 if tactics.style in ("POSSESSION", "SHORT_BUILDUP") else 0)]}
                 forwards = sorted(outfield, key=lambda a: -a.ax)
-                run_p = ment[3] + (0.25 if tactics.style == "COUNTER" else 0.10 if tactics.style == "DIRECT" else 0)
+                run_p = ment[3] + (0.25 if tactics.style == "COUNTER" else 0.10 if tactics.style == "DIRECT" else 0) + self.sim["runners"]
                 if self.tick - self.possession_since < 12 and tactics.style == "COUNTER":
                     run_p += 0.3
                 for a in forwards[:3]:
-                    if self.rng.random() < run_p:
+                    if self.rng.random() < run_p + RUN_INSTRUCTIONS.get(a.instr, 0.0):
+                        runners.add(a.index)
+                for a in forwards[3:]:
+                    # Full-backs told to overlap and midfielders told to arrive join the attack.
+                    extra = RUN_INSTRUCTIONS.get(a.instr, 0.0)
+                    if extra and self.rng.random() < run_p * 0.5 + extra:
                         runners.add(a.index)
             # Forwards allowed to stay upfield when the ball is deep in our half.
             stay_up = {a.index for a in sorted(outfield, key=lambda a: -a.ax)[:ment[2]]} if not attacking else set()
@@ -1103,6 +1179,8 @@ class MatchEngine:
                     tx, ty = self._formation_spot(agent, kickoff=True)
                 elif agent.role == "GK":
                     gf = 1.5 + max(0.0, min(9.0, (ball_f - 0) / L * 12)) if not attacking else min(0.30 * L, 2 + ball_f * 0.18)
+                    if agent.instr == "SWEEPER" and ball_f > 0.45 * L:
+                        gf += 0.05 * L  # sweeper-keeper covers the space behind a high line
                     gy = W / 2 + (ball_y - W / 2) * 0.25
                     tx, ty = self.abs_x(side, gf), gy
                 elif dead_restart and self.dead and agent is self.dead["taker"]:
@@ -1111,6 +1189,10 @@ class MatchEngine:
                 else:
                     s = (agent.ax - min_ax) / span
                     tf = line + s * length
+                    if agent.instr:
+                        shift = INSTRUCTION_SHIFT.get(agent.instr)
+                        if shift:
+                            tf += (shift[0] if attacking else shift[1]) * L
                     ty = W * (0.5 + (agent.ay - 0.5) * width) + (ball_y - W / 2) * follow
                     if attacking:
                         tf = min(tf, offside_f - 0.8)
@@ -1166,6 +1248,9 @@ class MatchEngine:
         for agent, tx, ty, intensity, drain_factor in moves:
             top = 5.0 + agent.pace * 0.033
             speed = top * (0.66 + 0.34 * agent.stamina) * intensity
+            if intensity < 0.9:
+                # Off-ball positioning: a cohesive side reaches its places sooner.
+                speed *= 1 + 0.05 * self.cohesion[agent.side]
             dx, dy = tx - agent.x, ty - agent.y
             dist = hypot(dx, dy)
             if dist > 0.05:
@@ -1366,7 +1451,7 @@ class MatchEngine:
             "home_xg": round(team_stats[0]["xg"], 3), "away_xg": round(team_stats[1]["xg"], 3),
             "statistics": self.statistics(state), "events": events,
             "tactics": {"home": tactics[0].view(), "away": tactics[1].view()},
-            "formations": {"home": self.inputs[0].formation_code, "away": self.inputs[1].formation_code},
+            "formations": {"home": self.formation_codes[0], "away": self.formation_codes[1]},
             "lineups": {"home": self.player_views(0, state), "away": self.player_views(1, state)},
             "substitutions": {"home": {"used": state["subs_used"][0], "windows_used": state["windows_used"][0], "pending": pending[0]},
                               "away": {"used": state["subs_used"][1], "windows_used": state["windows_used"][1], "pending": pending[1]},
@@ -1377,9 +1462,10 @@ class MatchEngine:
 
 
 def replay_engine(match_id: str, mode: str, home: TeamInput, away: TeamInput, seed: int,
-                  command_log: list[dict[str, object]], until_tick: int, snapshots: bool = False) -> MatchEngine:
+                  command_log: list[dict[str, object]], until_tick: int, snapshots: bool = False,
+                  sim_style: str = "REALISTIC") -> MatchEngine:
     """Rebuild an engine deterministically from its inputs and command log."""
-    engine = MatchEngine(match_id, mode, home, away, seed)
+    engine = MatchEngine(match_id, mode, home, away, seed, sim_style)
     if snapshots:
         engine.enable_snapshots()
     for command in sorted(command_log, key=lambda c: int(c["tick"])):
@@ -1395,5 +1481,7 @@ def replay_engine(match_id: str, mode: str, home: TeamInput, away: TeamInput, se
                 engine.queue_substitution(side, str(command["out"]), str(command["in"]), str(command["command_id"]))
             except ValueError:
                 pass
+        elif command["kind"] == "FORMATION":
+            engine.queue_formation(side, str(command["formation_code"]), str(command["command_id"]))
     engine.advance_to(until_tick)
     return engine

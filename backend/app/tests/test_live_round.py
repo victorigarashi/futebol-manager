@@ -49,7 +49,7 @@ def test_ten_engines_share_clock_and_only_commit_at_the_deadline(live):
     assert not service._season("room").state.results
     assert all(row["played"] == 0 for row in state["table"])
     assert service.advance("room", market, {"FLA"})["live_round"] == state["live_round"]
-    now[0] += 89.999
+    now[0] += state["live_round"]["match_seconds"] - 0.001
     assert not service.finish_due("room")
     assert not service._season("room").state.results
     now[0] += .001

@@ -2,6 +2,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from app.domain.rooms import BUDGETS
+
 
 class RoomCreate(BaseModel):
     name: str = Field(min_length=3, max_length=80)
@@ -15,8 +17,17 @@ class RoomCreate(BaseModel):
     initial_market_duration_seconds: int = Field(default=300)
     round_preparation_duration_seconds: int = Field(default=300, ge=120, le=604_800)
     withdrawal_penalty_percent: Literal[0, 2, 5, 10] = 5
-    # Real duration of each live match: 1:30 (default), 2:00 or 3:00.
-    match_duration_seconds: Literal[90, 120, 180] = 90
+    # Real duration of each live match: 1:00 (default), 1:30, 2:00 or 3:00.
+    match_duration_seconds: Literal[60, 90, 120, 180] = 60
+    game_mode: Literal["TRADITIONAL", "DRAFT"] = "TRADITIONAL"
+    sim_style: Literal["REALISTIC", "EXCITING"] = "REALISTIC"
+    bot_difficulty: Literal["CASUAL", "COMPETITIVE", "LEGENDARY"] = "COMPETITIVE"
+    morale_enabled: bool = False
+    copa_enabled: bool = False
+    playoff_format: Literal["SINGLE", "TWO_LEGS"] = "SINGLE"
+    coach_moves_enabled: bool = False
+    draft_catalog: Literal["BRASILEIRAO", "WORLD"] = "BRASILEIRAO"
+    draft_min_overall: Literal[0, 65, 70, 72, 75, 78, 80] = 0
 
     @field_validator("name")
     @classmethod
@@ -29,7 +40,7 @@ class RoomCreate(BaseModel):
     @field_validator("initial_budget_cents")
     @classmethod
     def validate_budget(cls, value: int) -> int:
-        if value not in {5_000_000_000, 10_000_000_000, 15_000_000_000, 20_000_000_000}:
+        if value not in BUDGETS:
             raise ValueError("Orçamento inicial inválido.")
         return value
 
@@ -91,12 +102,21 @@ class ProfileUpdate(BaseModel):
 
 
 class RoomUpdate(RoomCreate):
-    # Omitted by older clients: keep the room's current duration.
-    match_duration_seconds: Literal[90, 120, 180] | None = None
+    # Omitted by older clients: keep the room's current values.
+    match_duration_seconds: Literal[60, 90, 120, 180] | None = None
+    game_mode: Literal["TRADITIONAL", "DRAFT"] | None = None
+    sim_style: Literal["REALISTIC", "EXCITING"] | None = None
+    bot_difficulty: Literal["CASUAL", "COMPETITIVE", "LEGENDARY"] | None = None
+    morale_enabled: bool | None = None
+    copa_enabled: bool | None = None
+    playoff_format: Literal["SINGLE", "TWO_LEGS"] | None = None
+    coach_moves_enabled: bool | None = None
+    draft_catalog: Literal["BRASILEIRAO", "WORLD"] | None = None
+    draft_min_overall: Literal[0, 65, 70, 72, 75, 78, 80] | None = None
 
 
 class MatchSettingsUpdate(BaseModel):
-    match_duration_seconds: Literal[90, 120, 180]
+    match_duration_seconds: Literal[60, 90, 120, 180]
 
 
 class BotChange(BaseModel):
@@ -150,8 +170,14 @@ class TacticsUpdate(BaseModel):
     style: Style
 
 
+class InstructionsUpdate(BaseModel):
+    # player id -> instruction code; validated against the slot by the server.
+    instructions: dict[str, str] = Field(max_length=11)
+
+
 class LiveCommand(BaseModel):
-    kind: Literal["TACTICS", "SUBSTITUTION"]
+    kind: Literal["TACTICS", "SUBSTITUTION", "FORMATION"]
+    formation_code: str | None = Field(default=None, min_length=2, max_length=12)
     idempotency_key: str = Field(min_length=8, max_length=80)
     mentality: Mentality | None = None
     pressure: Pressure | None = None

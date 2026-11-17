@@ -19,7 +19,7 @@ class Settings(BaseSettings):
 
     # Default real duration of a live match (each room chooses 90, 120 or 180 s; this
     # only applies to rounds started without a room setting, e.g. legacy tools).
-    live_match_seconds: int = 90
+    live_match_seconds: int = 60
     # Match presentation (line-ups on screen) between "all ready" and kick-off.
     live_intro_seconds: int = 5
 
@@ -31,8 +31,8 @@ class Settings(BaseSettings):
     def validate_runtime(self) -> "Settings":
         if self.app_environment not in {"development", "test", "production"}:
             raise ValueError("APP_ENVIRONMENT deve ser development, test ou production.")
-        if self.live_match_seconds not in {90, 120, 180} or self.live_intro_seconds < 0:
-            raise ValueError("LIVE_MATCH_SECONDS deve ser 90, 120 ou 180 e LIVE_INTRO_SECONDS >= 0.")
+        if self.live_match_seconds not in {60, 90, 120, 180} or self.live_intro_seconds < 0:
+            raise ValueError("LIVE_MATCH_SECONDS deve ser 60, 90, 120 ou 180 e LIVE_INTRO_SECONDS >= 0.")
         if min(self.request_limit_per_minute, self.auth_limit_per_minute, self.max_request_body_bytes) < 1:
             raise ValueError("Limites de requisição devem ser positivos.")
         if self.app_environment == "production":

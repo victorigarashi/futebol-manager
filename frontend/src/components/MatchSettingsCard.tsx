@@ -13,7 +13,7 @@ type Props = { room: RoomState; isHost: boolean; liveRound?: boolean; compact?: 
  */
 export function MatchSettingsCard({ room, isHost, liveRound = false, compact = false }: Props) {
   const client = useQueryClient();
-  const current = (room.match_duration_seconds ?? 90) as MatchDuration;
+  const current = (room.match_duration_seconds ?? 60) as MatchDuration;
   const [notice, setNotice] = useState<string | null>(null);
   const previous = useRef(current);
   const mine = useRef(false);

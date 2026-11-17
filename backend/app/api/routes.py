@@ -16,6 +16,7 @@ from fastapi import (
 from app.api.schemas import (
     BotChange,
     ClubSelectionRequest,
+    InstructionsUpdate,
     JoinByCodeRequest,
     LineupUpdate,
     LiveCommand,
@@ -41,7 +42,7 @@ from app.domain.clubs import CLUBS
 from app.domain.demo_catalog import create_demo_catalog
 from app.domain.market import InitialMarket, MarketError
 from app.domain.match_engine import PlayerInput, derived_attributes
-from app.domain.rooms import room_manager
+from app.domain.rooms import RULES, room_manager
 from app.services import metrics
 from app.services.auth import (
     SESSION_COOKIE,
@@ -95,10 +96,16 @@ async def finalize_market(completed_room_id: str) -> None:
     await market_service.start_selection(completed_room_id, set(human_clubs), managers, room.initial_market_duration_seconds, progress_market)
 
 
+def room_rules(room) -> dict[str, object]:
+    return {name: getattr(room, name) for name in RULES}
+
+
 async def progress_market(room_id: str, phase: str) -> None:
     state = await room_manager.set_market_phase(room_id, phase)
     if phase == "SQUAD_MANAGEMENT" and room_id not in season_service._seasons:
-        season_service.create(room_id, market_service._session(room_id).market, double_round_robin=room_manager._room(room_id).double_round_robin)
+        room = room_manager._room(room_id)
+        season_service.create(room_id, market_service._session(room_id).market, double_round_robin=room.double_round_robin,
+                              rules=room_rules(room))
     snapshot_room(room_id)
     await hub.broadcast(room_id, {"type": f"market.{phase.lower()}", "revision": state["revision"]})
 
@@ -189,6 +196,7 @@ async def create_room(
         round_preparation_duration_seconds=payload.round_preparation_duration_seconds,
         withdrawal_penalty_percent=payload.withdrawal_penalty_percent,
         match_duration_seconds=payload.match_duration_seconds,
+        **{name: getattr(payload, name) for name in RULES},
     )
     snapshot_room(str(state["id"]))
     await hub.broadcast(str(state["id"]), {"type": "room.created", "revision": state["revision"]})
@@ -484,6 +492,33 @@ async def save_tactics(room_id: str, payload: TacticsUpdate, identity: GuestIden
     if unready:
         await hub.broadcast(room_id, {"type": "season.ready_changed", "club_code": club})
     return envelope({**result, "ready_cancelled": unready})
+
+
+@router.put("/rooms/{room_id}/squad/instructions")
+async def save_instructions(room_id: str, payload: InstructionsUpdate, identity: GuestIdentity = Depends(current_identity)) -> dict[str, object]:
+    """Individual instructions of the starters for the next match."""
+    club = market_club(room_id, identity.id)
+    if room_manager._room(room_id).phase not in {"SQUAD_MANAGEMENT", "SEASON_PREPARATION"}:
+        raise HTTPException(status_code=409, detail="Instruções só podem ser alteradas durante a preparação.")
+    if room_id in season_service._seasons and season_service._season(room_id).live_round:
+        raise HTTPException(status_code=409, detail="Durante o jogo, use os comandos ao vivo.")
+    try:
+        result = squad_service.save_instructions(room_id, club, payload.instructions)
+    except MarketError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    unready = season_service.unready(room_id, club)
+    snapshot_room(room_id)
+    await hub.broadcast(room_id, {"type": "squad.strategy_changed", "club_code": club})
+    return envelope({**result, "ready_cancelled": unready})
+
+
+@router.get("/rooms/{room_id}/squad/cohesion")
+async def squad_cohesion(room_id: str, identity: GuestIdentity = Depends(current_identity)) -> dict[str, object]:
+    """Entrosamento tático of the saved plan: compatibility, familiarity, engine factor."""
+    club = market_club(room_id, identity.id)
+    if room_id not in season_service._seasons:
+        raise HTTPException(status_code=409, detail="O entrosamento é calculado a partir do início da temporada.")
+    return envelope(season_service.cohesion_view(room_id, market_service._session(room_id).market, club))
 
 
 @router.post("/rooms/{room_id}/season/start")

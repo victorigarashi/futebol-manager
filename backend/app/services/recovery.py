@@ -133,7 +133,7 @@ async def restore_snapshots() -> None:
                 staged_seasons.restore_room(room_id, season)
             staged_transfers.restore_room(room_id, raw.get("transfers", {"offers": [], "operations": []}))
 
-    from app.api.routes import finalize_market, notify_market, progress_market
+    from app.api.routes import finalize_market, notify_market, progress_market, room_rules
 
     for room_id, raw in prepared:
         room_manager.restore(raw["room"])
@@ -141,7 +141,7 @@ async def restore_snapshots() -> None:
         if isinstance(market_payload, dict):
             session = market_service.restore_room(market_payload, notify_market, finalize_market, progress_market)
             if session.market.selection_complete and room_id not in season_service._seasons:
-                season_service.create(room_id, session.market)
+                season_service.create(room_id, session.market, double_round_robin=room_manager._room(room_id).double_round_robin, rules=room_rules(room_manager._room(room_id)))
         lineups = raw.get("lineups", {})
         if isinstance(lineups, dict):
             if "lineups" not in lineups or "strategies" not in lineups:
@@ -152,9 +152,9 @@ async def restore_snapshots() -> None:
             if "fixtures" in season:
                 season_service.restore_room(room_id, season)
             elif room_id in market_service.sessions:
-                season_service.create(room_id, market_service._session(room_id).market)
+                season_service.create(room_id, market_service._session(room_id).market, double_round_robin=room_manager._room(room_id).double_round_robin, rules=room_rules(room_manager._room(room_id)))
         elif room_id in market_service.sessions and market_service._session(room_id).market.selection_complete:
-            season_service.create(room_id, market_service._session(room_id).market)
+            season_service.create(room_id, market_service._session(room_id).market, double_round_robin=room_manager._room(room_id).double_round_robin, rules=room_rules(room_manager._room(room_id)))
         transfers = raw.get("transfers", {"offers": [], "operations": []})
         if isinstance(transfers, dict):
             transfer_service.restore_room(room_id, transfers)
