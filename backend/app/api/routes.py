@@ -605,6 +605,7 @@ async def broadcast_round(room_id: str) -> None:
                     if season.transfer_window_open:
                         room = room_manager._room(room_id)
                         await room_manager.set_phase(room_id, room.host_user_id, "TRANSFER_WINDOW")
+                        await open_window_for_bots(room_id)
                     snapshot_room(room_id)
             now = season_service.clock()
             if not completed and now - last_push >= FRAME_PUSH_SECONDS:
@@ -634,6 +635,18 @@ async def broadcast_round(room_id: str) -> None:
         season = season_service._seasons.get(room_id)
         if (completed or crashed) and season and season.live_round:
             schedule_round(room_id)
+
+
+async def open_window_for_bots(room_id: str) -> None:
+    """Bots take the initiative as soon as a window opens (proposals, disputes)."""
+    room = room_manager._room(room_id)
+    humans = {p.selected_club_code for p in room.participants.values() if p.selected_club_code and p.role != "BOT"}
+    try:
+        offers = await transfer_service.bot_window_activity(room_id, humans)
+    except MarketError:
+        return
+    if offers:
+        await hub.broadcast(room_id, {"type": "transfer.offer_changed"})
 
 
 async def start_round_if_preparation_expired(room_id: str) -> None:
@@ -872,9 +885,11 @@ async def buy_transfer_player(room_id: str, payload: TransferBuy, identity: Gues
 async def create_transfer_offer(room_id: str, payload: TransferOfferCreate, identity: GuestIdentity = Depends(current_identity)) -> dict[str, object]:
     club = market_club(room_id, identity.id)
     room = room_manager._room(room_id)
-    human_clubs = {member.selected_club_code for member in room.participants.values() if member.selected_club_code}
+    # Only people answer offers; bot clubs (participants with role BOT) decide at once.
+    human_clubs = {member.selected_club_code for member in room.participants.values() if member.selected_club_code and member.role != "BOT"}
     try:
-        offer = await transfer_service.create_offer(room_id, club, payload.incoming_player_id, payload.offered_player_id, payload.amount_cents, payload.idempotency_key, set(human_clubs))
+        offer = await transfer_service.create_offer(room_id, club, payload.incoming_player_id, payload.offered_player_id, payload.amount_cents,
+                                                    payload.idempotency_key, set(human_clubs), payload.kind)
     except MarketError as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
     snapshot_room(room_id)
@@ -935,9 +950,17 @@ async def start_next_season(room_id: str, identity: GuestIdentity = Depends(curr
     if room_manager._room(room_id).host_user_id != identity.id:
         raise HTTPException(status_code=403, detail="Apenas o anfitrião pode iniciar a próxima temporada.")
     try:
+        season = season_service._season(room_id)
+        if not season.playoffs or not season.playoffs.champion or not season.progression_applied:
+            raise MarketError("A temporada atual precisa terminar antes de começar outra.")
+        returned = await transfer_service.end_loans(room_id)  # loans last one season
         result = season_service.create_next_season(room_id, market_service._session(room_id).market)
     except MarketError as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
+    room = room_manager._room(room_id)
+    await room_manager.set_phase(room_id, room.host_user_id, "TRANSFER_WINDOW")
+    await open_window_for_bots(room_id)
+    result = {**result, "returned_loans": returned}
     snapshot_room(room_id)
     await hub.broadcast(room_id, {"type": "season.next_started", "season_number": result["season_number"]})
     return envelope(result)

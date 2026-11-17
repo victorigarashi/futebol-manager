@@ -157,6 +157,8 @@ class RoomSeason:
     # Runtime only: the market of the room, remembered from the last `advance` so the
     # final whistle can settle prizes and draws without the caller passing it again.
     market_ref: InitialMarket | None = None
+    # The window between seasons is the pre-season window of the new season.
+    preseason_window: bool = False
 
     @property
     def sim_style(self) -> str:
@@ -204,6 +206,9 @@ class SeasonService:
         self._seasons[room_id] = RoomSeason(SeasonState(generate_calendar(tuple(market.teams), double_round_robin=previous.double_round_robin)), market.mode, season_number=previous.season_number + 1, current_overalls=dict(previous.current_overalls), development_records=list(previous.development_records), season_history=history, double_round_robin=previous.double_round_robin,
                                             rules=dict(previous.rules), familiarity={club: dict(values) for club, values in previous.familiarity.items()})
         season = self._seasons[room_id]
+        # "Reabrir o mercado entre temporadas": the new season starts with a window.
+        season.transfer_window_open = True
+        season.preseason_window = True
         if season.rules.get("copa_enabled") and len(market.teams) == 20:
             seeds = [str(row["club_code"]) for row in summary["table"]]
             schedule_cup(season.knockout, seeds, self._regular_round_count(season))
@@ -1078,7 +1083,9 @@ class SeasonService:
 
     def close_transfer_window(self, room_id: str) -> dict[str, object]:
         season = self._season(room_id)
-        if self.current_round(room_id) != self._transfer_resume_round(season):
+        if season.preseason_window and season.transfer_window_open:
+            season.preseason_window = False
+        elif self.current_round(room_id) != self._transfer_resume_round(season):
             if not season.transfer_window_open:
                 return self.view(room_id)
             raise MarketError("A janela só pode ser encerrada entre as metades do campeonato.")
@@ -1227,6 +1234,7 @@ class SeasonService:
             "rules": season.rules,
             "familiarity": season.familiarity,
             "knockout": season.knockout.to_dict(),
+            "preseason_window": season.preseason_window,
         }
 
     def restore_room(self, room_id: str, payload: dict[str, object]) -> RoomSeason:
@@ -1355,6 +1363,7 @@ class SeasonService:
             rules=dict(payload.get("rules", {})) if isinstance(payload.get("rules", {}), dict) else {},
             familiarity={str(club): {str(k): max(0.0, min(100.0, float(v))) for k, v in dict(values).items()}
                          for club, values in dict(payload.get("familiarity", {})).items()},
+            preseason_window=bool(payload.get("preseason_window", False)),
             knockout=KnockoutState.from_dict(dict(payload.get("knockout", {}))) if isinstance(payload.get("knockout", {}), dict) else KnockoutState(),
         )
         if room_season.live_round:

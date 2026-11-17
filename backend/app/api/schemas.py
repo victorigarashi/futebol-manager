@@ -195,7 +195,9 @@ class TransferBuy(BaseModel):
 
 class TransferOfferCreate(BaseModel):
     incoming_player_id: str = Field(min_length=1)
-    offered_player_id: str = Field(min_length=1)
+    # Empty for a cash purchase or a loan.
+    offered_player_id: str = Field(default="", max_length=120)
+    kind: Literal["TRADE", "PURCHASE", "LOAN"] = "TRADE"
     amount_cents: int = Field(ge=0)
     idempotency_key: str = Field(min_length=8, max_length=120)
 

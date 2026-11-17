@@ -110,6 +110,11 @@ class SquadService:
     def commit_lineup(self, room_id: str, club_code: str, lineup: dict[str, object]) -> None:
         self._lineups[(room_id, club_code)] = lineup
 
+    def drop_lineup(self, room_id: str, club_code: str) -> None:
+        """The saved line-up became impossible (player sold or loaned): the server picks one."""
+        self._lineups.pop((room_id, club_code), None)
+        self._instructions.pop((room_id, club_code), None)
+
     def save_strategy(self, room_id: str, club_code: str, strategy: str) -> dict[str, str]:
         """Legacy preset: maps onto the three-part tactics used by the engine."""
         if strategy not in LEGACY_STRATEGIES:
