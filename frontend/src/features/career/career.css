@@ -450,7 +450,7 @@
 .tie__club.is-out { opacity: .5; }
 .tie__legs, .tie__pens { display: flex; flex-wrap: wrap; gap: .5rem; color: var(--faint); font-size: .72rem; }
 .tie__pens { color: var(--gold); }
-.cup-page, .news-center, .trophy-room, .stats-tab { display: grid; gap: 1rem; }
+.cup-page, .news-center, .trophy-room, .stats-tab { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }
 .cup-page__head h2, .trophy-room__head h2 { margin: .2rem 0 .4rem; font: 800 1.8rem var(--display); }
 .cup-page__head p { color: var(--muted); }
 

@@ -82,9 +82,9 @@ const shot = (page, file) => page.screenshot({ path: path.join(out, file), fullP
     await r.waitForSelector(".matchup");
     await shot(r, "06-mobile-pre-jogo.png");
 
-    // Match settings: default 1:30, host-only, synced to the other coach with feedback.
+    // Match settings: default 1:00, host-only, synced to the other coach with feedback.
     const active = async (p) => (await p.locator(".match-settings__choices button.is-active").innerText()).trim();
-    check("default duration is 1:30 for both coaches", (await active(page)) === "1:30" && (await active(r)) === "1:30");
+    check("default duration is 1:00 for both coaches", (await active(page)) === "1:00" && (await active(r)) === "1:00");
     check("only the host can change the duration", await r.locator(".match-settings__choices button").first().isDisabled());
     await page.locator(".match-settings__choices button", { hasText: "2:00" }).click();
     await r.waitForSelector(".match-settings__notice:has-text('O anfitrião mudou')", { timeout: 15000 });
@@ -162,6 +162,22 @@ const shot = (page, file) => page.screenshot({ path: path.join(out, file), fullP
     await shot(page, "17-central-rodada-2.png");
     await page.getByRole("button", { name: /Temporada/ }).click();
     await shot(page, "18-temporada.png");
+    // Career centres: everything comes from the committed round.
+    await page.getByRole("button", { name: /Notícias/ }).click();
+    await page.waitForSelector(".news-feed li, .news-center .empty-feature", { timeout: 15000 });
+    check("news centre lists real events", await page.locator(".news-feed li").count() > 0, `${await page.locator(".news-feed li").count()} itens`);
+    await shot(page, "19-noticias.png");
+    await page.getByRole("button", { name: /Estatísticas/ }).click();
+    await page.waitForSelector(".stats-grid .scorers li", { timeout: 15000 });
+    const statsData = await api(state.tokens[0], `/rooms/${state.room_id}/career/stats`);
+    const eventGoals = await api(state.tokens[0], `/rooms/${state.room_id}/season`).then((r) => r.data.table.reduce((sum, row) => sum + row.goals_for, 0));
+    const scorerGoals = statsData.data.scorers.reduce((sum, row) => sum + row.goals, 0);
+    check("stats: scorers match the table", scorerGoals <= eventGoals && scorerGoals > 0, `${scorerGoals} artilharia (top 20) / ${eventGoals} na tabela`);
+    await shot(page, "20-estatisticas.png");
+    await page.getByRole("button", { name: /Troféus/ }).click();
+    await page.waitForSelector(".trophy-room .empty-feature, .trophy-shelf", { timeout: 15000 });
+    check("trophy room opens (empty before a title)", await page.locator(".trophy-room .empty-feature").count() === 1);
+    await shot(page, "21-trofeus.png");
   } catch (error) {
     check("flow completed without exceptions", false, String(error).slice(0, 300));
     await shot(page, "zz-falha-host.png").catch(() => {});
