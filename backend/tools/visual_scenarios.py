@@ -1,7 +1,11 @@
 """Dump authoritative engine frames of reproducible plays (run with the project venv)."""
-import sys, json, collections
+import collections
+import json
+import sys
+
 sys.path.insert(0, ".")
 from pathlib import Path
+
 from app.domain import match_engine as ME
 from app.domain.bot_coach import advance_with_bots
 from app.domain.catalog import load_catalog
@@ -9,6 +13,7 @@ from app.domain.clubs import CLUBS
 from app.domain.market import InitialMarket
 from app.services.season_service import SeasonService
 from app.tests.fixtures.market_catalog import complete_test_market
+
 out = Path(sys.argv[1]); out.mkdir(parents=True, exist_ok=True)
 svc = SeasonService(clock=lambda: 1e6); cat = load_catalog(Path("../data/catalogs/players.json"))
 m = InitialMarket(cat, "ELEVEN_A_SIDE", dict.fromkeys((c.code for c in CLUBS), 10**10)); complete_test_market(m, "viz"); svc.create("viz", m)
