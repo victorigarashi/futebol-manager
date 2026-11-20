@@ -7,7 +7,30 @@ export type BotDifficulty = "CASUAL" | "COMPETITIVE" | "LEGENDARY";
 export type PlayoffFormat = "SINGLE" | "TWO_LEGS";
 /** League rules chosen when the room is created (editable until the season starts). */
 export type GameMode = "TRADITIONAL" | "DRAFT" | "DRAFT_KNOCKOUT" | "SURVIVOR" | "PACK";
-export type LeagueRules = { game_mode: GameMode; sim_style: MatchStyle; bot_difficulty: BotDifficulty; morale_enabled: boolean; copa_enabled: boolean; coach_moves_enabled: boolean; playoff_format: PlayoffFormat; draft_catalog: "BRASILEIRAO" | "WORLD"; draft_min_overall: number; survivor_eliminations: 0 | 2 | 4; pack_luck: "BALANCED" | "LUCK" };
+export type LeagueRules = { game_mode: GameMode; sim_style: MatchStyle; bot_difficulty: BotDifficulty; morale_enabled: boolean; copa_enabled: boolean; coach_moves_enabled: boolean; playoff_format: PlayoffFormat; draft_catalog: "BRASILEIRAO" | "WORLD"; draft_min_overall: number; survivor_eliminations: 0 | 2 | 4; pack_luck: "BALANCED" | "LUCK"; execution_mode: ExecutionMode; ruleset: Ruleset; decision_seconds: DecisionSeconds; decision_free_vs_bots: boolean };
+/** Modo Jogável (decisive moments) or the technical 2D simulation. */
+export type ExecutionMode = "TECHNICAL" | "INTERACTIVE";
+export type Ruleset = "ARCADE" | "TRADITIONAL";
+export type DecisionSeconds = 5 | 10 | 15 | 20;
+export type InteractiveActionType = "PASS" | "LOFT" | "CARRY" | "SHOT";
+/** One physics frame: [t, ballX, ballY, ballZ, x0, y0, x1, y1, ...] in normalised pitch units (roster order). */
+export type InteractiveFrame = number[];
+export type InteractiveStep = { by: "HUMAN" | "AI" | "TIMEOUT" | "AI_TAKEOVER" | "AI_CONTROL"; type: InteractiveActionType; aim: { x: number; y: number }; power: number; carrier: string; outcome: string; detail: string; frames: InteractiveFrame[]; duration: number; starts_at: number; receiver: string | null };
+export type InteractiveOpportunity = {
+  id: string; kind: string; label: string; attacking: string; defending: string; minute: number; status: string; result: string | null;
+  actions: number; max_actions: number; carrier: string; roster: { id: string; name: string; number: number; team: "A" | "D"; role: string }[];
+  positions: [number, number][]; ball: [number, number]; last: InteractiveStep | null; replay: InteractiveStep[] | null; opened_at: number;
+};
+export type InteractiveView = {
+  match_id: string | null; unchanged?: boolean; home: string; away: string; state: "NONE" | "CLOCK" | "DECISION" | "EXECUTING" | "REPLAY" | "OUTCOME" | "HALF_TIME" | "FINISHED";
+  revision: number; minute: number; clock_rate: number; score: { home: number; away: number }; server_now: number; deadline: number | null;
+  decision_seconds: number; state_until: number | null; grace_until: number | null; you: string | null; your_turn: boolean; controller: "HUMAN" | "AI" | null;
+  ai_control: string[]; humans: string[]; connected: Record<string, boolean>; opportunity: InteractiveOpportunity | null; ruleset: Ruleset;
+  pitch: { length: number; width: number; goal: number; box: number };
+  physics: { pass: [number, number]; loft: [number, number]; loft_range: [number, number]; shot: [number, number]; carry: [number, number]; decel: number };
+  events: MatchEvent[]; stats: Record<string, Record<string, number>>;
+};
+export type InteractiveActionPayload = { action_id: string; opportunity_id: string; revision: number; type: InteractiveActionType; x: number; y: number; power: number };
 export type SurvivorRow = { club_code: string; position: number; points: number; gf: number; ga: number; gd: number; total_points: number; total_gd: number };
 export type SurvivorView = {
   seed: string; clubs: string[]; configured: number; active: string[]; remaining: number; path: number[];
@@ -133,7 +156,7 @@ export type InstructionOptions = Record<"GK" | "FB" | "CB" | "MF" | "ST", Instru
 export type DraftCard = { id: string; name: string; overall: number; potential: number; position: string; secondary_positions: string[]; club_code: string; club_name?: string | null; nationality?: string | null; age?: number | null; attributes: Record<string, number>; photo_url?: string | null; source: string; verification_status?: string | null };
 export type DraftPick = { instance_id: string; catalog_id: string; card: DraftCard };
 export type DraftView = { formations: Formation[]; room_id: string; mode: "FIVE_A_SIDE" | "ELEVEN_A_SIDE"; catalog: "BRASILEIRAO" | "WORLD"; min_overall: number; deadline: number | null; server_now: number; completed: boolean; bench_size: number; formation: string | null; slots: Record<string, DraftPick | null>; bench: DraftPick[]; open_offers: Record<string, DraftCard[]>; warnings: string[]; complete: boolean; progress: Record<string, { picks: number; total: number | null; bot: boolean }> };
-export type LiveView = { round_state?: RoundState; recovering?: boolean; server_now: number; live_round: LiveRound | null; clock?: LiveClock | null; broadcast?: BroadcastSegment[] | null; match: LiveMatch | null; scores: { id: string; home: string; away: string; home_goals: number; away_goals: number; minute?: number; status?: string }[]; table: SeasonTableRow[]; official_table: SeasonTableRow[]; current_round: number; ready_clubs: string[] };
+export type LiveView = { round_state?: RoundState; recovering?: boolean; server_now: number; live_round: LiveRound | null; clock?: LiveClock | null; broadcast?: BroadcastSegment[] | null; match: LiveMatch | null; scores: { id: string; home: string; away: string; home_goals: number; away_goals: number; minute?: number; status?: string }[]; table: SeasonTableRow[]; official_table: SeasonTableRow[]; current_round: number; ready_clubs: string[]; interactive?: string | null };
 export type MatchReplay = { id: string; home: string; away: string; home_players: string[]; away_players: string[]; home_goals: number; away_goals: number; home_xg: number; away_xg: number; probabilities?: { home: number; draw: number; away: number }; status: "LIVE" | "FINISHED"; minute: number; started_at?: number; ends_at?: number; home_formation?: MatchFormation; away_formation?: MatchFormation; statistics: Record<string, Record<string, number>>; events: MatchEvent[] };
 export type PlayoffMatch = { id: string; stage: string; home: string; away: string; home_goals: number; away_goals: number; winner: string; home_penalties: number | null; away_penalties: number | null };
 export type PlayoffView = { qualifiers: string[]; quarterfinals: PlayoffMatch[]; semifinals: PlayoffMatch[]; final: PlayoffMatch | null; champion: string | null; next_stage: string };
@@ -265,6 +288,8 @@ export const api = {
   startSeason: (roomId: string) => request<Envelope<RoomState>>(`/rooms/${roomId}/season/start`, { method: "POST" }),
   season: (roomId: string) => request<Envelope<SeasonView>>(`/rooms/${roomId}/season`),
   live: (roomId: string) => request<Envelope<LiveView>>(`/rooms/${roomId}/season/live`),
+  interactive: (roomId: string, revision?: number) => request<Envelope<InteractiveView>>(`/rooms/${roomId}/season/interactive${revision !== undefined ? `?revision=${revision}` : ""}`),
+  interactiveAction: (roomId: string, payload: InteractiveActionPayload) => request<Envelope<{ status: string; revision: number; match: InteractiveView }>>(`/rooms/${roomId}/season/interactive/actions`, { method: "POST", body: JSON.stringify(payload) }),
   addBot: (roomId: string, clubCode?: string) => request<Envelope<RoomState>>(`/rooms/${roomId}/bots`, { method: "POST", body: JSON.stringify(clubCode ? { club_code: clubCode } : {}) }),
   removeBot: (roomId: string, clubCode: string) => request<Envelope<RoomState>>(`/rooms/${roomId}/bots/${clubCode}`, { method: "DELETE" }),
   readyForRound: (roomId: string) => request<Envelope<SeasonView>>(`/rooms/${roomId}/season/ready`, { method: "POST" }),

@@ -10,6 +10,7 @@ import { TransferHub } from "../season/TransferHub";
 import { ClubHub, type CareerTab } from "./ClubHub";
 import { LineupBoard } from "./LineupBoard";
 import { LiveMatchCenter } from "./live/LiveMatchCenter";
+import { InteractiveMatch } from "./interactive/InteractiveMatch";
 import { PostMatch } from "./PostMatch";
 import { PreMatch } from "./PreMatch";
 import { TacticsBoard } from "./TacticsBoard";
@@ -70,6 +71,10 @@ export function CareerShell({ roomId, room, isHost, clubCode }: { roomId: string
   const data = season.data;
   if (live.data?.live_round && live.data.recovering) {
     return <div className="career career--live"><div className="panel-loading panel-loading--recovering" role="status"><b>Recuperando a partida…</b><span>O servidor foi reiniciado e está reconstruindo a rodada exatamente como estava (mesmos lances, placar e ordens). A transmissão volta sozinha em instantes.</span></div></div>;
+  }
+  if (live.data?.live_round && live.data.interactive && clubList.length) {
+    // Modo Jogável: the same round, the coach plays the decisive moments of his match.
+    return <div className="career career--live"><InteractiveMatch roomId={roomId} clubCode={clubCode} clubs={clubList} /></div>;
   }
   if (live.data?.live_round && live.data.match && clubList.length) {
     return <div className="career career--live"><LiveMatchCenter roomId={roomId} data={live.data} clubCode={clubCode} clubs={clubList} /></div>;

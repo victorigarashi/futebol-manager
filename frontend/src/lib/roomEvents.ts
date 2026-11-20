@@ -14,6 +14,7 @@ const BY_PREFIX: [string, string[]][] = [
   ["season.tick", ["live"]],
   ["season.sync", ["live"]],
   ["season.live_command", ["live"]],
+  ["season.interactive", ["interactive"]],
   ["season.ready_changed", ["season", "preview"]],
   ["season.round_started", ["season", "live", "preview", "room-state"]],
   ["season.round_completed", ["season", "live", "preview", "squad", "career", "room-state"]],

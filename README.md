@@ -30,6 +30,7 @@ O demo está desligado por padrão e é recusado em produção. Sem demo, config
 
 - [Entrega do Prompt Master V2](docs/ENTREGA_V2.md) · [Modo Draft](docs/MODO_DRAFT.md) · [Entrosamento tático](docs/ENTROSAMENTO.md) · [Catálogo Mundial e licenças](docs/CATALOGO_MUNDIAL.md)
 
+- [Modo Jogável: momentos decisivos (arraste para passar e chutar)](docs/MODO_JOGAVEL.md)
 - [Modo Carreira: motor 2D, partida ao vivo e nova interface](docs/MODO_CARREIRA.md)
 - [Partidas condensadas (1:30 / 2:00 / 3:00), transmissão 2D e motor](docs/PARTIDAS_CONDENSADAS.md)
 - [Fontes de dados de jogadores: cobertura e direitos de uso](docs/pesquisa-dados/RELATORIO_FONTES_JOGADORES.md)

@@ -123,6 +123,19 @@ export function RoomWizard({ initial, mode, editing = false, isPending, onClose,
       </section>}
 
       {step === 2 && <section className="settings-section">
+        <fieldset><legend>Como as partidas são jogadas</legend><div className="choice-grid choice-grid--two">
+          <Choice value={"INTERACTIVE" as const} current={draft.execution_mode ?? "TECHNICAL"} label="Modo Jogável" hint="Você joga os momentos decisivos: arraste para passar e chutar" onPick={(v) => patch("execution_mode", v)} />
+          <Choice value={"TECHNICAL" as const} current={draft.execution_mode ?? "TECHNICAL"} label="Modo Técnico" hint="Você comanda da beira do campo; o 2D simula tudo" onPick={(v) => patch("execution_mode", v)} />
+        </div><small>Vale para todas as partidas desta sala (liga, Copa, playoffs, torneios). Não muda no meio da competição.</small></fieldset>
+        {draft.execution_mode === "INTERACTIVE" && <>
+          <fieldset><legend>Tempo para cada decisão</legend><div className="choice-grid choice-grid--four">{([5, 10, 15, 20] as const).map((n) => <Choice key={n} value={n} current={draft.decision_seconds ?? 10} label={`${n} s`} hint={n === 10 ? "Recomendado" : n === 5 ? "Frenético" : n === 20 ? "Com calma" : "Tranquilo"} onPick={(v) => patch("decision_seconds", v)} />)}</div>
+            <small>O servidor controla o tempo. Se acabar, a IA faz uma jogada sensata por você. O relógio da partida não anda enquanto você decide.</small></fieldset>
+          <fieldset><legend>Regras</legend><div className="choice-grid choice-grid--two">
+            <Choice value={"ARCADE" as const} current={draft.ruleset ?? "ARCADE"} label="Arcade" hint="Sem cartões nem impedimento, poucas paradas" onPick={(v) => patch("ruleset", v)} />
+            <Choice value={"TRADITIONAL" as const} current={draft.ruleset ?? "ARCADE"} label="Tradicional" hint="Faltas perigosas, pênaltis e escanteios" onPick={(v) => patch("ruleset", v)} />
+          </div></fieldset>
+          <div className="toggle-list"><Toggle checked={Boolean(draft.decision_free_vs_bots)} onChange={(v) => patch("decision_free_vs_bots", v)} label="Tempo livre contra bots" hint="Sem cronômetro quando nenhum humano está esperando você" /></div>
+        </>}
         <fieldset><legend>Duração de cada partida</legend><div className="choice-grid choice-grid--four">{MATCH_DURATIONS.map((o) => <Choice key={o.value} value={o.value} current={duration} label={o.label} hint={o.hint} onPick={(v) => patch("match_duration_seconds", v)} />)}</div>
           <small>Os 90 minutos são uma transmissão condensada com os lances que importam.</small></fieldset>
         <fieldset><legend>Estilo da simulação</legend><div className="choice-grid choice-grid--two">{STYLES.map((o) => <Choice key={o.value} value={o.value} current={style} label={o.label} hint={o.hint} onPick={(v) => patch("sim_style", v)} />)}</div></fieldset>
