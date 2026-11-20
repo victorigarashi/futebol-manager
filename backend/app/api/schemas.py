@@ -30,6 +30,10 @@ class RoomCreate(BaseModel):
     draft_min_overall: Literal[0, 65, 70, 72, 75, 78, 80] = 0
     survivor_eliminations: Literal[0, 2, 4] = 0
     pack_luck: Literal["BALANCED", "LUCK"] = "BALANCED"
+    execution_mode: Literal["TECHNICAL", "INTERACTIVE"] = "TECHNICAL"
+    ruleset: Literal["ARCADE", "TRADITIONAL"] = "ARCADE"
+    decision_seconds: Literal[5, 10, 15, 20] = 10
+    decision_free_vs_bots: bool = False
 
     @field_validator("name")
     @classmethod
@@ -117,6 +121,21 @@ class RoomUpdate(RoomCreate):
     draft_min_overall: Literal[0, 65, 70, 72, 75, 78, 80] | None = None
     survivor_eliminations: Literal[0, 2, 4] | None = None
     pack_luck: Literal["BALANCED", "LUCK"] | None = None
+    execution_mode: Literal["TECHNICAL", "INTERACTIVE"] | None = None
+    ruleset: Literal["ARCADE", "TRADITIONAL"] | None = None
+    decision_seconds: Literal[5, 10, 15, 20] | None = None
+    decision_free_vs_bots: bool | None = None
+
+
+class InteractiveAction(BaseModel):
+    """One gesture of the Modo Jogável: target point (normalised pitch) + power."""
+    action_id: str = Field(min_length=8, max_length=80)
+    opportunity_id: str = Field(min_length=1, max_length=80)
+    revision: int = Field(ge=0)
+    type: Literal["PASS", "LOFT", "CARRY", "SHOT"]
+    x: float = Field(ge=-0.1, le=1.1)
+    y: float = Field(ge=-0.1, le=1.1)
+    power: float = Field(ge=0.0, le=1.0)
 
 
 class MatchSettingsUpdate(BaseModel):

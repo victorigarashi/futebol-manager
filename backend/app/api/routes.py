@@ -20,6 +20,7 @@ from app.api.schemas import (
     DraftPick,
     DraftSlot,
     InstructionsUpdate,
+    InteractiveAction,
     JoinByCodeRequest,
     LineupUpdate,
     LiveCommand,
@@ -1138,6 +1139,37 @@ async def live_command(room_id: str, payload: LiveCommand, identity: GuestIdenti
     except MarketError as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
     await hub.broadcast(room_id, {"type": "season.live_command", "club_code": club, "kind": payload.kind})
+    return envelope(result)
+
+
+@router.get("/rooms/{room_id}/season/interactive")
+async def interactive_state(room_id: str, revision: int | None = None, identity: GuestIdentity = Depends(current_identity)) -> dict[str, object]:
+    """Modo Jogável: authoritative state of the coach's decisive-moments match.
+
+    Polling also marks the coach as connected (reconnection = polling again: the
+    server restores the frozen decision; see HighlightMatch.advance). With the
+    revision the client already has, an unchanged match answers in a few bytes."""
+    club = market_club(room_id, identity.id)
+    try:
+        async with round_locks.setdefault(room_id, asyncio.Lock()):
+            return envelope(season_service.interactive_view(room_id, club, revision))
+    except MarketError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+
+
+@router.post("/rooms/{room_id}/season/interactive/actions")
+async def interactive_action(room_id: str, payload: InteractiveAction, identity: GuestIdentity = Depends(current_identity)) -> dict[str, object]:
+    """One gesture (pass, lofted ball, carry or shot). Validated and resolved by the server;
+    duplicates (same action_id) are answered without being applied again."""
+    club = market_club(room_id, identity.id)
+    try:
+        async with round_locks.setdefault(room_id, asyncio.Lock()):
+            result = season_service.interactive_action(room_id, club, payload.model_dump())
+            if result["status"] == "ACCEPTED":
+                snapshot_room(room_id)
+    except MarketError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    await hub.broadcast(room_id, {"type": "season.interactive", "revision": result["revision"]})
     return envelope(result)
 
 

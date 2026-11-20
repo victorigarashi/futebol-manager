@@ -23,6 +23,7 @@ from app.domain.cohesion import (
     level_label,
     slot_role,
 )
+from app.domain.highlights import HighlightMatch
 from app.domain.knockout import (
     PLAYOFF_PRIZES,
     TOURNAMENT_ORDER,
@@ -184,6 +185,10 @@ class RoomSeason:
     market_ref: InitialMarket | None = None
     # The window between seasons is the pre-season window of the new season.
     preseason_window: bool = False
+    # Modo Jogável (rule execution_mode = INTERACTIVE): decisive-moments sessions of the
+    # live round's matches with a human coach (app.domain.highlights). Same official
+    # result format as the technical engine; serialised in the snapshot.
+    highlights: dict[str, HighlightMatch] = field(default_factory=dict)
 
     @property
     def sim_style(self) -> str:
@@ -391,11 +396,26 @@ class SeasonService:
             extra = {"kind": "LEAGUE", "label": f"Rodada {round_number}"}
         prepared: dict[str, tuple[MatchEngine, dict[str, object]]] = {}
         built: dict[str, tuple[TeamInput, TeamInput, int]] = {}
+        interactive = season.rules.get("execution_mode") == "INTERACTIVE"
+        announced = self.clock()
         for fixture in fixtures:
             if fixture.id in season.state.results:
                 continue
             home_input, away_input, seed, bot_sides = self._fixture_inputs(room_id, market, fixture, human_clubs)
             built[fixture.id] = (home_input, away_input, seed)
+            if interactive and len(bot_sides) < 2:
+                # A human coach plays this one: decisive moments (one engine for every mode).
+                season.prebuilt.pop(fixture.id, None)
+                home_view, away_view = team_input_view(home_input), team_input_view(away_input)
+                season.highlights[fixture.id] = HighlightMatch.create(
+                    fixture.id, season.mode, home_input, away_input, home_view, away_view,
+                    [club for club in (fixture.home, fixture.away) if club in human_clubs], seed,
+                    str(season.rules.get("ruleset", "ARCADE")), int(season.rules.get("decision_seconds", 10) or 10),
+                    bool(season.rules.get("decision_free_vs_bots", False)), announced + self.intro_seconds)
+                season.matches[fixture.id] = {"id": fixture.id, "home": fixture.home, "away": fixture.away, "status": "LIVE", "seed": seed,
+                                              "competition": extra["kind"], "stage": extra.get("stage"), "leg": extra.get("leg"),
+                                              "inputs": {"home": home_view, "away": away_view}, "bot_sides": bot_sides, "interactive": True}
+                continue
             prebuilt = season.prebuilt.pop(fixture.id, None)
             if prebuilt is not None and prebuilt.fingerprint == _fingerprint(home_input, away_input, seed, bot_sides):
                 # Simulated during preparation from exactly these inputs: identical result.
@@ -436,8 +456,9 @@ class SeasonService:
             season.matches[match_id] = meta
         season.live_round = {"round_number": round_number, "announced_at": announced_at, "started_at": started_at,
                              "ends_at": started_at + match_seconds, "duration_seconds": match_seconds,
-                             "match_seconds": match_seconds, "match_ids": list(prepared), "human_clubs": sorted(human_clubs),
-                             **extra}
+                             "match_seconds": match_seconds,
+                             "match_ids": list(prepared) + [key for key in built if key in season.highlights],
+                             "human_clubs": sorted(human_clubs), "interactive": interactive, **extra}
         season.ready_clubs.clear()
         log_transition(room_id, "ROUND_STARTED", kind=extra["kind"], stage=extra.get("stage"), leg=extra.get("leg"),
                        round=round_number, matches=len(prepared), featured=next((k for k, (_, m) in prepared.items() if m.get("featured")), None))
@@ -509,6 +530,7 @@ class SeasonService:
         if not live:
             return False, False
         now = self.clock() if now is None else now
+        self.advance_highlights(season, now)
         # 1. Engines being rebuilt after a restart.
         for match_id, job in list(season.recovering.items()):
             job.step(budget)
@@ -567,6 +589,9 @@ class SeasonService:
             return False
         now = self.clock() if now is None else now
         if now < float(live["ends_at"]):
+            return False
+        self.advance_highlights(season, now)
+        if any(not session.finished for session in season.highlights.values()):
             return False
         for match_id in live["match_ids"]:
             engine, clock = season.engines.get(match_id), season.directors.get(match_id)
@@ -659,9 +684,16 @@ class SeasonService:
         live = season.live_round
         if not live or self.clock() < live["ends_at"]:
             return False
+        self.advance_highlights(season, self.clock())
+        if any(not session.finished for session in season.highlights.values()):
+            return False  # an interactive match is still being played
         # Synchronous commit under the caller's room lock, with no await points.
         ends_at = float(live["ends_at"])
         self.sync_live(room_id, ends_at)
+        for match_id, session in list(season.highlights.items()):
+            # Recorded exactly once: the session leaves the round when its record is written.
+            season.matches[match_id] = highlight_record(session, season.matches[match_id], season.sim_style)
+            season.highlights.pop(match_id)
         results = {}
         for match_id in live["match_ids"]:
             engine = season.engines.pop(match_id, None)
@@ -932,7 +964,8 @@ class SeasonService:
                 "official_table": standings(tuple(sorted({club_code for fixture in season.state.fixtures for club_code in (fixture.home, fixture.away)})),
                                             season.state.fixtures, season.state.results),
                 "current_round": self.current_round(room_id), "ready_clubs": sorted(season.ready_clubs),
-                "round_state": self.round_state(room_id, now), "recovering": False}
+                "round_state": self.round_state(room_id, now), "recovering": False,
+                "interactive": self._interactive_match_for(season, club)}
 
     def live_frames(self, room_id: str, club: str, since_tick: int, sync: bool = False,
                     known_timeline: list[int] | tuple[int, int] | None = None) -> dict[str, object]:
@@ -978,6 +1011,52 @@ class SeasonService:
             view["score"] = {"home": sum(1 for g in goals if g["team"] == engine.clubs[0]),
                              "away": sum(1 for g in goals if g["team"] == engine.clubs[1])}
         return view
+
+    # ------------------------------------------------------------------ Modo Jogável (decisive moments)
+    def advance_highlights(self, season: RoomSeason, now: float) -> None:
+        """Server-driven: due transitions happen even when no client is connected."""
+        for session in season.highlights.values():
+            session.advance(now)
+
+    @staticmethod
+    def _interactive_match_for(season: RoomSeason, club: str) -> str | None:
+        """The interactive match a coach plays, or (spectator) the first one of the round."""
+        live = season.live_round
+        if not live or not season.highlights:
+            return None
+        own = next((key for key, s in season.highlights.items() if club in s.clubs), None)
+        if own:
+            return own
+        played = any(club in (season.matches[key]["home"], season.matches[key]["away"]) for key in live["match_ids"] if key in season.matches)
+        return None if played else next(iter(season.highlights))
+
+    def interactive_view(self, room_id: str, club: str, known_revision: int | None = None) -> dict[str, object]:
+        season = self._season(room_id)
+        match_id = self._interactive_match_for(season, club)
+        if match_id is None:
+            return {"match_id": None, "state": "NONE", "server_now": self.clock()}
+        session = season.highlights[match_id]
+        now = self.clock()
+        session.seen(club, now)
+        session.advance(now)
+        if known_revision is not None and known_revision == session.revision:
+            # Nothing changed: only the clock and the connection state travel.
+            return {"match_id": match_id, "unchanged": True, "revision": session.revision, "server_now": now,
+                    "minute": round(session.clock_minute(now), 2), "state": session.state,
+                    "connected": {c: session.connected(c, now) for c in session.humans}}
+        return session.view(club, now)
+
+    def interactive_action(self, room_id: str, club: str, payload: dict[str, object]) -> dict[str, object]:
+        season = self._season(room_id)
+        session = next((s for s in season.highlights.values() if club in s.clubs), None)
+        if session is None:
+            raise MarketError("Seu clube não está em uma partida jogável agora.")
+        try:
+            result = session.submit(club, payload, self.clock())
+        except ValueError as error:
+            raise MarketError(str(error)) from error
+        log_transition(room_id, "INTERACTIVE_ACTION", match=session.match_id, status=result["status"], revision=result["revision"])
+        return {**result, "match": session.view(club, self.clock())}
 
     # ------------------------------------------------------------------ light live messages
     def _own_live_match(self, season: RoomSeason, club: str) -> str | None:
@@ -1079,6 +1158,11 @@ class SeasonService:
 
     def _score(self, season: RoomSeason, match_id: str, now: float | None = None) -> dict[str, object]:
         match = season.matches[match_id]
+        session = season.highlights.get(match_id)
+        if session is not None:
+            view = session.view(None, self.clock() if now is None else now)
+            return {"id": match_id, "home": match["home"], "away": match["away"], "home_goals": view["score"]["home"],
+                    "away_goals": view["score"]["away"], "minute": min(90, round(float(view["minute"]))), "status": "LIVE"}
         engine = season.engines.get(match_id)
         if engine is None:
             return {"id": match_id, "home": match["home"], "away": match["away"], "home_goals": match["home_goals"],
@@ -1136,6 +1220,11 @@ class SeasonService:
         match = season.matches.get(match_id)
         if match is None:
             raise MarketError("Partida não encontrada ou ainda não simulada.")
+        session = season.highlights.get(match_id)
+        if session is not None:
+            view = session.view(None, self.clock() if now is None else now)
+            return {**match, "status": "LIVE", "interactive": True, "home_goals": view["score"]["home"], "away_goals": view["score"]["away"],
+                    "events": view["events"], "minute": view["minute"]}
         engine = season.engines.get(match_id)
         if engine is None:
             return {**match, "pressure": project_events(match["home"], match["away"], match["events"])["pressure"], "status": "FINISHED", "minute": 90}
@@ -1453,7 +1542,9 @@ class SeasonService:
             log, frontier = (list(job.commands), job.until) if job else (list(season.engines[key].command_log), season.engines[key].tick)
             return {**match, "command_log": log, "frontier": frontier,
                     "broadcast": season.directors[key].to_dict() if key in season.directors else None}
-        matches = {key: (live_entry(key, match) if key in season.engines else match) for key, match in season.matches.items()}
+        matches = {key: (live_entry(key, match) if key in season.engines else
+                         {**match, "highlight": season.highlights[key].to_dict()} if key in season.highlights else match)
+                   for key, match in season.matches.items()}
         return {
             "live_round": season.live_round,
             "human_clubs": sorted(season.human_clubs),
@@ -1625,6 +1716,10 @@ class SeasonService:
             # minute before it could even answer its health check.
             for match_id in room_season.live_round["match_ids"]:
                 meta = matches_payload[match_id]
+                if isinstance(meta.get("highlight"), dict):
+                    # Interactive match: plain data, restored as it was (decision, clock, score).
+                    room_season.highlights[match_id] = HighlightMatch.from_dict(meta.pop("highlight"))
+                    continue
                 log = list(meta.pop("command_log", []))
                 home, away = team_input_from_view(meta["inputs"]["home"]), team_input_from_view(meta["inputs"]["away"])
                 until = max([int(meta.pop("frontier", 0) or 0), *(int(c["tick"]) for c in log)])
@@ -1737,7 +1832,54 @@ def cohesion_report(starters, slots, tactics, instructions: dict[str, str], fami
 
 def final_record(engine: MatchEngine, meta: dict[str, object]) -> dict[str, object]:
     """Official, immutable match record (with what is needed to regenerate the 2D replay)."""
-    summary = engine.summary()
+    return record_from_summary(engine.summary(), meta, list(engine.command_log))
+
+
+def highlight_record(session: HighlightMatch, meta: dict[str, object], sim_style: str) -> dict[str, object]:
+    """Official record of an interactive match, in exactly the technical engine's format
+    (so tables, scorers, ratings, progression and history need no special case)."""
+    home, away = session.teams()
+    template = MatchEngine(session.match_id, session.mode, home, away, session.seed, sim_style).summary()
+    clubs = session.clubs
+    total_actions = max(1, sum(session.stats[c]["possession_actions"] for c in clubs))
+    for index, club in enumerate(clubs):
+        stats = template["statistics"][club]
+        own = session.stats[club]
+        for key in ("shots", "shots_on_target", "passes", "passes_completed", "saves", "corners", "tackles", "interceptions"):
+            stats[key] = int(own[key])
+        stats["xg"] = round(float(own["xg"]), 2)
+        stats["possession"] = round(own["possession_actions"] * 100 / total_actions, 1) if total_actions > 1 else 50.0
+        stats["pass_accuracy"] = round(own["passes_completed"] * 100 / max(1, own["passes"]), 1)
+        stats["goals"] = session.score[index]
+    template["home_goals"], template["away_goals"] = session.score
+    template["home_xg"], template["away_xg"] = (round(float(session.stats[c]["xg"]), 3) for c in clubs)
+    template["events"] = [{k: v for k, v in e.items() if k != "revealed_at"} for e in session.events]
+    for index, side in enumerate(("home", "away")):
+        conceded, scored = session.score[1 - index], session.score[index]
+        for player in template["lineups"][side]:
+            started = player["on_pitch"] or player["entered_tick"] is not None
+            player["entered_tick"], player["left_tick"] = (0, None) if started else (None, None)
+            numbers = session.players.get(player["id"], {})
+            player["stats"] = {**player["stats"], **numbers}
+            if not started:
+                player["rating"] = 0.0
+                continue
+            value = (6.2 + numbers.get("goals", 0) * 1.0 + numbers.get("assists", 0) * 0.6 + numbers.get("key_passes", 0) * 0.15
+                     + numbers.get("shots_on_target", 0) * 0.1 + numbers.get("saves", 0) * 0.3
+                     + (numbers.get("tackles", 0) + numbers.get("interceptions", 0)) * 0.15 - numbers.get("losses", 0) * 0.1
+                     + (0.3 if scored > conceded else -0.2 if scored < conceded else 0.0))
+            if player["role"] in ("GK", "DF"):
+                value -= conceded * 0.15
+                value += 0.3 if conceded == 0 else 0.0
+            player["rating"] = round(max(3.0, min(10.0, value)), 1)
+    template["tick"], template["minute"], template["phase"] = FULL_TIME_TICK, 90, "FULL_TIME"
+    record = record_from_summary(template, {k: v for k, v in meta.items() if k != "highlight"}, [])
+    record["interactive"] = True
+    record["action_log"] = list(session.action_log)
+    return record
+
+
+def record_from_summary(summary: dict[str, object], meta: dict[str, object], command_log: list[dict[str, object]]) -> dict[str, object]:
     statistics = summary["statistics"]
     for stats in statistics.values():
         stats["cards"] = stats["yellow_cards"] + stats["red_cards"]
@@ -1750,7 +1892,7 @@ def final_record(engine: MatchEngine, meta: dict[str, object]) -> dict[str, obje
     best = max((p for side in ("home", "away") for p in summary["lineups"][side] if p["entered_tick"] is not None),
                key=lambda p: p["rating"], default=None)
     return {**{k: v for k, v in meta.items() if k not in ("status",)}, **summary, "status": "FINISHED",
-            "command_log": list(engine.command_log), "minutes": minutes,
+            "command_log": command_log, "minutes": minutes,
             "player_of_the_match": {"id": best["id"], "name": best["name"], "rating": best["rating"]} if best else None,
             "home_players": [p["id"] for p in summary["lineups"]["home"] if p["entered_tick"] is not None],
             "away_players": [p["id"] for p in summary["lineups"]["away"] if p["entered_tick"] is not None],

@@ -32,6 +32,13 @@ RULES: dict[str, tuple[tuple[object, ...], object]] = {
     "survivor_eliminations": ((0, 2, 4), 0),
     # Pack & Play: equal quality per collection, or every card drawn independently.
     "pack_luck": (("BALANCED", "LUCK"), "BALANCED"),
+    # Modo Jogável (decisive moments) or the technical simulation, for every game mode.
+    "execution_mode": (("TECHNICAL", "INTERACTIVE"), "TECHNICAL"),
+    # Arcade (no cards/offside, fewer stoppages) or traditional (fouls, free kicks, penalties).
+    "ruleset": (("ARCADE", "TRADITIONAL"), "ARCADE"),
+    # Server-controlled decision time per action, and optional free time against bots.
+    "decision_seconds": ((5, 10, 15, 20), 10),
+    "decision_free_vs_bots": ((True, False), False),
 }
 
 # Clubs a mode can start with (the knockout bracket and the survival path need these).
@@ -95,6 +102,10 @@ class RoomState:
     draft_min_overall: int = 0
     survivor_eliminations: int = 0
     pack_luck: str = "BALANCED"
+    execution_mode: str = "TECHNICAL"
+    ruleset: str = "ARCADE"
+    decision_seconds: int = 10
+    decision_free_vs_bots: bool = False
     phase: str = "WAITING"
     market_ends_at: float | None = None
     revision: int = 0
