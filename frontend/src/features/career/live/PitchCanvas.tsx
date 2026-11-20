@@ -222,7 +222,8 @@ export function PitchCanvas({ buffer, driver, players, kits, pitch, events, home
       // Who is shooting right now, and who just came on (from real events only).
       const shooter = view.cut ? null : list.find((e) => e.kind === "SHOT" && view.tick - e.tick >= -1.2 && view.tick - e.tick <= 1.5)?.player_id ?? null;
       const entering = new Set(view.cut ? [] : list.filter((e) => e.kind === "SUBSTITUTION" && view.tick - e.tick >= 0 && view.tick - e.tick < 12).map((e) => e.player_id ?? ""));
-      const radius = Math.max(6, Math.min(11, m(dims.length > 60 ? 1.15 : 0.85)));
+      // Legibility (beta feedback): bigger markers on the full-pitch view.
+      const radius = Math.max(7, Math.min(13, m(dims.length > 60 ? 1.4 : 1.0)));
       for (const { sample, alpha: layerAlpha } of layers) {
         context.save();
         context.font = `800 ${Math.round(radius * 0.98)}px "Barlow Condensed", "Arial Narrow", sans-serif`;
@@ -299,13 +300,15 @@ export function PitchCanvas({ buffer, driver, players, kits, pitch, events, home
         context.lineWidth = Math.max(1, (index / trail.length) * 2.6);
         context.beginPath(); context.moveTo(trail[index - 1].x, trail[index - 1].y); context.lineTo(trail[index].x, trail[index].y); context.stroke();
       }
-      const ballRadius = Math.max(3.2, m(dims.length > 60 ? 0.5 : 0.35));
+      const ballRadius = Math.max(4.5, m(dims.length > 60 ? 0.7 : 0.5));
       const lift = ball.state === 2 || ball.state === 3 ? ballRadius * 0.9 : 0;
       context.save();
       context.globalAlpha = layerAlpha * ball.alpha;
       context.beginPath(); context.fillStyle = "rgba(0, 0, 0, 0.38)"; context.ellipse(bx + 1.5 + lift, by + 2 + lift, ballRadius, ballRadius * 0.7, 0, 0, Math.PI * 2); context.fill();
+      // A light halo keeps the ball visible over markers and grass.
+      context.beginPath(); context.fillStyle = "rgba(255, 255, 255, 0.22)"; context.arc(bx, by, ballRadius + 3.5, 0, Math.PI * 2); context.fill();
       context.beginPath(); context.fillStyle = "#FFFFFF"; context.arc(bx, by, ballRadius, 0, Math.PI * 2); context.fill();
-      context.lineWidth = 1; context.strokeStyle = "#0D1117"; context.stroke();
+      context.lineWidth = 1.6; context.strokeStyle = "#0D1117"; context.stroke();
       context.restore();
       costAvg = costAvg * 0.9 + (performance.now() - began) * 0.1;
       const target = 1000 / FPS_STEPS[step];

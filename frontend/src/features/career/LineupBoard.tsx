@@ -161,6 +161,7 @@ function PlayerSheet({ player, other, slotPosition, players, onCompare, compareI
       const rival = otherAttributes[key];
       return <li key={key}><span>{ATTRIBUTE_LABEL[key]}</span><i aria-hidden="true"><em style={{ width: `${value}%` }} />{rival !== undefined && <u style={{ left: `${rival}%` }} />}</i><b>{value}</b>{rival !== undefined && <small className={rival > value ? "down" : rival < value ? "up" : ""}>{rival}</small>}</li>;
     })}</ul>
-    {player.attributes_derived && <p className="hint">O catálogo não traz atributos detalhados deste atleta: os valores acima são o perfil que o motor deriva do overall e da posição.</p>}
+    {player.provenance ? <ul className="provenance">{[player.provenance.overall, player.provenance.attributes].map((text) => <li key={text}>{text}</li>)}</ul>
+      : player.attributes_derived && <p className="hint">O catálogo não traz atributos detalhados deste atleta: os valores acima são o perfil que o motor deriva do overall e da posição.</p>}
   </>;
 }

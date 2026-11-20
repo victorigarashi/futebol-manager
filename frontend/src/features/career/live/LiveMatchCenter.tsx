@@ -26,13 +26,19 @@ export function LiveMatchCenter({ roomId, data, clubCode, clubs }: { roomId: str
   const clock = data.clock;
   const queryClient = useQueryClient();
   const club = useCallback((code: string): Club => clubs.find((item) => item.code === code) ?? { code, name: code, sort_order: 0 }, [clubs]);
+  // A coach whose club does not play this round (eliminated, or not in this stage)
+  // watches a match: no orders, no "Você", and neither side's tactics (server-masked).
+  const spectator = match.you === null && match.home !== clubCode && match.away !== clubCode;
   const you = match.you ?? (match.home === clubCode ? "home" : "away");
   const kits = useMemo(() => matchKits(match.home, match.away), [match.home, match.away]);
   const initial = useMemo(() => ({ segments: data.broadcast, serverNow: data.server_now }), [data.broadcast, data.server_now]);
   const { buffer, driver, view: playback, server, status } = useFrameStream(roomId, match.id, true, initial);
   // Rendering quality chosen on this device; the canvas adapts below it on its own.
-  const [camera, setCamera] = useState<CameraMode>(() => (readLocal("bm_camera") as CameraMode | null) ?? "auto");
-  useEffect(() => { writeLocal("bm_camera", camera); }, [camera]);
+  // Full pitch by default (beta feedback: the automatic zoom hurt readability); the
+  // dynamic camera stays as a manual option. New key: the old one held "auto" for
+  // everyone because the previous default was written automatically, not chosen.
+  const [camera, setCamera] = useState<CameraMode>(() => (readLocal("bm_camera_v2") as CameraMode | null) ?? "full");
+  const chooseCamera = (mode: CameraMode) => { setCamera(mode); writeLocal("bm_camera_v2", mode); };
   const [quality, setQuality] = useState<RenderQuality>(() => (readLocal("bm_render_quality") as RenderQuality | null) ?? "standard");
   useEffect(() => { writeLocal("bm_render_quality", quality); }, [quality]);
   const render = useRef({ fps: 0, renderMs: 0, cap: 30 });
@@ -119,7 +125,7 @@ export function LiveMatchCenter({ roomId, data, clubCode, clubs }: { roomId: str
   const selectedPlayer = [...match.lineups.home, ...match.lineups.away].find((p) => p.index === selected) ?? null;
   const selectedSide = selectedPlayer ? (match.lineups.home.includes(selectedPlayer) ? "home" : "away") : null;
 
-  const [tab, setTab] = useState<SideTab>("coach");
+  const [tab, setTab] = useState<SideTab>(spectator ? "events" : "coach");
   const [subOut, setSubOut] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const command = useMutation({
@@ -167,34 +173,35 @@ export function LiveMatchCenter({ roomId, data, clubCode, clubs }: { roomId: str
 
   return <section className="match-center" aria-label={`Partida ao vivo: ${clubName(match.home)} contra ${clubName(match.away)}`}>
     <header className="scorebug">
-      <div className="scorebug__meta"><span>BRASILEIRÃO · RODADA {data.live_round?.round_number}{duration ? ` · JOGO DE ${Math.floor(duration / 60)}:${String(duration % 60).padStart(2, "0")}` : ""}</span><b className={`scorebug__status scorebug__status--${phase.toLowerCase()}`}>{phase === "FIRST_HALF" || phase === "SECOND_HALF" ? "● AO VIVO" : PHASE_LABEL[phase]}</b></div>
+      <div className="scorebug__meta"><span>{data.live_round?.label ? data.live_round.label.toUpperCase() : `BRASILEIRÃO · RODADA ${data.live_round?.round_number}`}{duration ? ` · JOGO DE ${Math.floor(duration / 60)}:${String(duration % 60).padStart(2, "0")}` : ""}</span><b className={`scorebug__status scorebug__status--${phase.toLowerCase()}`}>{phase === "FIRST_HALF" || phase === "SECOND_HALF" ? "● AO VIVO" : PHASE_LABEL[phase]}</b></div>
       <div className="scorebug__main">
-        <div className={`scorebug__team ${you === "home" ? "is-you" : ""}`}><ClubCrest club={club(match.home)} /><strong>{clubName(match.home)}</strong>{you === "home" && <small>Você</small>}{holder === "home" && <i className="possession-dot" aria-label="com a bola" />}</div>
+        <div className={`scorebug__team ${!spectator && you === "home" ? "is-you" : ""}`}><ClubCrest club={club(match.home)} /><strong>{clubName(match.home)}</strong>{!spectator && you === "home" && <small>Você</small>}{holder === "home" && <i className="possession-dot" aria-label="com a bola" />}</div>
         <div className="scorebug__score"><strong aria-live="polite" aria-label={`Placar ${score.home} a ${score.away}`}>{score.home}<i>–</i>{score.away}</strong><time>{phase === "HALF_TIME" ? "INT" : phase === "PRESENTATION" ? "0′" : `${minute}′`}</time></div>
-        <div className={`scorebug__team ${you === "away" ? "is-you" : ""}`}><ClubCrest club={club(match.away)} /><strong>{clubName(match.away)}</strong>{you === "away" && <small>Você</small>}{holder === "away" && <i className="possession-dot" aria-label="com a bola" />}</div>
+        <div className={`scorebug__team ${!spectator && you === "away" ? "is-you" : ""}`}><ClubCrest club={club(match.away)} /><strong>{clubName(match.away)}</strong>{!spectator && you === "away" && <small>Você</small>}{holder === "away" && <i className="possession-dot" aria-label="com a bola" />}</div>
       </div>
       <div className="scorebug__ticker" aria-label="Último lance">{lastKey ? <><b>{lastKey.minute}′</b> {eventText(lastKey, clubName).title} <span>{eventText(lastKey, clubName).detail}</span></> : <span>Aguardando o pontapé inicial</span>}</div>
     </header>
 
     <div className="match-center__grid">
       <div className="match-center__pitch">
-        <PitchCanvas buffer={buffer} driver={driver} players={players} kits={kits} pitch={match.pitch} events={match.events} homeCode={match.home} ownSide={you} selectedIndex={selected} onSelect={setSelected} quality={quality} onStats={onStats} camera={camera}
+        <PitchCanvas buffer={buffer} driver={driver} players={players} kits={kits} pitch={match.pitch} events={match.events} homeCode={match.home} ownSide={spectator ? null : you} selectedIndex={selected} onSelect={setSelected} quality={quality} onStats={onStats} camera={camera}
           label={`Campo 2D: ${clubName(match.home)} (camisa ${kits.home}) ataca para a direita. Clique em um jogador para ver os detalhes.`} />
         {goal && <GoalCelebrationOverlay goal={goal} onDone={closeGoal} />}
         {shown.cut && !goal && <div className="pitch-cut" aria-live="polite"><span className="pitch-cut__clock">⏩ {Math.floor(shown.cut.from / 60)}′ <i>→</i> {Math.floor(shown.cut.to / 60)}′</span>{cutEvents.length > 0 && <ul>{cutEvents.map((e) => <li key={e.event_id}><b>{e.minute}′</b> {eventText(e, clubName).title}</li>)}</ul>}</div>}
         {banner && !goal && <div className={`pitch-banner pitch-banner--${banner.tone}`} role="status">{banner.text}</div>}
+        {spectator && !goal && !banner && <div className="pitch-banner pitch-banner--info" role="status">Você está assistindo: seu clube não joga esta rodada.</div>}
         {lagging && !finished && <div className="pitch-banner pitch-banner--warn" role="status">{offline ? "Conexão perdida — reconectando…" : "Aguardando o servidor — a transmissão continua em instantes…"}</div>}
         {phase === "PRESENTATION" && <div className="pitch-overlay pitch-overlay--intro"><p className="kicker">A BOLA VAI ROLAR</p><div className="intro-crests"><ClubCrest club={club(match.home)} size="md" /><b>×</b><ClubCrest club={club(match.away)} size="md" /></div><h2>{clubName(match.home)} × {clubName(match.away)}</h2><p>{match.formations.home} contra {match.formations.away} · Pontapé inicial em <strong>{countdown(clock?.kickoff_at)}s</strong></p><p className="muted">Você ainda pode ajustar a orientação do time no painel do técnico.</p></div>}
         {phase === "HALF_TIME" && <div className="pitch-overlay pitch-overlay--half"><p className="kicker">INTERVALO · {score.home} × {score.away}</p><h2>Hora da conversa no vestiário</h2><div className="half-stats">{statRows.slice(0, 4).map(([label, h, a]) => <div key={label}><b>{h}</b><span>{label}</span><b>{a}</b></div>)}</div><p>Substituições no intervalo <strong>não gastam janela</strong>. Segundo tempo em <strong>{countdown(clock?.halftime_ends_at)}s</strong>.</p></div>}
-        <button type="button" className="btn btn--ghost pitch-camera" aria-pressed={camera === "auto"} onClick={() => setCamera(camera === "auto" ? "full" : "auto")}>{camera === "auto" ? "Câmera: dinâmica" : "Câmera: campo inteiro"}</button><label className="pitch-quality">Qualidade<select value={quality} onChange={(event) => setQuality(event.target.value as RenderQuality)}><option value="eco">Econômico (20 fps)</option><option value="standard">Padrão (30 fps)</option><option value="smooth">Fluido (até 60 fps)</option></select></label>
+        <button type="button" className="btn btn--ghost pitch-camera" aria-pressed={camera === "auto"} onClick={() => chooseCamera(camera === "auto" ? "full" : "auto")}>{camera === "auto" ? "Câmera: dinâmica" : "Câmera: campo inteiro"}</button><label className="pitch-quality">Qualidade<select value={quality} onChange={(event) => setQuality(event.target.value as RenderQuality)}><option value="eco">Econômico (20 fps)</option><option value="standard">Padrão (30 fps)</option><option value="smooth">Fluido (até 60 fps)</option></select></label>
         <div className="pitch-legend" aria-hidden="true"><span><i style={{ background: kits.home }} />{match.home} ataca para a direita (no celular, para cima)</span><span><i style={{ background: kits.away }} />{match.away}</span></div>
       </div>
 
       <aside className="match-center__side">
-        <nav className="seg-tabs" aria-label="Painéis da partida">{([["coach", "Técnico"], ["events", "Lances"], ["round", "Rodada"]] as const).map(([key, label]) => <button type="button" key={key} aria-pressed={tab === key} className={tab === key ? "is-active" : ""} onClick={() => setTab(key)}>{label}</button>)}</nav>
+        <nav className="seg-tabs" aria-label="Painéis da partida">{([["coach", "Técnico"], ["events", "Lances"], ["round", "Rodada"]] as const).filter(([key]) => !spectator || key !== "coach").map(([key, label]) => <button type="button" key={key} aria-pressed={tab === key} className={tab === key ? "is-active" : ""} onClick={() => setTab(key)}>{label}</button>)}</nav>
         {feedback && <p className="cm-toast" role="status">{feedback}</p>}
 
-        {tab === "coach" && <div className="coach-panel">
+        {tab === "coach" && !spectator && <div className="coach-panel">
           {ownTactics && <section className="coach-block"><h3>Orientação do time <small>{tacticSummary(ownTactics)}</small></h3>
             <TacticRow label="Mentalidade" options={MENTALITIES} value={ownTactics.mentality} disabled={finished || command.isPending} onPick={(mentality) => command.mutate({ kind: "TACTICS", mentality })} />
             <TacticRow label="Pressão" options={PRESSURES} value={ownTactics.pressure} disabled={finished || command.isPending} onPick={(pressure) => command.mutate({ kind: "TACTICS", pressure })} />
@@ -219,7 +226,7 @@ export function LiveMatchCenter({ roomId, data, clubCode, clubs }: { roomId: str
           <h4>Destaques do seu time</h4><ul className="ratings">{[...ownPlayers].filter((p) => p.entered_tick !== null).sort((a, b) => b.rating - a.rating).slice(0, 5).map((p) => <li key={p.id}><span>{p.name}</span><b className={ratingTone(p.rating)}>{p.rating.toFixed(1)}</b></li>)}</ul>
         </section></details>
 
-        {selectedPlayer && <PlayerCard player={selectedPlayer} own={selectedSide === you} club={clubName(selectedSide === "home" ? match.home : match.away)} onClose={() => setSelected(null)} onSubstitute={selectedSide === you && selectedPlayer.on_pitch && subsLeft > 0 && !finished ? () => { setTab("coach"); setSubOut(selectedPlayer.id); } : undefined} />}
+        {selectedPlayer && <PlayerCard player={selectedPlayer} own={!spectator && selectedSide === you} club={clubName(selectedSide === "home" ? match.home : match.away)} onClose={() => setSelected(null)} onSubstitute={!spectator && selectedSide === you && selectedPlayer.on_pitch && subsLeft > 0 && !finished ? () => { setTab("coach"); setSubOut(selectedPlayer.id); } : undefined} />}
       </aside>
     </div>
   </section>;

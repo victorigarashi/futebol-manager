@@ -40,11 +40,14 @@ export function PreMatch({ roomId, room, season, clubCode, clubs, onGo, isHost =
   if (season.transfer_window_open) return <section className="prematch prematch--blocked"><h2>Janela de transferências aberta</h2><p>A rodada {season.current_round} começa depois que o anfitrião encerrar a janela. Aproveite para reforçar o elenco na aba Mercado.</p></section>;
   if (season.season_complete) return <section className="prematch prematch--blocked"><h2>Temporada encerrada</h2><p>{season.champion ? `O campeão foi definido. ` : ""}Veja a Sala de Troféus e aguarde o anfitrião abrir a próxima temporada.</p></section>;
   if (season.regular_season_complete && !Object.values(season.knockout?.ties ?? {}).some((t) => t.competition === "PLAYOFF")) return <section className="prematch prematch--blocked"><h2>Sorteio dos playoffs</h2><p>A fase de pontos terminou. O anfitrião realiza o sorteio dos potes na aba Temporada; depois cada confronto é jogado ao vivo, com sua escalação e tática.</p></section>;
+  // When the next round starts by itself (server clock), also for coaches not playing it.
+  const startsIn = data?.next_round_starts_at != null ? Math.max(0, Math.round(data.next_round_starts_at - (Date.now() / 1000 + offset))) : null;
   if (data?.waiting) {
     const kind = data.next_round?.kind;
     const title = kind === "CUP" ? "Copa do Brasil" : kind === "TOURNAMENT" ? "Torneio" : kind === "SURVIVOR" ? "Último Sobrevivente" : "Mata-mata";
-    return <section className="prematch prematch--blocked"><h2>{title} · {data.next_round?.stage_name ?? ""}</h2><p>Seu clube não disputa esta rodada. Acompanhe os confrontos na aba {kind === "CUP" ? "Copa" : kind === "SURVIVOR" ? "Competição" : "Temporada"}; a próxima partida aparece aqui quando chegar a sua vez.</p></section>;
+    return <section className="prematch prematch--blocked"><h2>{title} · {data.next_round?.stage_name ?? ""}</h2><p>Seu clube não disputa esta rodada. Ela começa sozinha{startsIn !== null ? <> em <b>{formatClock(startsIn)}</b></> : ""} e você poderá assistir ao vivo. Os confrontos ficam na aba {kind === "CUP" ? "Copa" : "Competições"}.</p></section>;
   }
+  if (preview.data && !data?.fixture) return <section className="prematch prematch--blocked"><h2>Próxima fase</h2><p>O servidor está definindo os próximos confrontos{startsIn !== null ? <> · próxima rodada em <b>{formatClock(startsIn)}</b></> : ""}. Nada a fazer: a tela atualiza sozinha.</p></section>;
   if (!data?.fixture || !data.home || !data.away) return <div className="panel-loading" role="status">{preview.error ? preview.error.message : "Montando o confronto…"}</div>;
   const ownSide = data.home.club_code === clubCode ? data.home : data.away;
 
@@ -131,3 +134,7 @@ function MatchContext({ data, club }: { data: MatchPreview; club: (code: string)
 }
 
 const moraleLabel = (value = 0) => value >= 2 ? "em alta" : value <= -2 ? "abalada" : "estável";
+
+function formatClock(seconds: number): string {
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}

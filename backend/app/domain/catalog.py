@@ -45,6 +45,11 @@ class CatalogPlayer(BaseModel):
     source_ids: dict[str, str] = Field(default_factory=dict)
     shirt_number: int | None = Field(default=None, ge=0, le=99)
     squad_role: str | None = None
+    # Provenance of the numbers, never silent: where the overall comes from, and where the
+    # detailed attributes come from (None = no detailed data: the game derives a
+    # transparent profile from overall and position).
+    rating_source: str | None = None
+    attribute_source: str | None = None
     # Production bundles use a local static path for individually licensed assets;
     # legacy catalogs may still reference a HTTPS image. Arbitrary schemes are not
     # accepted so card rendering cannot be used as a URL-scheme escape hatch.
@@ -152,3 +157,22 @@ def import_catalog(path: Path) -> CatalogImportReport:
     except (OSError, json.JSONDecodeError, csv.Error) as error:
         return CatalogImportReport(accepted=False, issues=[str(error)])
     return validate_catalog_payload(payload)
+
+
+def provenance(player: CatalogPlayer) -> dict[str, str]:
+    """Plain-language origin of a player's numbers (shown on cards; never says "official")."""
+    source = player.rating_source or player.source
+    if source.startswith("FC_MANIA"):
+        overall = "Overall e potencial: lista do elenco fornecida pelo dono da liga (FC Mania FCM27). Não é rating oficial da EA SPORTS FC."
+    elif "EDITORIAL" in source:
+        overall = "Overall e potencial: avaliação editorial própria do Brasileirão Manager. Não é rating oficial da EA SPORTS FC."
+    elif source in ("synthetic-career", "synthetic-demo", "test-fixture"):
+        overall = "Atleta fictício de teste."
+    else:
+        overall = f"Overall e potencial: fonte {source}."
+    if player.attributes:
+        attributes = ("Atributos: estimativa editorial do projeto (14/11/2026), ajustada ao overall. Não são atributos oficiais da EA SPORTS FC."
+                      if (player.attribute_source or "").startswith("EDITORIAL") else f"Atributos: fonte {player.attribute_source or source}.")
+    else:
+        attributes = "Atributos: o catálogo não traz atributos detalhados; o jogo usa um perfil derivado do overall e da posição."
+    return {"overall": overall, "attributes": attributes}

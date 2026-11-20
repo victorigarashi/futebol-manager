@@ -42,7 +42,7 @@ from app.api.schemas import (
     TransferOfferCreate,
 )
 from app.core.config import get_settings
-from app.domain.catalog import catalog_status, load_catalog
+from app.domain.catalog import catalog_status, load_catalog, provenance
 from app.domain.clubs import CLUBS
 from app.domain.demo_catalog import create_demo_catalog
 from app.domain.draft import DraftError
@@ -680,6 +680,9 @@ async def get_squad(room_id: str, identity: GuestIdentity = Depends(current_iden
                 str(row["id"]), str(row["name"]), str(row["position"]), str(row["position"]), 50, 50, int(row["overall"]),
                 {k: int(v) + int(row["overall"]) - int(row.get("base_overall", row["overall"])) for k, v in dict(row.get("attributes") or {}).items()})).items()}
             row["attributes_derived"] = not row.get("attributes")
+            catalog_player = market.catalog.get(str(row["id"])) if room_id in season_service._seasons else None
+            if catalog_player is not None:
+                row["provenance"] = provenance(catalog_player)
         return envelope(squad)
     except MarketError as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
@@ -1146,6 +1149,8 @@ async def season_preview(room_id: str, identity: GuestIdentity = Depends(current
         room = room_manager._room(room_id)
         season_service._season(room_id).human_clubs = {p.selected_club_code for p in room.participants.values() if p.selected_club_code and p.role != "BOT"}
         preview = season_service.preview(room_id, market_service._session(room_id).market, club)
+        preview["next_round_starts_at"] = season_service.preparation_deadline(room_id, room.round_preparation_duration_seconds,
+                                                                             season_service._season(room_id).human_clubs)
         managers = {p.selected_club_code: p.display_name for p in room.participants.values() if p.selected_club_code}
         for side in ("home", "away"):
             if side in preview:
@@ -1317,7 +1322,12 @@ async def season_state(room_id: str, identity: GuestIdentity = Depends(current_i
     market_club(room_id, identity.id)
     await start_round_if_preparation_expired(room_id)
     try:
-        return envelope(season_service.view(room_id))
+        view = season_service.view(room_id)
+        room = room_manager._room(room_id)
+        humans = {p.selected_club_code for p in room.participants.values() if p.selected_club_code and p.role != "BOT"}
+        # When the next round starts by itself (also for coaches who do not play it).
+        view["next_round_starts_at"] = season_service.preparation_deadline(room_id, room.round_preparation_duration_seconds, humans)
+        return envelope(view)
     except MarketError as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
 

@@ -115,7 +115,11 @@ def build(players_csv: Path, teams_csv: Path, previous: dict) -> tuple[dict, dic
         key = normalize(row["name"])
         match = by_name_club.get((key, club))
         if match is None and new_names[key] == 1:
-            match = by_unique_name.get(key)
+            # A name alone is not an identity: "Everton" (CHA) is not "Everton" (SAN). A
+            # player who moved club is only the same person if the age also agrees.
+            candidate = by_unique_name.get(key)
+            if candidate is not None and candidate.get("age") is not None and abs(int(candidate["age"]) - int(row["age"])) <= 1:
+                match = candidate
         if match is not None and match["id"] in used_old:
             match = None
         overall = _int(row, "overall", 1, 99)
@@ -124,11 +128,13 @@ def build(players_csv: Path, teams_csv: Path, previous: dict) -> tuple[dict, dic
         listed = POSITIONS[row["position"].upper()]
         secondary = [listed] if listed != position else []
         attributes: dict[str, int] = {}
+        attribute_source = None
         if match is not None:
             used_old.add(match["id"])
             kept_ids += 1
             shift = overall - int(match["overall"])
             attributes = {k: max(1, min(99, int(v) + shift)) for k, v in (match.get("attributes") or {}).items()}
+            attribute_source = "EDITORIAL_ESTIMATE_2026-11-14" if attributes else None
             secondary = list(dict.fromkeys(secondary + [s for s in match.get("secondary_positions", []) if s != position]))
         players.append({
             "id": match["id"] if match else f"FCM-{row['player_id']}",
@@ -136,6 +142,8 @@ def build(players_csv: Path, teams_csv: Path, previous: dict) -> tuple[dict, dic
             "club_code": club,
             "age": age,
             "position": position,
+            "rating_source": SOURCE,
+            "attribute_source": attribute_source,
             "nationality": NATIONALITIES.get(row["nationality"], row["nationality"]),
             "verification_status": "SUPPLIED_SQUAD_LIST",
             "secondary_positions": secondary,

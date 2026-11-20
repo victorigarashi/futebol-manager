@@ -31,7 +31,7 @@ PITCH = {
     # create futsal-like scorelines (more than ten goals per match).  It is applied
     # before xG is recorded, so the displayed xG always remains the probability
     # actually used by the goal resolution.
-    "ELEVEN_A_SIDE": {"length": 105.0, "width": 68.0, "goal": 7.32, "box": 16.5, "shot_range": 30.0, "xg_scale": 1.0, "finish_scale": 0.70, "max_subs": 5, "windows": 3},
+    "ELEVEN_A_SIDE": {"length": 105.0, "width": 68.0, "goal": 7.32, "box": 16.5, "shot_range": 30.0, "xg_scale": 1.0, "finish_scale": 0.76, "max_subs": 5, "windows": 3},
     "FIVE_A_SIDE": {"length": 40.0, "width": 22.0, "goal": 3.0, "box": 6.0, "shot_range": 15.0, "xg_scale": 1.6, "finish_scale": 0.36, "max_subs": 3, "windows": 99},
 }
 
@@ -1279,6 +1279,12 @@ class MatchEngine:
                             # Low block: get behind the ball and protect the area.
                             tf = max(ball_f - 2.0, min(tf, ball_f + 1.5))
                             intensity = max(intensity, 0.9)
+                        # ...but never on the goal line: with the ball at the byline (corner,
+                        # cutback) the block used to stand in a wall on the line (2D audit).
+                        # (11-a-side only: on the 40 m five-a-side pitch the line is already
+                        # tight and a floor removed the cohesion edge, measured +0.29 -> 0.)
+                        if self.mode == "ELEVEN_A_SIDE":
+                            tf = max(tf, 0.055 * L)
                         if agent.index in pressers and self.owner is not None:
                             tf, ty = self.fwd(side, self.owner.x), self.owner.y
                             intensity = 1.0

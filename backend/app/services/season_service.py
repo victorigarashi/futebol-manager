@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
 import zlib
 from collections.abc import Callable
@@ -67,6 +68,12 @@ from app.services.squad_service import squad_service
 # match (~5-8 ms of CPU on a desktop core, ~10x more on a 0.1 CPU host), so the event
 # loop always gets back control quickly (health check, other requests, sockets).
 LEAGUE_SIZES = (4, 6, 8, 10, 12, 16, 20)
+logger = logging.getLogger("brasileirao.competition")
+
+
+def log_transition(room_id: str, event: str, **fields: object) -> None:
+    """Structured competition log: room, event and ids only (no names or tokens)."""
+    logger.info(json.dumps({"room": room_id, "event": event, **fields}, default=str, separators=(",", ":")))
 # Game modes without a league (see app.domain.tournaments).
 TOURNAMENT_MODES = ("DRAFT_KNOCKOUT", "PACK")
 SHORT_MODES = (*TOURNAMENT_MODES, "SURVIVOR")
@@ -313,21 +320,45 @@ class SeasonService:
         season.ready_clubs.add(club_code)
         return self.view(room_id)
 
-    def preparation_deadline(self, room_id: str, duration_seconds: int) -> float | None:
+    # Pause before a round nobody has to confirm (every human is eliminated or does not
+    # play this stage): long enough to read the results and the draw, never a wait.
+    SPECTATOR_PAUSE_SECONDS = 15
+
+    def preparation_deadline(self, room_id: str, duration_seconds: int, human_clubs: set[str] | None = None) -> float | None:
+        """When the next round starts by itself (None: nothing to start).
+
+        It applies to every round: league, Copa, playoffs and the short competitions.
+        It used to stop after the last league round, so a knockout round in which no
+        human played (all eliminated, or not in that stage) could never start: those
+        coaches only see "your club is not playing" and nobody could confirm."""
         season = self._season(room_id)
-        if season.live_round or season.transfer_window_open or self.current_round(room_id) > self._regular_round_count(season) or season.preparation_opened_at is None:
+        if season.live_round or season.transfer_window_open or season.preparation_opened_at is None:
             return None
+        if season.playoffs and season.playoffs.champion:
+            return None
+        humans = season.human_clubs if human_clubs is None else human_clubs
+        due = self._due_knockout_round(season)
+        league_over = self.current_round(room_id) > self._regular_round_count(season)
+        if due is None and league_over:
+            # The next knockout stage is not drawn yet: settle and draw at once.
+            return season.preparation_opened_at
+        if not self.required_ready(room_id, humans):
+            return season.preparation_opened_at + self.SPECTATOR_PAUSE_SECONDS
         return season.preparation_opened_at + duration_seconds
 
     def start_if_preparation_expired(self, room_id: str, market: InitialMarket, human_clubs: set[str], duration_seconds: int,
                                      match_seconds: int | None = None) -> bool:
         """Preparation timeout: coaches who did not confirm play with their saved plan."""
-        deadline = self.preparation_deadline(room_id, duration_seconds)
+        deadline = self.preparation_deadline(room_id, duration_seconds, human_clubs)
         if deadline is None or self.clock() < deadline:
             return False
         season = self._season(room_id)
         season.ready_clubs |= human_clubs
         self.advance(room_id, market, human_clubs, match_seconds)
+        if season.live_round is None and season.preparation_opened_at is not None and not (season.playoffs and season.playoffs.champion):
+            # The stage was just drawn (no round started yet): the next deadline counts
+            # from now, so the draw is shown before its first matches start.
+            season.preparation_opened_at = self.clock()
         return season.live_round is not None
 
     # ------------------------------------------------------------------ live round
@@ -359,10 +390,12 @@ class SeasonService:
             fixtures = [fixture for fixture in season.state.fixtures if fixture.round_number == round_number]
             extra = {"kind": "LEAGUE", "label": f"Rodada {round_number}"}
         prepared: dict[str, tuple[MatchEngine, dict[str, object]]] = {}
+        built: dict[str, tuple[TeamInput, TeamInput, int]] = {}
         for fixture in fixtures:
             if fixture.id in season.state.results:
                 continue
             home_input, away_input, seed, bot_sides = self._fixture_inputs(room_id, market, fixture, human_clubs)
+            built[fixture.id] = (home_input, away_input, seed)
             prebuilt = season.prebuilt.pop(fixture.id, None)
             if prebuilt is not None and prebuilt.fingerprint == _fingerprint(home_input, away_input, seed, bot_sides):
                 # Simulated during preparation from exactly these inputs: identical result.
@@ -375,6 +408,18 @@ class SeasonService:
                     "bot_sides": bot_sides}
             prepared[fixture.id] = (engine, meta)
         season.prebuilt.clear()
+        # Spectators (coaches eliminated or not in this stage) watch one match live:
+        # when no human plays any match of the round, the first one is featured and
+        # broadcast like a coach's match (rebuilt from the same inputs if it had been
+        # pre-simulated without frames: the result is identical, it is deterministic).
+        if prepared and human_clubs and not any(self._watched(meta) for _, meta in prepared.values()):
+            featured = next(iter(prepared))
+            engine, meta = prepared[featured]
+            if not engine.record_frames or engine.tick > 0:
+                home_input, away_input, seed = built[featured]
+                engine = self._engine(season, featured, home_input, away_input, seed)
+            meta["featured"] = True
+            prepared[featured] = (engine, meta)
         # Publish all ten engines with one shared server clock. No result enters the
         # official table until the whole round is committed.
         announced_at = self.clock()
@@ -394,6 +439,8 @@ class SeasonService:
                              "match_seconds": match_seconds, "match_ids": list(prepared), "human_clubs": sorted(human_clubs),
                              **extra}
         season.ready_clubs.clear()
+        log_transition(room_id, "ROUND_STARTED", kind=extra["kind"], stage=extra.get("stage"), leg=extra.get("leg"),
+                       round=round_number, matches=len(prepared), featured=next((k for k, (_, m) in prepared.items() if m.get("featured")), None))
         return self.view(room_id)
 
     @staticmethod
@@ -404,7 +451,8 @@ class SeasonService:
 
     @staticmethod
     def _watched(meta: dict[str, object]) -> bool:
-        return len(meta.get("bot_sides", [])) < 2
+        # A human plays it, or it is the round's featured match for spectators.
+        return len(meta.get("bot_sides", [])) < 2 or bool(meta.get("featured"))
 
     def _fixture_inputs(self, room_id: str, market: InitialMarket, fixture: Fixture,
                         human_clubs: set[str]) -> tuple[TeamInput, TeamInput, int, list[int]]:
@@ -644,6 +692,8 @@ class SeasonService:
         market = season.market_ref or self._market_of(room_id)
         if market is not None:
             self._settle_knockout(room_id, market, season)
+        log_transition(room_id, "ROUND_COMMITTED", kind=live.get("kind", "LEAGUE"), stage=live.get("stage"), leg=live.get("leg"),
+                       round=live.get("round_number"), matches=len(live["match_ids"]))
         return True
 
     @staticmethod
@@ -677,6 +727,25 @@ class SeasonService:
         return set(human_clubs) & playing
 
     def _settle_knockout(self, room_id: str, market: InitialMarket, season: RoomSeason) -> None:
+        """Settle the knockouts and log every state change (stage drawn, tie decided, champion)."""
+        before_rounds = {r.id for r in season.knockout.rounds}
+        before_winners = {t.id for t in season.knockout.ties.values() if t.winner}
+        before_champion = season.playoffs.champion if season.playoffs else None
+        self._settle_knockout_rules(room_id, market, season)
+        knockout = season.knockout
+        for round_ in knockout.rounds:
+            if round_.id not in before_rounds:
+                log_transition(room_id, "STAGE_DRAWN", competition=round_.competition, stage=round_.stage, leg=round_.leg,
+                               ties=round_.tie_ids)
+        for tie in knockout.ties.values():
+            if tie.winner and tie.id not in before_winners:
+                log_transition(room_id, "TIE_DECIDED", competition=tie.competition, stage=tie.stage, tie=tie.id,
+                               aggregate=list(tie.aggregate()), penalties=tie.penalties)
+        champion = season.playoffs.champion if season.playoffs else None
+        if champion and champion != before_champion:
+            log_transition(room_id, "CHAMPION", season=season.season_number)
+
+    def _settle_knockout_rules(self, room_id: str, market: InitialMarket, season: RoomSeason) -> None:
         """Idempotent: resolve finished ties, pay prizes, draw the next stages, crown champions."""
         knockout = season.knockout
         for tie in knockout.ties.values():
@@ -850,6 +919,8 @@ class SeasonService:
                 if f.round_number == min(self._regular_round_count(season), max(1, self.current_round(room_id) - 1))]
         own_id = next((key for key in ids if key in season.matches and
                        club in (season.matches[key]["home"], season.matches[key]["away"])), None)
+        if own_id is None and live:
+            own_id = self._own_live_match(season, club)  # spectator: a broadcast match
         scores = [self._score(season, key, now) for key in ids if key in season.matches]
         director = season.directors.get(own_id) if own_id else None
         if live and director is None and live["match_ids"]:
@@ -881,7 +952,7 @@ class SeasonService:
             return {"frames": [], "tick": None, "finished": False, "recovering": True, "server_now": now}
         if sync:
             self.sync_live(room_id, now)
-        match_id = next((key for key in live["match_ids"] if club in (season.matches[key]["home"], season.matches[key]["away"])), None)
+        match_id = self._own_live_match(season, club)
         engine = season.engines.get(match_id) if match_id else None
         director = season.directors.get(match_id) if match_id else None
         if engine is None or director is None:
@@ -910,10 +981,14 @@ class SeasonService:
 
     # ------------------------------------------------------------------ light live messages
     def _own_live_match(self, season: RoomSeason, club: str) -> str | None:
+        """The match a coach sees: his own, or (spectator) one with a broadcast."""
         live = season.live_round
         if not live:
             return None
-        return next((key for key in live["match_ids"] if club in (season.matches[key]["home"], season.matches[key]["away"])), None)
+        own = next((key for key in live["match_ids"] if club in (season.matches[key]["home"], season.matches[key]["away"])), None)
+        if own:
+            return own
+        return next((key for key in live["match_ids"] if isinstance(season.directors.get(key), Director)), None)
 
     @staticmethod
     def _shown_event_count(engine: MatchEngine, shown: int, start: int = 0) -> int:
@@ -957,7 +1032,8 @@ class SeasonService:
             return None
         meta = season.matches[match_id]
         rival = meta["away"] if meta["home"] == club else meta["home"]
-        events = [{**event, "tactics": None, "outcome": "CHANGED"} if event.get("kind") == "TACTICS" and event.get("team") == rival else event
+        spectator = club not in (meta["home"], meta["away"])  # watches someone else's match: no tactics at all
+        events = [{**event, "tactics": None, "outcome": "CHANGED"} if event.get("kind") == "TACTICS" and (spectator or event.get("team") == rival) else event
                   for event in engine.events[min(seq_from, seq):seq]]
         own = scores[live["match_ids"].index(match_id)]
         message: dict[str, object] = {
@@ -1018,6 +1094,11 @@ class SeasonService:
         """The coach's view of his own match: the rival's exact settings stay private."""
         match = self.match(room_id, match_id, now)
         you = "home" if match["home"] == club else "away" if match["away"] == club else None
+        if you is None and "tactics" in match:
+            # A spectator sees neither side's settings.
+            match = {**match, "tactics": {"home": None, "away": None}}
+            match["events"] = [{**event, "tactics": None, "outcome": "CHANGED"} if event.get("kind") == "TACTICS" else event
+                               for event in match["events"]]
         if you and "tactics" in match:
             rival = "away" if you == "home" else "home"
             match = {**match, "tactics": {**match["tactics"], rival: None}}

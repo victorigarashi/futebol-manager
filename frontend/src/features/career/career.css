@@ -429,6 +429,7 @@
 .pitch-banner--sub { border-left: 4px solid #60a5fa; }
 .pitch-banner--tactic { border-left: 4px solid var(--lime); }
 .pitch-banner--warn { top: auto; bottom: 44px; border-left: 4px solid var(--warn); }
+.pitch-banner--info { border-left: 4px solid #60a5fa; }
 .possession-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 0 3px rgb(144 252 163 / 25%); animation: pulse-dot 1.2s ease-in-out infinite; }
 @keyframes pulse-dot { 50% { box-shadow: 0 0 0 6px rgb(144 252 163 / 0%); } }
 @media (prefers-reduced-motion: reduce) { .possession-dot, .pitch-cut, .pitch-banner { animation: none; } }
@@ -533,3 +534,4 @@
   .news-item__crests { display: none; }
   .records li { grid-template-columns: 1fr; }
 }
+.provenance { margin: .6rem 0 0; padding-left: 1rem; color: var(--muted); font-size: .74rem; line-height: 1.45; }

@@ -73,12 +73,12 @@ export type Pressure = "LOW" | "MEDIUM" | "HIGH";
 export type PlayStyle = "POSSESSION" | "COUNTER" | "DIRECT" | "SHORT_BUILDUP" | "WIDE";
 export type TacticOption = { code: string; name: string; effect: string };
 export type TacticsOptions = { mentality: TacticOption[]; pressure: TacticOption[]; style: TacticOption[] };
-export type SquadPlayer = MarketPlayer & { secondary_positions?: string[]; attributes?: Record<string, number>; match_attributes?: Record<string, number>; attributes_derived?: boolean; nationality?: string | null };
+export type SquadPlayer = MarketPlayer & { provenance?: { overall: string; attributes: string }; secondary_positions?: string[]; attributes?: Record<string, number>; match_attributes?: Record<string, number>; attributes_derived?: boolean; nationality?: string | null };
 export type Squad = { club_code: string; budget_cents: number; players: SquadPlayer[]; formations: Formation[]; lineup: Lineup | null; strategy: string; strategies: Strategy[]; tactics: Tactics; tactics_options: TacticsOptions; instructions?: Record<string, string>; instruction_options?: InstructionOptions; cohesion?: CohesionView | null };
 export type SeasonTableRow = { position: number; club_code: string; points: number; played: number; wins: number; draws: number; losses: number; goals_for: number; goals_against: number; goal_difference: number; percentage: number };
 export type MatchEvent = { event_id: string; match_id: string; kind: string; team: string | null; minute: number; animation_ms: number; x: number; y: number; outcome: string; player_id: string | null; player_name?: string; participant_ids: string[]; xg: number };
 export type MatchFormation = { code: string; players: { id: string; name: string; x: number; y: number; number: number }[] };
-export type LiveRound = { kind?: "LEAGUE" | "PLAYOFF" | "CUP"; stage?: string; leg?: number; legs?: number; label?: string; round_number: number; announced_at?: number; started_at: number; ends_at: number; duration_seconds: number; match_seconds?: MatchDuration; match_ids: string[]; human_clubs?: string[] };
+export type LiveRound = { kind?: "LEAGUE" | "PLAYOFF" | "CUP" | "TOURNAMENT" | "SURVIVOR"; stage?: string; leg?: number; legs?: number; label?: string; round_number: number; announced_at?: number; started_at: number; ends_at: number; duration_seconds: number; match_seconds?: MatchDuration; match_ids: string[]; human_clubs?: string[] };
 export type MatchPhase = "PRESENTATION" | "FIRST_HALF" | "HALF_TIME" | "SECOND_HALF" | "FULL_TIME";
 export type LiveClock = { tick: number; minute: number; phase: MatchPhase; server_now: number; match_seconds?: MatchDuration; segment?: BroadcastSegment["k"] | null; halftime_ends_at: number | null; ends_at: number; kickoff_at: number };
 export type PlayerStats = { passes: number; passes_completed: number; key_passes: number; shots: number; shots_on_target: number; goals: number; assists: number; tackles: number; interceptions: number; fouls: number; saves: number; dribbles: number; losses: number; distance: number };
@@ -94,7 +94,7 @@ export type FramesView = { match_id?: string; tick: number | null; phase?: Match
 export type PreviewSide = { club_code: string; formation_code: string; starters: { id: string; name: string; position: string; slot_position: string; overall: number; improvised: boolean; number: number }[]; bench_size: number; tactics: Tactics | null; average: number; sectors: Record<string, number>; ready: boolean; human: boolean | null; manager?: string | null };
 export type SpecialEvent = { kind: string; title: string; text: string };
 export type HeadToHead = { meetings: number; wins: Record<string, number>; draws: number; goals: Record<string, number>; last: { home: string; away: string; home_goals: number; away_goals: number; season?: number; competition?: string }[] };
-export type MatchPreview = {
+export type MatchPreview = { next_round_starts_at?: number | null; server_now?: number;
   fixture: { id: string; round_number: number; home: string; away: string; competition?: "PLAYOFF" | "CUP" | "TOURNAMENT" | "SURVIVOR"; stage?: string; stage_name?: string; leg?: number | null; legs?: number | null } | null;
   home?: PreviewSide; away?: PreviewSide; waiting?: boolean; next_round?: NextRoundView;
   classic?: string | null; head_to_head?: HeadToHead; special_events?: SpecialEvent[]; morale?: Record<string, number> | null;
