@@ -5,6 +5,7 @@ import { api, ApiError, type Club, type MatchPreview, type PreviewSide, type Roo
 import { ClubCrest } from "../../components/ClubCrest";
 import { MatchSettingsCard } from "../../components/MatchSettingsCard";
 import { POSITION_LABEL, tacticSummary } from "./labels";
+import { isShortMode } from "../../lib/gameModes";
 
 type Props = { roomId: string; room: RoomState; season: SeasonView; clubCode: string; clubs: Club[]; onGo: (tab: "squad" | "tactics") => void; isHost?: boolean };
 
@@ -39,9 +40,13 @@ export function PreMatch({ roomId, room, season, clubCode, clubs, onGo, isHost =
 
   if (season.transfer_window_open) return <section className="prematch prematch--blocked"><h2>Janela de transferências aberta</h2><p>A rodada {season.current_round} começa depois que o anfitrião encerrar a janela. Aproveite para reforçar o elenco na aba Mercado.</p></section>;
   if (season.season_complete) return <section className="prematch prematch--blocked"><h2>Temporada encerrada</h2><p>{season.champion ? `O campeão foi definido. ` : ""}Veja a Sala de Troféus e aguarde o anfitrião abrir a próxima temporada.</p></section>;
-  if (season.regular_season_complete && !Object.values(season.knockout?.ties ?? {}).some((t) => t.competition === "PLAYOFF")) return <section className="prematch prematch--blocked"><h2>Sorteio dos playoffs</h2><p>A fase de pontos terminou. O anfitrião realiza o sorteio dos potes na aba Temporada; depois cada confronto é jogado ao vivo, com sua escalação e tática.</p></section>;
   // When the next round starts by itself (server clock), also for coaches not playing it.
   const startsIn = data?.next_round_starts_at != null ? Math.max(0, Math.round(data.next_round_starts_at - (Date.now() / 1000 + offset))) : null;
+  // Trust the server: only a league that ended with no knockout match drawn yet waits
+  // for the draw (the server makes it by itself). The short competitions (torneio,
+  // sobrevivência) have no league and no "PLAYOFF" ties: guessing from the tie type hid
+  // their matches from the coaches ("partidas eliminatórias não aparecem").
+  if (season.regular_season_complete && preview.data && !data?.fixture && !data?.waiting && !isShortMode(season.game_mode) && !Object.values(season.knockout?.ties ?? {}).some((t) => t.competition === "PLAYOFF")) return <section className="prematch prematch--blocked"><h2>Sorteio dos playoffs</h2><p>A fase de pontos terminou. O servidor sorteia os potes (1º–4º × 5º–8º) automaticamente{startsIn !== null ? <> · primeira rodada em <b>{formatClock(startsIn)}</b></> : ""}; depois cada confronto é jogado ao vivo, com sua escalação e tática.</p></section>;
   if (data?.waiting) {
     const kind = data.next_round?.kind;
     const title = kind === "CUP" ? "Copa do Brasil" : kind === "TOURNAMENT" ? "Torneio" : kind === "SURVIVOR" ? "Último Sobrevivente" : "Mata-mata";

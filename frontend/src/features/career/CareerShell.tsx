@@ -101,7 +101,11 @@ export function CareerShell({ roomId, room, isHost, clubCode }: { roomId: string
   return <div className="career">
     <header className="career-head">
       <div className="career-head__club"><ClubCrest club={club(clubCode)} size="md" /><div><p className="kicker">MODO CARREIRA · TEMPORADA {data.season_number}</p><h1>{club(clubCode).name}</h1><span>{manager ? `Técnico ${manager}` : "Seu clube"} · {room.name}</span></div></div>
-      <dl className="career-head__facts"><div><dt>Rodada</dt><dd>{data.regular_season_complete ? (data.playoffs ? STAGES[data.playoffs.next_stage] ?? "playoffs" : "playoffs") : data.current_round}</dd></div><div><dt>Posição</dt><dd>{own?.position ?? "—"}º</dd></div><div><dt>Pontos</dt><dd>{own?.points ?? 0}</dd></div><div><dt>Prontos</dt><dd>{data.ready_clubs.length}/{room.participants.filter((p) => p.selected_club_code).length}</dd></div></dl>
+      {shortMode
+        ? <dl className="career-head__facts"><div><dt>Fase</dt><dd>{data.champion ? "Encerrado" : data.next_round?.stage_name ?? (data.game_mode === "SURVIVOR" ? "Sobrevivência" : "Torneio")}</dd></div>
+            {data.game_mode === "SURVIVOR" && data.survivor && <div><dt>Restam</dt><dd>{data.survivor.remaining}</dd></div>}
+            <div><dt>Seu clube</dt><dd>{data.champion === clubCode ? "Campeão" : alive(data, clubCode) ? "Vivo" : "Eliminado"}</dd></div></dl>
+        : <dl className="career-head__facts"><div><dt>Rodada</dt><dd>{data.regular_season_complete ? (data.playoffs ? STAGES[data.playoffs.next_stage] ?? "playoffs" : "playoffs") : data.current_round}</dd></div><div><dt>Posição</dt><dd>{own?.position ?? "—"}º</dd></div><div><dt>Pontos</dt><dd>{own?.points ?? 0}</dd></div><div><dt>Prontos</dt><dd>{data.ready_clubs.length}/{room.participants.filter((p) => p.selected_club_code).length}</dd></div></dl>}
       <div className="career-head__cta"><button type="button" className="btn btn--primary" onClick={() => goTo("next")}>{tab === "next" ? "Preparando…" : data.ready_clubs.includes(clubCode) ? "✓ Equipe pronta" : "Próxima partida →"}</button></div>
     </header>
     <nav className="career-nav" aria-label="Áreas da carreira">{shownAreas.map((item) => <button key={item.id} type="button" aria-current={area === item.id ? "page" : undefined} className={area === item.id ? "is-active" : ""} onClick={() => goTo(AREA_DEFAULT[item.id])}><i aria-hidden="true">{item.icon}</i>{item.label}</button>)}</nav>
@@ -202,4 +206,10 @@ function PlayoffsCard({ roomId, data, club, clubCode, isHost, onAdvance, advanci
       : <p className="hint">Os 8 primeiros vão aos playoffs. Pote 1: 1º ao 4º; pote 2: 5º ao 8º. Premiação acumulativa: R$ 50 mi por chegar às quartas, +R$ 100 mi na semifinal, +R$ 150 mi ao vice e +R$ 200 mi ao campeão.</p>}
     {!isHost && !data.season_complete && <p className="hint">Cada confronto é jogado ao vivo. Confirme sua equipe na aba Próxima partida; o anfitrião também pode iniciar a rodada.</p>}
   </div>;
+}
+
+/** Still in a short competition: not knocked out of a decided tie, not eliminated in survival. */
+function alive(data: SeasonView, club: string): boolean {
+  if (data.game_mode === "SURVIVOR" && data.survivor) return data.survivor.active.includes(club);
+  return !Object.values(data.knockout?.ties ?? {}).some((t) => t.winner && t.winner !== club && (t.high === club || t.low === club));
 }
