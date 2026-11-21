@@ -1,0 +1,206 @@
+{
+ "55": {
+  "central_11m_forte": {
+   "GOAL": 8,
+   "SAVE": 32,
+   "WIDE": 0,
+   "OTHER": 0
+  },
+  "canto_esq_16m": {
+   "GOAL": 13,
+   "SAVE": 22,
+   "WIDE": 1,
+   "OTHER": 4
+  },
+  "canto_dir_16m": {
+   "GOAL": 14,
+   "SAVE": 20,
+   "WIDE": 2,
+   "OTHER": 4
+  },
+  "rasteiro_canto_14m": {
+   "GOAL": 6,
+   "SAVE": 30,
+   "WIDE": 0,
+   "OTHER": 4
+  },
+  "colocado_alto_18m": {
+   "GOAL": 21,
+   "SAVE": 8,
+   "WIDE": 4,
+   "OTHER": 7
+  },
+  "perto_6m": {
+   "GOAL": 40,
+   "SAVE": 0,
+   "WIDE": 0,
+   "OTHER": 0
+  },
+  "longe_28m": {
+   "GOAL": 14,
+   "SAVE": 15,
+   "WIDE": 8,
+   "OTHER": 3
+  },
+  "fraco_central_15m": {
+   "GOAL": 4,
+   "SAVE": 36,
+   "WIDE": 0,
+   "OTHER": 0
+  },
+  "forte_angulo_12m": {
+   "GOAL": 27,
+   "SAVE": 4,
+   "WIDE": 3,
+   "OTHER": 6
+  },
+  "bola_ao_alcance_20m": {
+   "GOAL": 3,
+   "SAVE": 37,
+   "WIDE": 0,
+   "OTHER": 0
+  },
+  "fora_do_alcance_canto_9m": {
+   "GOAL": 22,
+   "SAVE": 0,
+   "WIDE": 7,
+   "OTHER": 11
+  }
+ },
+ "75": {
+  "central_11m_forte": {
+   "GOAL": 6,
+   "SAVE": 34,
+   "WIDE": 0,
+   "OTHER": 0
+  },
+  "canto_esq_16m": {
+   "GOAL": 6,
+   "SAVE": 32,
+   "WIDE": 0,
+   "OTHER": 2
+  },
+  "canto_dir_16m": {
+   "GOAL": 6,
+   "SAVE": 28,
+   "WIDE": 1,
+   "OTHER": 5
+  },
+  "rasteiro_canto_14m": {
+   "GOAL": 0,
+   "SAVE": 39,
+   "WIDE": 0,
+   "OTHER": 1
+  },
+  "colocado_alto_18m": {
+   "GOAL": 16,
+   "SAVE": 18,
+   "WIDE": 2,
+   "OTHER": 4
+  },
+  "perto_6m": {
+   "GOAL": 40,
+   "SAVE": 0,
+   "WIDE": 0,
+   "OTHER": 0
+  },
+  "longe_28m": {
+   "GOAL": 12,
+   "SAVE": 17,
+   "WIDE": 8,
+   "OTHER": 3
+  },
+  "fraco_central_15m": {
+   "GOAL": 1,
+   "SAVE": 39,
+   "WIDE": 0,
+   "OTHER": 0
+  },
+  "forte_angulo_12m": {
+   "GOAL": 25,
+   "SAVE": 6,
+   "WIDE": 3,
+   "OTHER": 6
+  },
+  "bola_ao_alcance_20m": {
+   "GOAL": 0,
+   "SAVE": 40,
+   "WIDE": 0,
+   "OTHER": 0
+  },
+  "fora_do_alcance_canto_9m": {
+   "GOAL": 22,
+   "SAVE": 0,
+   "WIDE": 7,
+   "OTHER": 11
+  }
+ },
+ "90": {
+  "central_11m_forte": {
+   "GOAL": 2,
+   "SAVE": 38,
+   "WIDE": 0,
+   "OTHER": 0
+  },
+  "canto_esq_16m": {
+   "GOAL": 1,
+   "SAVE": 37,
+   "WIDE": 0,
+   "OTHER": 2
+  },
+  "canto_dir_16m": {
+   "GOAL": 2,
+   "SAVE": 34,
+   "WIDE": 0,
+   "OTHER": 4
+  },
+  "rasteiro_canto_14m": {
+   "GOAL": 0,
+   "SAVE": 40,
+   "WIDE": 0,
+   "OTHER": 0
+  },
+  "colocado_alto_18m": {
+   "GOAL": 16,
+   "SAVE": 21,
+   "WIDE": 2,
+   "OTHER": 1
+  },
+  "perto_6m": {
+   "GOAL": 37,
+   "SAVE": 3,
+   "WIDE": 0,
+   "OTHER": 0
+  },
+  "longe_28m": {
+   "GOAL": 9,
+   "SAVE": 20,
+   "WIDE": 8,
+   "OTHER": 3
+  },
+  "fraco_central_15m": {
+   "GOAL": 1,
+   "SAVE": 39,
+   "WIDE": 0,
+   "OTHER": 0
+  },
+  "forte_angulo_12m": {
+   "GOAL": 20,
+   "SAVE": 11,
+   "WIDE": 3,
+   "OTHER": 6
+  },
+  "bola_ao_alcance_20m": {
+   "GOAL": 0,
+   "SAVE": 40,
+   "WIDE": 0,
+   "OTHER": 0
+  },
+  "fora_do_alcance_canto_9m": {
+   "GOAL": 22,
+   "SAVE": 0,
+   "WIDE": 7,
+   "OTHER": 11
+  }
+ }
+}

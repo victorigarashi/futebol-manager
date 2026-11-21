@@ -1,0 +1,108 @@
+[
+ {
+  "mode": "ELEVEN_A_SIDE",
+  "matches": 30,
+  "dt": 0.1,
+  "engine": "v6",
+  "naturalness_per_1000_player_frames": {
+   "accel_over_10": 264.61,
+   "instant_stop": 0.18,
+   "instant_start": 20.21,
+   "snap_turn": 0.0,
+   "overlap": 5.83
+  },
+  "ball_per_1000_frames": {
+   "ball_jump": 0.0,
+   "ball_instant_stop": 0.14
+  },
+  "carry": {
+   "snapbacks_per_carry": 0.3,
+   "ball_gap_sd_m": 0.161,
+   "ball_gap_max_m": 0.904
+  },
+  "max_player_speed": 8.75,
+  "gk_max_speed": 5.38,
+  "gk_teleport_frames": 0,
+  "balance_per_match": {
+   "goals": 1.43,
+   "shots": 7.67,
+   "on_target": 6.0,
+   "saves": 4.57,
+   "passes": 31.07,
+   "passes_completed": 26.2,
+   "chances": 10.17,
+   "actions": 38.2,
+   "interceptions": 5.37,
+   "tackles": 0.27,
+   "rebound_continuations": 0.2,
+   "carries": 0.7,
+   "carries_kept": 0.4
+  },
+  "pass_completion": 0.843,
+  "conversion": 0.187,
+  "save_rate": 0.761,
+  "actions_per_chance": 3.76,
+  "chance_seconds_mean": 5.33,
+  "step_outcomes": {
+   "CONTROLLED": 820,
+   "SAVED_HELD": 45,
+   "LOST": 178,
+   "GOAL": 43,
+   "OUT": 34,
+   "CORNER": 26
+  }
+ },
+ {
+  "mode": "FIVE_A_SIDE",
+  "matches": 30,
+  "dt": 0.1,
+  "engine": "v6",
+  "naturalness_per_1000_player_frames": {
+   "accel_over_10": 339.15,
+   "instant_stop": 0.47,
+   "instant_start": 29.62,
+   "snap_turn": 0.0,
+   "overlap": 23.97
+  },
+  "ball_per_1000_frames": {
+   "ball_jump": 0.0,
+   "ball_instant_stop": 0.0
+  },
+  "carry": {
+   "snapbacks_per_carry": 0.17,
+   "ball_gap_sd_m": 0.16,
+   "ball_gap_max_m": 0.891
+  },
+  "max_player_speed": 8.64,
+  "gk_max_speed": 3.46,
+  "gk_teleport_frames": 0,
+  "balance_per_match": {
+   "goals": 3.13,
+   "shots": 7.4,
+   "on_target": 5.67,
+   "saves": 2.53,
+   "passes": 25.27,
+   "passes_completed": 21.73,
+   "chances": 10.87,
+   "actions": 37.1,
+   "interceptions": 3.23,
+   "tackles": 2.1,
+   "rebound_continuations": 0.57,
+   "carries": 5.2,
+   "carries_kept": 2.93
+  },
+  "pass_completion": 0.86,
+  "conversion": 0.423,
+  "save_rate": 0.447,
+  "actions_per_chance": 3.41,
+  "chance_seconds_mean": 2.77,
+  "step_outcomes": {
+   "LOST": 168,
+   "CONTROLLED": 773,
+   "GOAL": 94,
+   "CORNER": 20,
+   "OUT": 33,
+   "SAVED_HELD": 25
+  }
+ }
+]

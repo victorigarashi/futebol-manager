@@ -1,0 +1,4 @@
+# Vídeos e rajadas brutas ficam só na máquina local (centenas de MB); as folhas de contato, capturas e JSON vão para o git.
+*.webm
+bursts/
+*.png

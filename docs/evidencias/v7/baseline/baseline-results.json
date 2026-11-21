@@ -1,0 +1,228 @@
+[
+ {
+  "name": "baseline-2D-11x11-BUILDUP",
+  "exp": "2D",
+  "kind": "BUILDUP",
+  "format": "ELEVEN_A_SIDE",
+  "actions": [
+   {
+    "step": 0,
+    "type": "PASS",
+    "through": false,
+    "power": 0.6,
+    "confirm_ms": 78,
+    "outcome": "LOST",
+    "detail": "Vitinho afasta de cabeça",
+    "duration": 1.6
+   }
+  ],
+  "score": {
+   "home": 0,
+   "away": 1
+  },
+  "errors": [
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "video": "../docs/evidencias/v7/baseline/baseline-2D-11x11-BUILDUP.webm"
+ },
+ {
+  "name": "baseline-2D-11x11-THROUGH",
+  "exp": "2D",
+  "kind": "THROUGH",
+  "format": "ELEVEN_A_SIDE",
+  "actions": [
+   {
+    "step": 0,
+    "type": "PASS",
+    "through": false,
+    "power": 0.31,
+    "confirm_ms": 155,
+    "outcome": "CONTROLLED",
+    "detail": "Cristian Olivera domina",
+    "duration": 1.1
+   },
+   {
+    "step": 1,
+    "type": "PASS",
+    "through": false,
+    "power": 0.61,
+    "confirm_ms": 646,
+    "outcome": "CONTROLLED",
+    "detail": "Éverton Ribeiro domina",
+    "duration": 1.8
+   },
+   {
+    "step": 2,
+    "type": "PASS",
+    "through": false,
+    "power": 0.3,
+    "confirm_ms": null,
+    "outcome": "CONTROLLED",
+    "detail": "Éverton Ribeiro domina",
+    "duration": 1.8
+   },
+   {
+    "step": 3,
+    "type": "PASS",
+    "through": true,
+    "power": 0.39,
+    "confirm_ms": 602,
+    "outcome": "CONTROLLED",
+    "detail": "Alejo Veliz domina",
+    "duration": 1.1
+   },
+   {
+    "step": 4,
+    "type": "SHOT",
+    "through": false,
+    "power": 0.72,
+    "confirm_ms": 594,
+    "outcome": "SAVED_HELD",
+    "detail": "Defesa do goleiro",
+    "duration": 1.2
+   }
+  ],
+  "score": {
+   "home": 0,
+   "away": 0
+  },
+  "errors": [
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "video": "../docs/evidencias/v7/baseline/baseline-2D-11x11-THROUGH.webm"
+ },
+ {
+  "name": "baseline-2D-11x11-CROSS",
+  "exp": "2D",
+  "kind": "CROSS",
+  "format": "ELEVEN_A_SIDE",
+  "actions": [
+   {
+    "step": 0,
+    "type": "SHOT",
+    "through": false,
+    "power": 0.72,
+    "confirm_ms": 80,
+    "outcome": "GOAL",
+    "detail": "Gol",
+    "duration": 1.4
+   }
+  ],
+  "score": {
+   "home": 1,
+   "away": 1
+  },
+  "errors": [
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "video": "../docs/evidencias/v7/baseline/baseline-2D-11x11-CROSS.webm"
+ },
+ {
+  "name": "baseline-3D-11x11-BUILDUP",
+  "exp": "3D",
+  "kind": "BUILDUP",
+  "format": "ELEVEN_A_SIDE",
+  "actions": [
+   {
+    "step": 0,
+    "type": "PASS",
+    "through": false,
+    "power": 0.6,
+    "confirm_ms": 146,
+    "outcome": "LOST",
+    "detail": "Vitinho afasta de cabeça",
+    "duration": 1.6
+   }
+  ],
+  "score": {
+   "home": 0,
+   "away": 1
+  },
+  "errors": [
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "video": "../docs/evidencias/v7/baseline/baseline-3D-11x11-BUILDUP.webm"
+ },
+ {
+  "name": "baseline-3D-11x11-THROUGH",
+  "exp": "3D",
+  "kind": "THROUGH",
+  "format": "ELEVEN_A_SIDE",
+  "actions": [
+   {
+    "step": 0,
+    "type": "PASS",
+    "through": false,
+    "power": 0.31,
+    "confirm_ms": 110,
+    "outcome": "CONTROLLED",
+    "detail": "Cristian Olivera domina",
+    "duration": 1.1
+   },
+   {
+    "step": 1,
+    "type": "PASS",
+    "through": false,
+    "power": 0.61,
+    "confirm_ms": 124,
+    "outcome": "CONTROLLED",
+    "detail": "Éverton Ribeiro domina",
+    "duration": 1.8
+   },
+   {
+    "step": 2,
+    "type": "PASS",
+    "through": false,
+    "power": 0.3,
+    "confirm_ms": 103,
+    "outcome": "CONTROLLED",
+    "detail": "Alejo Veliz domina",
+    "duration": 1.3
+   },
+   {
+    "step": 3,
+    "type": "SHOT",
+    "through": false,
+    "power": 0.72,
+    "confirm_ms": 105,
+    "outcome": "OUT",
+    "detail": "Para fora",
+    "duration": 2.2
+   }
+  ],
+  "score": {
+   "home": 0,
+   "away": 0
+  },
+  "errors": [
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "video": "../docs/evidencias/v7/baseline/baseline-3D-11x11-THROUGH.webm"
+ },
+ {
+  "name": "baseline-3D-11x11-CROSS",
+  "exp": "3D",
+  "kind": "CROSS",
+  "format": "ELEVEN_A_SIDE",
+  "actions": [
+   {
+    "step": 0,
+    "type": "SHOT",
+    "through": false,
+    "power": 0.72,
+    "confirm_ms": 126,
+    "outcome": "GOAL",
+    "detail": "Gol",
+    "duration": 1.4
+   }
+  ],
+  "score": {
+   "home": 1,
+   "away": 1
+  },
+  "errors": [
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "video": "../docs/evidencias/v7/baseline/baseline-3D-11x11-CROSS.webm"
+ }
+]

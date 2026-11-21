@@ -108,7 +108,7 @@ A meta interna era 8. **Ela não foi atingida em todas as áreas, por isso a V7 
 
 | Item | Situação | Evidência |
 |---|---|---|
-| Football Lab: partida completa, 10 cenários, 5 treinos, 5×5 e 11×11, 2D e 3D, dificuldade, motor, repetir semente | Feito | `GameplayLab.tsx`; playtests `depois/*` |
+| Football Lab: partida completa, 10 cenários, 5 treinos, 5×5 e 11×11, 2D e 3D, dificuldade, motor, repetir semente | Feito | `GameplayLab.tsx`; playtest final automatizado com 24 execuções (6 cenários × 2D/3D × 5×5/11×11), com gols de jogada e de pênalti pela interface: `depois/final-*` e `final-results.json` |
 | Mesmo resultado no 2D e no 3D (um único motor) | Feito | Mesma `view`; teste de determinismo `test_same_seed_same_match_*` |
 | Dois navegadores (2D contra 3D) na mesma partida | Feito | `evidencias/v7/multiplayer/results.json`: zero divergências em até 205 comparações sincronizadas; recarga no meio retoma a mesma partida, placar e relógio; resultado gravado (vencedor MIR na 1ª execução). As execuções seguintes, com janela de 5 min, não chegaram ao apito porque o driver automático demorou a gesticular no 3D por software. Isso não é uma falha da partida |
 | Reconexão, tempo esgotado e IA assumindo | Mantidos (orquestração da V6) | `test_highlights.py` |
@@ -126,7 +126,7 @@ A meta interna era 8. **Ela não foi atingida em todas as áreas, por isso a V7 
 | `test_football_v7.py` | 17 passaram |
 | `test_football_v7_competitions.py` | 8 passaram |
 | `test_highlights.py` (V6) | 48 passaram |
-| Suíte completa do backend | ver seção 8 |
+| Suíte completa do backend | **317 passaram, 5 falharam.** As 5 falhas já existiam: falham **igualmente na V6 intacta** (`6c0a033`). Todas dependem do catálogo real ou do Draft: `test_draft_http_flow_from_lobby_to_season`, `test_previous_catalog_ids_are_preserved_for_matched_players`, `test_only_host_with_club_can_start_market_when_catalog_is_available`, `test_pack_and_play_http_flow_from_lobby_to_the_tournament` e `test_last_survivor_http_flow_uses_the_real_squads`. O arquivo de competições da V7 foi rodado à parte (8 de 8) |
 | Frontend | `npm run typecheck` limpo; eslint limpo; vitest dos módulos interativos passou |
 
 ## 7. O que NÃO foi feito (sem esconder)

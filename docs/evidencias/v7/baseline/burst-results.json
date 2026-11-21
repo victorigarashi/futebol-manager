@@ -1,0 +1,196 @@
+[
+ {
+  "name": "burst-2D-11x11-THROUGH",
+  "exp": "2D",
+  "kind": "THROUGH",
+  "format": "ELEVEN_A_SIDE",
+  "actions": [
+   {
+    "step": 0,
+    "type": "PASS",
+    "through": false,
+    "power": 0.31,
+    "confirm_ms": null,
+    "outcome": "CONTROLLED",
+    "detail": "Cristian Olivera domina",
+    "duration": 1.1
+   },
+   {
+    "step": 1,
+    "type": "PASS",
+    "through": false,
+    "power": 0.61,
+    "confirm_ms": null,
+    "outcome": "CONTROLLED",
+    "detail": "Éverton Ribeiro domina",
+    "duration": 1.8
+   },
+   {
+    "step": 2,
+    "type": "PASS",
+    "through": false,
+    "power": 0.3,
+    "confirm_ms": 95,
+    "outcome": "CONTROLLED",
+    "detail": "Alejo Veliz domina",
+    "duration": 1.3
+   },
+   {
+    "step": 3,
+    "type": "SHOT",
+    "through": false,
+    "power": 0.72,
+    "confirm_ms": 100,
+    "outcome": "SAVED_HELD",
+    "detail": "Defesa do goleiro",
+    "duration": 1.2
+   }
+  ],
+  "score": {
+   "home": 0,
+   "away": 0
+  },
+  "errors": [
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "video": "../docs/evidencias/v7/baseline/burst-2D-11x11-THROUGH.webm"
+ },
+ {
+  "name": "burst-2D-11x11-ONE_ON_ONE",
+  "exp": "2D",
+  "kind": "ONE_ON_ONE",
+  "format": "ELEVEN_A_SIDE",
+  "actions": [
+   {
+    "step": 0,
+    "type": "PASS",
+    "through": false,
+    "power": 0.49,
+    "confirm_ms": null,
+    "outcome": "CONTROLLED",
+    "detail": "Alejo Veliz domina",
+    "duration": 1.7
+   },
+   {
+    "step": 1,
+    "type": "PASS",
+    "through": true,
+    "power": 0.48,
+    "confirm_ms": null,
+    "outcome": "CONTROLLED",
+    "detail": "Cristian Olivera domina",
+    "duration": 1.9
+   },
+   {
+    "step": 2,
+    "type": "SHOT",
+    "through": false,
+    "power": 0.72,
+    "confirm_ms": 78,
+    "outcome": "LOST",
+    "detail": "Defesa! Vitinho afasta o rebote",
+    "duration": 1.5
+   }
+  ],
+  "score": {
+   "home": 0,
+   "away": 0
+  },
+  "errors": [
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "video": "../docs/evidencias/v7/baseline/burst-2D-11x11-ONE_ON_ONE.webm"
+ },
+ {
+  "name": "burst-3D-11x11-THROUGH",
+  "exp": "3D",
+  "kind": "THROUGH",
+  "format": "ELEVEN_A_SIDE",
+  "actions": [
+   {
+    "step": 0,
+    "type": "PASS",
+    "through": false,
+    "power": 0.31,
+    "confirm_ms": null,
+    "outcome": "CONTROLLED",
+    "detail": "Cristian Olivera domina",
+    "duration": 1.1
+   },
+   {
+    "step": 1,
+    "type": "PASS",
+    "through": false,
+    "power": 0.61,
+    "confirm_ms": null,
+    "outcome": "CONTROLLED",
+    "detail": "Éverton Ribeiro domina",
+    "duration": 1.8
+   },
+   {
+    "step": 2,
+    "type": "PASS",
+    "through": false,
+    "power": 0.3,
+    "confirm_ms": 131,
+    "outcome": "CONTROLLED",
+    "detail": "Alejo Veliz domina",
+    "duration": 1.3
+   }
+  ],
+  "score": {
+   "home": 0,
+   "away": 0
+  },
+  "errors": [
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "video": "../docs/evidencias/v7/baseline/burst-3D-11x11-THROUGH.webm"
+ },
+ {
+  "name": "burst-3D-11x11-ONE_ON_ONE",
+  "exp": "3D",
+  "kind": "ONE_ON_ONE",
+  "format": "ELEVEN_A_SIDE",
+  "actions": [
+   {
+    "step": 0,
+    "type": "PASS",
+    "through": false,
+    "power": 0.49,
+    "confirm_ms": null,
+    "outcome": "CONTROLLED",
+    "detail": "Alejo Veliz domina",
+    "duration": 1.7
+   },
+   {
+    "step": 1,
+    "type": "PASS",
+    "through": true,
+    "power": 0.48,
+    "confirm_ms": null,
+    "outcome": "CONTROLLED",
+    "detail": "Cristian Olivera domina",
+    "duration": 1.9
+   },
+   {
+    "step": 2,
+    "type": "SHOT",
+    "through": false,
+    "power": 0.72,
+    "confirm_ms": 96,
+    "outcome": "LOST",
+    "detail": "Defesa! Vitinho afasta o rebote",
+    "duration": 1.5
+   }
+  ],
+  "score": {
+   "home": 0,
+   "away": 0
+  },
+  "errors": [
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "video": "../docs/evidencias/v7/baseline/burst-3D-11x11-ONE_ON_ONE.webm"
+ }
+]

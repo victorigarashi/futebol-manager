@@ -1,0 +1,57 @@
+[
+  {
+    "name": "both coaches enter the same interactive match",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "3D coach reloads mid-match and is back in the same match",
+    "ok": true,
+    "detail": "36.7' → 36.7'"
+  },
+  {
+    "name": "reload keeps the score and the clock",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "match finishes for both coaches",
+    "ok": false,
+    "detail": "DECISION 59.6' / DECISION 59.6'"
+  },
+  {
+    "name": "same official score on 2D and 3D",
+    "ok": true,
+    "detail": "{\"home\":1,\"away\":0}"
+  },
+  {
+    "name": "no divergence during the match",
+    "ok": true,
+    "detail": "0 mismatches in 48 synchronised polls"
+  },
+  {
+    "name": "clock never reset",
+    "ok": true,
+    "detail": "max 59.6'"
+  },
+  {
+    "name": "both coaches played their own attacks",
+    "ok": true,
+    "detail": "2D: 6 gestos (0 recusados), 3D: 2 gestos (0 recusados)"
+  },
+  {
+    "name": "result recorded in the competition (the coaches' semi-final)",
+    "ok": false,
+    "detail": "{\"tie\":[\"FLA\",\"REM\"],\"winner\":null}"
+  },
+  {
+    "name": "no page errors (2D)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "no page errors (3D)",
+    "ok": true,
+    "detail": ""
+  }
+]

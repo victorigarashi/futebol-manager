@@ -1,0 +1,1090 @@
+[
+ {
+  "name": "final-2D-11x11-BUILDUP",
+  "exp": "2D",
+  "kind": "BUILDUP",
+  "format": "ELEVEN_A_SIDE",
+  "actions": [
+   {
+    "step": 0,
+    "type": "PASS",
+    "through": false,
+    "power": 0.36,
+    "confirm_ms": null,
+    "outcome": "CONTROLLED",
+    "detail": "Cristian Olivera domina",
+    "duration": 3.3
+   },
+   {
+    "step": 1,
+    "type": "PASS",
+    "through": true,
+    "power": 0.25,
+    "confirm_ms": null,
+    "outcome": "CONTROLLED",
+    "detail": "Erick Pulga domina",
+    "duration": 2.1
+   },
+   {
+    "step": 2,
+    "type": "PASS",
+    "through": false,
+    "power": 0.28,
+    "confirm_ms": 84,
+    "outcome": "CONTROLLED",
+    "detail": "Alejo Veliz domina",
+    "duration": 3.5
+   },
+   {
+    "step": 3,
+    "type": "SHOT",
+    "through": false,
+    "power": 0.72,
+    "confirm_ms": null,
+    "outcome": "CONTROLLED",
+    "detail": "David Duarte domina",
+    "duration": 1.8
+   },
+   {
+    "step": 4,
+    "type": "SHOT",
+    "through": false,
+    "power": 0.72,
+    "confirm_ms": null,
+    "outcome": "CONTROLLED",
+    "detail": "Cristian Olivera domina",
+    "duration": 3.1
+   },
+   {
+    "step": 5,
+    "type": "SHOT",
+    "through": false,
+    "power": 0.72,
+    "confirm_ms": null,
+    "outcome": "state:CLOCK"
+   }
+  ],
+  "score": {
+   "home": 1,
+   "away": 0
+  },
+  "errors": [
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "video": "../docs/evidencias/v7/depois/final-2D-11x11-BUILDUP.webm"
+ },
+ {
+  "name": "final-2D-11x11-COUNTER",
+  "exp": "2D",
+  "kind": "COUNTER",
+  "format": "ELEVEN_A_SIDE",
+  "actions": [
+   {
+    "step": 0,
+    "type": "PASS",
+    "through": false,
+    "power": 0.22,
+    "confirm_ms": null,
+    "outcome": "CONTROLLED",
+    "detail": "Alejo Veliz domina",
+    "duration": 2.6
+   },
+   {
+    "step": 1,
+    "type": "PASS",
+    "through": false,
+    "power": 0.33,
+    "confirm_ms": null,
+    "outcome": "CONTROLLED",
+    "detail": "Nicolás Acevedo domina",
+    "duration": 1.5
+   },
+   {
+    "step": 2,
+    "type": "PASS",
+    "through": false,
+    "power": 0.18,
+    "confirm_ms": 75,
+    "outcome": "CONTROLLED",
+    "detail": "Éverton Ribeiro domina",
+    "duration": 3.3
+   },
+   {
+    "step": 3,
+    "type": "PASS",
+    "through": false,
+    "power": 0.22,
+    "confirm_ms": 80,
+    "outcome": "LOST",
+    "detail": "Interceptação de Matheus Martins",
+    "duration": 2.1
+   }
+  ],
+  "score": {
+   "home": 0,
+   "away": 0
+  },
+  "errors": [
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "video": "../docs/evidencias/v7/depois/final-2D-11x11-COUNTER.webm"
+ },
+ {
+  "name": "final-2D-11x11-WING",
+  "exp": "2D",
+  "kind": "WING",
+  "format": "ELEVEN_A_SIDE",
+  "actions": [
+   {
+    "step": 0,
+    "type": "PASS",
+    "through": false,
+    "power": 0.32,
+    "confirm_ms": null,
+    "outcome": "state:CLOCK"
+   }
+  ],
+  "score": {
+   "home": 0,
+   "away": 0
+  },
+  "errors": [
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "video": "../docs/evidencias/v7/depois/final-2D-11x11-WING.webm"
+ },
+ {
+  "name": "final-2D-11x11-OVERLOAD",
+  "exp": "2D",
+  "kind": "OVERLOAD",
+  "format": "ELEVEN_A_SIDE",
+  "actions": [
+   {
+    "step": 0,
+    "type": "PASS",
+    "through": false,
+    "power": 0.08,
+    "confirm_ms": null,
+    "outcome": "CONTROLLED",
+    "detail": "Rodrigo Nestor domina",
+    "duration": 1.5
+   },
+   {
+    "step": 1,
+    "type": "PASS",
+    "through": false,
+    "power": 0.12,
+    "confirm_ms": null,
+    "outcome": "CONTROLLED",
+    "detail": "Luciano Juba domina",
+    "duration": 1.9
+   },
+   {
+    "step": 2,
+    "type": "PASS",
+    "through": false,
+    "power": 0.11,
+    "confirm_ms": 104,
+    "outcome": "LOST",
+    "detail": "Desarme de Vitinho",
+    "duration": 5
+   }
+  ],
+  "score": {
+   "home": 0,
+   "away": 0
+  },
+  "errors": [
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "video": "../docs/evidencias/v7/depois/final-2D-11x11-OVERLOAD.webm"
+ },
+ {
+  "name": "final-2D-11x11-DRILL_2V1",
+  "exp": "2D",
+  "kind": "DRILL_2V1",
+  "format": "ELEVEN_A_SIDE",
+  "actions": [
+   {
+    "step": 0,
+    "type": "PASS",
+    "through": false,
+    "power": 0.21,
+    "confirm_ms": null,
+    "outcome": "CONTROLLED",
+    "detail": "Alejo Veliz domina",
+    "duration": 3.8
+   },
+   {
+    "step": 1,
+    "type": "PASS",
+    "through": true,
+    "power": 0.37,
+    "confirm_ms": null,
+    "outcome": "CONTROLLED",
+    "detail": "Cristian Olivera domina",
+    "duration": 4.3
+   },
+   {
+    "step": 2,
+    "type": "PASS",
+    "through": false,
+    "power": 0.1,
+    "confirm_ms": 72,
+    "outcome": "LOST",
+    "detail": "Interceptação de Arthur Chaves",
+    "duration": 2.5
+   }
+  ],
+  "score": {
+   "home": 0,
+   "away": 0
+  },
+  "errors": [
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "video": "../docs/evidencias/v7/depois/final-2D-11x11-DRILL_2V1.webm"
+ },
+ {
+  "name": "final-2D-11x11-PENALTY",
+  "exp": "2D",
+  "kind": "PENALTY",
+  "format": "ELEVEN_A_SIDE",
+  "actions": [
+   {
+    "step": 0,
+    "type": "SHOT",
+    "through": false,
+    "power": 0.72,
+    "confirm_ms": null,
+    "outcome": "state:CLOCK"
+   }
+  ],
+  "score": {
+   "home": 1,
+   "away": 0
+  },
+  "errors": [
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "video": "../docs/evidencias/v7/depois/final-2D-11x11-PENALTY.webm"
+ },
+ {
+  "name": "final-3D-11x11-BUILDUP",
+  "exp": "3D",
+  "kind": "BUILDUP",
+  "format": "ELEVEN_A_SIDE",
+  "actions": [
+   {
+    "step": 0,
+    "type": "PASS",
+    "through": false,
+    "power": 0.36,
+    "confirm_ms": null,
+    "outcome": "CONTROLLED",
+    "detail": "Cristian Olivera domina",
+    "duration": 3.3
+   },
+   {
+    "step": 1,
+    "type": "PASS",
+    "through": true,
+    "power": 0.25,
+    "confirm_ms": null,
+    "outcome": "CONTROLLED",
+    "detail": "Erick Pulga domina",
+    "duration": 2.1
+   },
+   {
+    "step": 2,
+    "type": "PASS",
+    "through": false,
+    "power": 0.28,
+    "confirm_ms": 86,
+    "outcome": "CONTROLLED",
+    "detail": "Alejo Veliz domina",
+    "duration": 3.5
+   },
+   {
+    "step": 3,
+    "type": "SHOT",
+    "through": false,
+    "power": 0.72,
+    "confirm_ms": null,
+    "outcome": "CONTROLLED",
+    "detail": "David Duarte domina",
+    "duration": 1.8
+   },
+   {
+    "step": 4,
+    "type": "SHOT",
+    "through": false,
+    "power": 0.72,
+    "confirm_ms": null,
+    "outcome": "CONTROLLED",
+    "detail": "Cristian Olivera domina",
+    "duration": 3.1
+   },
+   {
+    "step": 5,
+    "type": "SHOT",
+    "through": false,
+    "power": 0.72,
+    "confirm_ms": null,
+    "outcome": "state:CLOCK"
+   }
+  ],
+  "score": {
+   "home": 1,
+   "away": 0
+  },
+  "errors": [
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "video": "../docs/evidencias/v7/depois/final-3D-11x11-BUILDUP.webm"
+ },
+ {
+  "name": "final-3D-11x11-COUNTER",
+  "exp": "3D",
+  "kind": "COUNTER",
+  "format": "ELEVEN_A_SIDE",
+  "actions": [
+   {
+    "step": 0,
+    "type": "PASS",
+    "through": false,
+    "power": 0.22,
+    "confirm_ms": null,
+    "outcome": "CONTROLLED",
+    "detail": "Alejo Veliz domina",
+    "duration": 2.6
+   },
+   {
+    "step": 1,
+    "type": "PASS",
+    "through": false,
+    "power": 0.33,
+    "confirm_ms": null,
+    "outcome": "CONTROLLED",
+    "detail": "Nicolás Acevedo domina",
+    "duration": 1.5
+   },
+   {
+    "step": 2,
+    "type": "PASS",
+    "through": false,
+    "power": 0.18,
+    "confirm_ms": 98,
+    "outcome": "CONTROLLED",
+    "detail": "Éverton Ribeiro domina",
+    "duration": 3.3
+   },
+   {
+    "step": 3,
+    "type": "PASS",
+    "through": false,
+    "power": 0.22,
+    "confirm_ms": 76,
+    "outcome": "LOST",
+    "detail": "Interceptação de Matheus Martins",
+    "duration": 2.1
+   }
+  ],
+  "score": {
+   "home": 0,
+   "away": 0
+  },
+  "errors": [
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "video": "../docs/evidencias/v7/depois/final-3D-11x11-COUNTER.webm"
+ },
+ {
+  "name": "final-3D-11x11-WING",
+  "exp": "3D",
+  "kind": "WING",
+  "format": "ELEVEN_A_SIDE",
+  "actions": [
+   {
+    "step": 0,
+    "type": "PASS",
+    "through": false,
+    "power": 0.32,
+    "confirm_ms": null,
+    "outcome": "state:CLOCK"
+   }
+  ],
+  "score": {
+   "home": 0,
+   "away": 0
+  },
+  "errors": [
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "video": "../docs/evidencias/v7/depois/final-3D-11x11-WING.webm"
+ },
+ {
+  "name": "final-3D-11x11-OVERLOAD",
+  "exp": "3D",
+  "kind": "OVERLOAD",
+  "format": "ELEVEN_A_SIDE",
+  "actions": [
+   {
+    "step": 0,
+    "type": "PASS",
+    "through": false,
+    "power": 0.08,
+    "confirm_ms": null,
+    "outcome": "CONTROLLED",
+    "detail": "Rodrigo Nestor domina",
+    "duration": 1.5
+   },
+   {
+    "step": 1,
+    "type": "PASS",
+    "through": false,
+    "power": 0.12,
+    "confirm_ms": null,
+    "outcome": "CONTROLLED",
+    "detail": "Luciano Juba domina",
+    "duration": 1.9
+   },
+   {
+    "step": 2,
+    "type": "PASS",
+    "through": false,
+    "power": 0.11,
+    "confirm_ms": 104,
+    "outcome": "LOST",
+    "detail": "Desarme de Vitinho",
+    "duration": 5
+   }
+  ],
+  "score": {
+   "home": 0,
+   "away": 0
+  },
+  "errors": [
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "video": "../docs/evidencias/v7/depois/final-3D-11x11-OVERLOAD.webm"
+ },
+ {
+  "name": "final-3D-11x11-DRILL_2V1",
+  "exp": "3D",
+  "kind": "DRILL_2V1",
+  "format": "ELEVEN_A_SIDE",
+  "actions": [
+   {
+    "step": 0,
+    "type": "PASS",
+    "through": false,
+    "power": 0.21,
+    "confirm_ms": null,
+    "outcome": "CONTROLLED",
+    "detail": "Alejo Veliz domina",
+    "duration": 3.8
+   },
+   {
+    "step": 1,
+    "type": "PASS",
+    "through": true,
+    "power": 0.37,
+    "confirm_ms": null,
+    "outcome": "CONTROLLED",
+    "detail": "Cristian Olivera domina",
+    "duration": 4.3
+   },
+   {
+    "step": 2,
+    "type": "PASS",
+    "through": false,
+    "power": 0.1,
+    "confirm_ms": 68,
+    "outcome": "LOST",
+    "detail": "Interceptação de Arthur Chaves",
+    "duration": 2.5
+   }
+  ],
+  "score": {
+   "home": 0,
+   "away": 0
+  },
+  "errors": [
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "video": "../docs/evidencias/v7/depois/final-3D-11x11-DRILL_2V1.webm"
+ },
+ {
+  "name": "final-3D-11x11-PENALTY",
+  "exp": "3D",
+  "kind": "PENALTY",
+  "format": "ELEVEN_A_SIDE",
+  "actions": [
+   {
+    "step": 0,
+    "note": "drag started 6 m from the carrier (carrier under the controls)"
+   },
+   {
+    "step": 0,
+    "type": "SHOT",
+    "through": false,
+    "power": 0.72,
+    "confirm_ms": null,
+    "outcome": "state:CLOCK"
+   }
+  ],
+  "score": {
+   "home": 1,
+   "away": 0
+  },
+  "errors": [
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "video": "../docs/evidencias/v7/depois/final-3D-11x11-PENALTY.webm"
+ },
+ {
+  "name": "final-2D-5x5-BUILDUP",
+  "exp": "2D",
+  "kind": "BUILDUP",
+  "format": "FIVE_A_SIDE",
+  "actions": [
+   {
+    "step": 0,
+    "type": "PASS",
+    "through": false,
+    "power": 0.17,
+    "confirm_ms": null,
+    "outcome": "CONTROLLED",
+    "detail": "Jean Lucas domina",
+    "duration": 2.1
+   },
+   {
+    "step": 1,
+    "type": "PASS",
+    "through": false,
+    "power": 0.08,
+    "confirm_ms": 3690,
+    "outcome": "CONTROLLED",
+    "detail": "Luciano Juba domina",
+    "duration": 1.4
+   },
+   {
+    "step": 2,
+    "type": "PASS",
+    "through": false,
+    "power": 0.08,
+    "confirm_ms": 42,
+    "outcome": "CONTROLLED",
+    "detail": "Luciano Juba domina",
+    "duration": 1
+   },
+   {
+    "step": 3,
+    "type": "PASS",
+    "through": false,
+    "power": 0.08,
+    "confirm_ms": 38,
+    "outcome": "LOST",
+    "detail": "Desarme de Vitinho",
+    "duration": 2.4
+   }
+  ],
+  "score": {
+   "home": 0,
+   "away": 0
+  },
+  "errors": [
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "video": "../docs/evidencias/v7/depois/final-2D-5x5-BUILDUP.webm"
+ },
+ {
+  "name": "final-2D-5x5-COUNTER",
+  "exp": "2D",
+  "kind": "COUNTER",
+  "format": "FIVE_A_SIDE",
+  "actions": [
+   {
+    "step": 0,
+    "type": "PASS",
+    "through": false,
+    "power": 0.08,
+    "confirm_ms": 3881,
+    "outcome": "CONTROLLED",
+    "detail": "David Duarte domina",
+    "duration": 1.5
+   },
+   {
+    "step": 1,
+    "type": "PASS",
+    "through": false,
+    "power": 0.08,
+    "confirm_ms": 3797,
+    "outcome": "CONTROLLED",
+    "detail": "Luciano Juba domina",
+    "duration": 1.2
+   },
+   {
+    "step": 2,
+    "type": "PASS",
+    "through": false,
+    "power": 0.11,
+    "confirm_ms": 49,
+    "outcome": "LOST",
+    "detail": "Interceptação de Alex Telles",
+    "duration": 2.1
+   }
+  ],
+  "score": {
+   "home": 0,
+   "away": 0
+  },
+  "errors": [
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "video": "../docs/evidencias/v7/depois/final-2D-5x5-COUNTER.webm"
+ },
+ {
+  "name": "final-2D-5x5-WING",
+  "exp": "2D",
+  "kind": "WING",
+  "format": "FIVE_A_SIDE",
+  "actions": [
+   {
+    "step": 0,
+    "type": "LOFT",
+    "through": false,
+    "power": 0.02,
+    "confirm_ms": 3860,
+    "outcome": "LOST",
+    "detail": "Vitinho afasta de cabeça",
+    "duration": 2
+   }
+  ],
+  "score": {
+   "home": 0,
+   "away": 0
+  },
+  "errors": [
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "video": "../docs/evidencias/v7/depois/final-2D-5x5-WING.webm"
+ },
+ {
+  "name": "final-2D-5x5-OVERLOAD",
+  "exp": "2D",
+  "kind": "OVERLOAD",
+  "format": "FIVE_A_SIDE",
+  "actions": [
+   {
+    "step": 0,
+    "type": "PASS",
+    "through": false,
+    "power": 0.08,
+    "confirm_ms": 3665,
+    "outcome": "CONTROLLED",
+    "detail": "David Duarte domina",
+    "duration": 2.5
+   },
+   {
+    "step": 1,
+    "type": "PASS",
+    "through": true,
+    "power": 0.24,
+    "confirm_ms": 3774,
+    "outcome": "CONTROLLED",
+    "detail": "Erick Pulga domina",
+    "duration": 2.4
+   },
+   {
+    "step": 2,
+    "type": "SHOT",
+    "through": false,
+    "power": 0.72,
+    "confirm_ms": 3602,
+    "outcome": "CONTROLLED",
+    "detail": "Jean Lucas domina",
+    "duration": 4.4
+   },
+   {
+    "step": 3,
+    "type": "PASS",
+    "through": false,
+    "power": 0.08,
+    "confirm_ms": 51,
+    "outcome": "CONTROLLED",
+    "detail": "Luciano Juba domina",
+    "duration": 1.6
+   },
+   {
+    "step": 4,
+    "type": "PASS",
+    "through": false,
+    "power": 0.08,
+    "confirm_ms": 41,
+    "outcome": "CONTROLLED",
+    "detail": "Jean Lucas domina",
+    "duration": 1.6
+   },
+   {
+    "step": 5,
+    "type": "SHOT",
+    "through": false,
+    "power": 0.72,
+    "confirm_ms": 3574,
+    "outcome": "CONTROLLED",
+    "detail": "Luciano Juba domina",
+    "duration": 1.8
+   },
+   {
+    "step": 6,
+    "type": "SHOT",
+    "through": false,
+    "power": 0.72,
+    "confirm_ms": 3801,
+    "outcome": "state:CLOCK"
+   }
+  ],
+  "score": {
+   "home": 0,
+   "away": 0
+  },
+  "errors": [
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "video": "../docs/evidencias/v7/depois/final-2D-5x5-OVERLOAD.webm"
+ },
+ {
+  "name": "final-2D-5x5-DRILL_2V1",
+  "exp": "2D",
+  "kind": "DRILL_2V1",
+  "format": "FIVE_A_SIDE",
+  "actions": [
+   {
+    "step": 0,
+    "type": "PASS",
+    "through": false,
+    "power": 0.08,
+    "confirm_ms": 3419,
+    "outcome": "CONTROLLED",
+    "detail": "Jean Lucas domina",
+    "duration": 1.5
+   },
+   {
+    "step": 1,
+    "type": "PASS",
+    "through": true,
+    "power": 0.12,
+    "confirm_ms": 3425,
+    "outcome": "LOST",
+    "detail": "Interceptação de Alex Telles",
+    "duration": 1.7
+   }
+  ],
+  "score": {
+   "home": 0,
+   "away": 0
+  },
+  "errors": [
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "video": "../docs/evidencias/v7/depois/final-2D-5x5-DRILL_2V1.webm"
+ },
+ {
+  "name": "final-2D-5x5-PENALTY",
+  "exp": "2D",
+  "kind": "PENALTY",
+  "format": "FIVE_A_SIDE",
+  "actions": [
+   {
+    "step": 0,
+    "type": "SHOT",
+    "through": false,
+    "power": 0.72,
+    "confirm_ms": 3891,
+    "outcome": "state:CLOCK"
+   }
+  ],
+  "score": {
+   "home": 1,
+   "away": 0
+  },
+  "errors": [
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "video": "../docs/evidencias/v7/depois/final-2D-5x5-PENALTY.webm"
+ },
+ {
+  "name": "final-3D-5x5-BUILDUP",
+  "exp": "3D",
+  "kind": "BUILDUP",
+  "format": "FIVE_A_SIDE",
+  "actions": [
+   {
+    "step": 0,
+    "type": "PASS",
+    "through": false,
+    "power": 0.17,
+    "confirm_ms": null,
+    "outcome": "CONTROLLED",
+    "detail": "Jean Lucas domina",
+    "duration": 2.1
+   },
+   {
+    "step": 1,
+    "type": "PASS",
+    "through": false,
+    "power": 0.08,
+    "confirm_ms": null,
+    "outcome": "CONTROLLED",
+    "detail": "Luciano Juba domina",
+    "duration": 1.4
+   },
+   {
+    "step": 2,
+    "type": "PASS",
+    "through": false,
+    "power": 0.08,
+    "confirm_ms": 83,
+    "outcome": "CONTROLLED",
+    "detail": "Luciano Juba domina",
+    "duration": 1
+   },
+   {
+    "step": 3,
+    "type": "PASS",
+    "through": false,
+    "power": 0.08,
+    "confirm_ms": 82,
+    "outcome": "LOST",
+    "detail": "Desarme de Vitinho",
+    "duration": 2.4
+   }
+  ],
+  "score": {
+   "home": 0,
+   "away": 0
+  },
+  "errors": [
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "video": "../docs/evidencias/v7/depois/final-3D-5x5-BUILDUP.webm"
+ },
+ {
+  "name": "final-3D-5x5-COUNTER",
+  "exp": "3D",
+  "kind": "COUNTER",
+  "format": "FIVE_A_SIDE",
+  "actions": [
+   {
+    "step": 0,
+    "type": "PASS",
+    "through": false,
+    "power": 0.08,
+    "confirm_ms": null,
+    "outcome": "CONTROLLED",
+    "detail": "David Duarte domina",
+    "duration": 1.5
+   },
+   {
+    "step": 1,
+    "type": "PASS",
+    "through": false,
+    "power": 0.08,
+    "confirm_ms": null,
+    "outcome": "CONTROLLED",
+    "detail": "Luciano Juba domina",
+    "duration": 1.2
+   },
+   {
+    "step": 2,
+    "type": "PASS",
+    "through": false,
+    "power": 0.11,
+    "confirm_ms": 70,
+    "outcome": "LOST",
+    "detail": "Interceptação de Alex Telles",
+    "duration": 2.1
+   }
+  ],
+  "score": {
+   "home": 0,
+   "away": 0
+  },
+  "errors": [
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "video": "../docs/evidencias/v7/depois/final-3D-5x5-COUNTER.webm"
+ },
+ {
+  "name": "final-3D-5x5-WING",
+  "exp": "3D",
+  "kind": "WING",
+  "format": "FIVE_A_SIDE",
+  "actions": [
+   {
+    "step": 0,
+    "type": "LOFT",
+    "through": false,
+    "power": 0.02,
+    "confirm_ms": null,
+    "outcome": "state:CLOCK"
+   }
+  ],
+  "score": {
+   "home": 0,
+   "away": 0
+  },
+  "errors": [
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "video": "../docs/evidencias/v7/depois/final-3D-5x5-WING.webm"
+ },
+ {
+  "name": "final-3D-5x5-OVERLOAD",
+  "exp": "3D",
+  "kind": "OVERLOAD",
+  "format": "FIVE_A_SIDE",
+  "actions": [
+   {
+    "step": 0,
+    "type": "PASS",
+    "through": false,
+    "power": 0.08,
+    "confirm_ms": null,
+    "outcome": "CONTROLLED",
+    "detail": "David Duarte domina",
+    "duration": 2.5
+   },
+   {
+    "step": 1,
+    "type": "PASS",
+    "through": true,
+    "power": 0.24,
+    "confirm_ms": null,
+    "outcome": "CONTROLLED",
+    "detail": "Erick Pulga domina",
+    "duration": 2.4
+   },
+   {
+    "step": 2,
+    "type": "SHOT",
+    "through": false,
+    "power": 0.72,
+    "confirm_ms": null,
+    "outcome": "CONTROLLED",
+    "detail": "Jean Lucas domina",
+    "duration": 4.4
+   },
+   {
+    "step": 3,
+    "type": "PASS",
+    "through": false,
+    "power": 0.08,
+    "confirm_ms": 65,
+    "outcome": "CONTROLLED",
+    "detail": "Luciano Juba domina",
+    "duration": 1.6
+   },
+   {
+    "step": 4,
+    "type": "PASS",
+    "through": false,
+    "power": 0.08,
+    "confirm_ms": 66,
+    "outcome": "CONTROLLED",
+    "detail": "Jean Lucas domina",
+    "duration": 1.7
+   },
+   {
+    "step": 5,
+    "type": "SHOT",
+    "through": false,
+    "power": 0.72,
+    "confirm_ms": null,
+    "outcome": "CONTROLLED",
+    "detail": "Erick Pulga domina",
+    "duration": 2
+   },
+   {
+    "step": 6,
+    "type": "SHOT",
+    "through": false,
+    "power": 0.72,
+    "confirm_ms": null,
+    "outcome": "state:CLOCK"
+   }
+  ],
+  "score": {
+   "home": 0,
+   "away": 0
+  },
+  "errors": [
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "video": "../docs/evidencias/v7/depois/final-3D-5x5-OVERLOAD.webm"
+ },
+ {
+  "name": "final-3D-5x5-DRILL_2V1",
+  "exp": "3D",
+  "kind": "DRILL_2V1",
+  "format": "FIVE_A_SIDE",
+  "actions": [
+   {
+    "step": 0,
+    "type": "PASS",
+    "through": false,
+    "power": 0.08,
+    "confirm_ms": null,
+    "outcome": "CONTROLLED",
+    "detail": "Jean Lucas domina",
+    "duration": 1.5
+   },
+   {
+    "step": 1,
+    "type": "PASS",
+    "through": true,
+    "power": 0.12,
+    "confirm_ms": null,
+    "outcome": "state:CLOCK"
+   }
+  ],
+  "score": {
+   "home": 0,
+   "away": 0
+  },
+  "errors": [
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "video": "../docs/evidencias/v7/depois/final-3D-5x5-DRILL_2V1.webm"
+ },
+ {
+  "name": "final-3D-5x5-PENALTY",
+  "exp": "3D",
+  "kind": "PENALTY",
+  "format": "FIVE_A_SIDE",
+  "actions": [
+   {
+    "step": 0,
+    "note": "drag started 6 m from the carrier (carrier under the controls)"
+   },
+   {
+    "step": 0,
+    "type": "SHOT",
+    "through": false,
+    "power": 0.72,
+    "confirm_ms": null,
+    "outcome": "state:CLOCK"
+   }
+  ],
+  "score": {
+   "home": 1,
+   "away": 0
+  },
+  "errors": [
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "video": "../docs/evidencias/v7/depois/final-3D-5x5-PENALTY.webm"
+ }
+]
