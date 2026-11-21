@@ -24,9 +24,9 @@ import "./interactive.css";
 const POLL_MS = 350;
 const TYPE_LABEL: Record<InteractiveActionType, string> = { PASS: "Passe", LOFT: "Lançamento / cruzamento", CARRY: "Conduzir", SHOT: "Chute" };
 const TYPE_ICON: Record<InteractiveActionType | "AUTO", string> = { AUTO: "✦", PASS: "➜", LOFT: "⤴", CARRY: "⇢", SHOT: "◎" };
+/** Only events that do NOT end the move get a toast: the end of a move is explained once, by the outcome banner. */
 const CUE_LABEL: Record<string, [string, string]> = {
-  INTERCEPT: ["Interceptado!", "bad"], TACKLE: ["Desarme!", "bad"], BLOCK: ["Bloqueado!", "bad"], SAVE: ["Defesa do goleiro!", "save"],
-  POST: ["Na trave!", "wood"], BAR: ["No travessão!", "wood"], HEADER: ["Cabeçada!", "good"], CLAIM: ["O goleiro sai e fica com ela", "save"],
+  BLOCK: ["Bloqueado!", "bad"], POST: ["Na trave!", "wood"], BAR: ["No travessão!", "wood"], HEADER: ["Cabeçada!", "good"], DRIBBLE: ["Passou pelo marcador!", "good"],
 };
 const TYPE_KEYS: Record<string, InteractiveActionType | "AUTO"> = { "1": "AUTO", "2": "PASS", "3": "LOFT", "4": "CARRY", "5": "SHOT" };
 const NO_OVERLAY: Overlay = { aim: null, aimValid: true, carrierIndex: -1, receivers: new Set(), yourTurn: true, pending: null, now: 0, label: false, quality: "high" };
@@ -172,7 +172,7 @@ export function InteractiveMatch({ roomId, clubCode, clubs, source: given, onExi
       const a = aimRef.current;
       const overlay: Overlay = {
         aim: a, aimValid: Boolean(a && aimValid(current, a)), carrierIndex, receivers: receiversRef.current,
-        yourTurn: yourTurnRef.current, pending: pendingRef.current, now, label: !a && !pendingRef.current && (current.state === "DECISION" || Boolean(scene?.playing)), quality: "high",
+        yourTurn: yourTurnRef.current, pending: pendingRef.current, now, label: !a && !pendingRef.current && current.state === "DECISION", quality: "high",
       };
       // Sounds and one-shot effects from the official cues crossed since the last frame.
       const step = scene?.step ?? null;
@@ -185,7 +185,7 @@ export function InteractiveMatch({ roomId, clubCode, clubs, source: given, onExi
           else if (cue.kind === "SAVE") matchSound.save();
           else if (cue.kind === "TACKLE" || cue.kind === "INTERCEPT" || cue.kind === "BLOCK") matchSound.tackle();
           else if (cue.kind === "HEADER") matchSound.pass();
-          const label = CUE_LABEL[cue.kind];
+          const label = cue.kind === "SAVE" && !cue.hold ? ["Defesa! Bola viva", "save"] as [string, string] : CUE_LABEL[cue.kind];
           if (label) setToast({ text: label[0], tone: label[1], id: Date.now() });
           else if (cue.kind === "GOAL") {
             matchSound.goal();
@@ -399,7 +399,8 @@ export function InteractiveMatch({ roomId, clubCode, clubs, source: given, onExi
       {r3dStatus === "loading" && <div className="im-loading3d" role="status">Preparando o estádio 3D…</div>}
       {celebration && <button type="button" className="im-goal" onClick={() => setCelebration(null)} aria-label="Pular comemoração"><b>GOL!</b><span>{celebration.name} · {club(celebration.club).name}</span><small>toque para pular</small></button>}
 
-      {!spectator && <nav className="im-actions" role="radiogroup" aria-label="Tipo de jogada">
+      {aim && <div className="im-power" aria-live="off">{Math.round(aim.power * 100)}%</div>}
+      {!spectator && <nav className={`im-actions ${yourTurn ? "" : "is-idle"}`} role="radiogroup" aria-label="Tipo de jogada" aria-disabled={!yourTurn}>
         {(["AUTO", "PASS", "LOFT", "CARRY", "SHOT"] as const).map((key, index) => <button type="button" key={key} role="radio" aria-checked={mode === key} title={`${key === "AUTO" ? "Automático" : TYPE_LABEL[key]} (tecla ${index + 1})`}
           className={`${mode === key ? "is-active" : ""} ${aim?.type === key && mode === "AUTO" ? "is-auto" : ""}`} onClick={() => setMode(key)} disabled={opp?.kind === "PENALTY" && key !== "SHOT" && key !== "AUTO"}>
           <span aria-hidden="true">{TYPE_ICON[key]}</span><em>{key === "AUTO" ? "Auto" : key === "LOFT" ? "Lançar" : TYPE_LABEL[key]}</em><kbd>{index + 1}</kbd></button>)}

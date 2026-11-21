@@ -63,7 +63,7 @@ SHOT_LIFT = (0.5, 9.0)        # vertical speed of a shot (m/s) = a + b * max(0, 
 # Players
 PLAYER_BASE_SPEED = 5.6       # top speed = base + pace/100 * PLAYER_PACE_SPEED (m/s)
 PLAYER_PACE_SPEED = 3.4
-PLAYER_ACCEL = 7.5            # m/s²
+PLAYER_ACCEL = (6.0, 3.5)     # m/s² = a + b * pace/100 (fast players also get going sooner)
 CARRY_SPEED = (0.93, 0.12)    # fraction of top speed while carrying = a + b * dribbling/100
 CARRY_ACCEL = 11.0            # m/s² with the ball (short bursts, sharp direction changes)
 CARRY_TOUCH = (0.95, 0.55)    # ball ahead of the foot = a - b * dribbling/100 (m): poor dribblers push it further
@@ -368,7 +368,8 @@ class Pitch:
     Local frame: the attacking side attacks towards x = L. ``HighlightMatch`` turns it into
     the real pitch (each club attacks its own end, switching at half-time) exactly once."""
 
-    def __init__(self, bodies: list[Body], ball: Ball, mode: str, rng: random.Random, pressure_boost: float = 0.0) -> None:
+    def __init__(self, bodies: list[Body], ball: Ball, mode: str, rng: random.Random, pressure_boost: float = 0.0,
+                 tactics: dict[str, str] | None = None) -> None:
         cfg = HL_PITCH[mode]
         self.L, self.W = cfg["length"], cfg["width"]
         self.goal = cfg["goal"]
@@ -384,6 +385,13 @@ class Pitch:
         self.keeper_done = False
         self.ball0 = (ball.x, ball.y)
         self.cover: str | None = None
+        self.passer: str | None = None       # give-and-go: the passer keeps running into space
+        # The clubs' saved tactics shape the movement (reused, never duplicated):
+        # attacking style (runs), defending mentality (depth/compactness) and pressure (reaction).
+        t = tactics or {}
+        self.style = t.get("style", "POSSESSION")
+        self.def_mentality = t.get("def_mentality", "BALANCED")
+        self.def_pressure = t.get("def_pressure", "MEDIUM")
         self.cues: list[dict[str, object]] = []
 
     def cue(self, t: float, kind: str, body: Body | None = None, **extra: object) -> None:
@@ -407,7 +415,9 @@ class Pitch:
         return round(_clamp(0.9 * angle * math.exp(-d * scale / 22), 0.01, 0.85), 3)
 
     # ------------------------------------------------------------ movement AI
-    def _steer(self, body: Body, tx: float, ty: float, intensity: float = 1.0, accel: float = PLAYER_ACCEL) -> None:
+    def _steer(self, body: Body, tx: float, ty: float, intensity: float = 1.0, accel: float | None = None) -> None:
+        if accel is None:
+            accel = PLAYER_ACCEL[0] + PLAYER_ACCEL[1] * body.pace / 100
         tx, ty = _clamp(tx, 0.3, self.L - 0.2), _clamp(ty, 0.3, self.W - 0.3)
         dx, dy = tx - body.x, ty - body.y
         d = math.hypot(dx, dy)
@@ -460,20 +470,32 @@ class Pitch:
 
     def _support(self, body: Body, t: float) -> tuple[float, float, float]:
         """Off-the-ball runs of the attack: the striker on the last defender's shoulder and
-        attacking depth, wingers holding width, midfielders showing for the ball in a free lane."""
+        attacking depth, wingers holding width, midfielders showing for the ball in a free lane;
+        the player who just passed goes again (give-and-go). The team's style shapes all of it."""
         b, s, L, W = self.ball, self.s, self.L, self.W
+        if body.id == self.passer:
+            # Pass and move: into the space ahead, on the side away from the nearest defender.
+            side = 1 if body.y < W / 2 else -1
+            near = min((d for d in self.defenders if d.role != "GK"), key=lambda d: _dist(d.x, d.y, body.x, body.y), default=None)
+            if near is not None:
+                side = 1 if near.y < body.y else -1
+            tx = min(body.x + 8 * s, L - 6 * s)            # keeps going: the target stays ahead of him
+            return tx, _clamp(body.y + side * 3 * s, 2 * s, W - 2 * s), 1.0
+        depth_bonus = 3.0 * s if self.style == "COUNTER" else 1.5 * s if self.style == "DIRECT" else 0.0
+        show = (5, 8) if self.style in ("POSSESSION", "SHORT_BUILDUP") else (7, 11)
         line = max((d.x for d in self.defenders if d.role != "GK"), default=L - 12 * s)
         progress = b.x - self.ball0[0]
         wide = min(body.ay, W - body.ay) < W * 0.2
         if body.role == "ST":
             depth = min(1.0, t / 2.0)
-            tx = _clamp(max(body.ax + progress * 0.5, line - 1.5 * s + 2.5 * s * depth), body.ax, L - 5 * s)
+            tx = _clamp(max(body.ax + progress * 0.5, line - 1.5 * s + 2.5 * s * depth + depth_bonus), body.ax, L - 5 * s)
             base_y = body.ay + (b.y - body.ay) * 0.15
             ty = max((base_y + k * 4 * s for k in (-1, 0, 1)), key=lambda y: self._openness(tx, y) - abs(y - base_y) * 0.1)
-            return tx, ty, 0.95
+            return tx, ty, 1.0 if self.style in ("COUNTER", "DIRECT") else 0.85
         if wide:
-            tx = _clamp(max(body.ax, b.x + 3 * s), body.ax, L - 7 * s)
-            ty = body.ay + (2 * s if body.ay > W / 2 else -2 * s) * 0.3
+            tx = _clamp(max(body.ax, b.x + (6 if self.style == "WIDE" else 3) * s), body.ax, L - 7 * s)
+            hug = 0.9 if self.style == "WIDE" else 0.3
+            ty = body.ay + (2 * s if body.ay > W / 2 else -2 * s) * hug
             return tx, ty, 0.85
         near = _dist(body.x, body.y, b.x, b.y) < 22 * s
         tx = body.ax + max(0.0, progress) * 0.75
@@ -481,7 +503,7 @@ class Pitch:
         if near:
             # Show for the ball: a short, open angle (a passing line), never on top of the carrier.
             side = 1 if body.ay >= b.y else -1
-            candidates = [(b.x + dx * s, b.y + side * dy * s) for dx in (-6, -2, 3) for dy in (7, 11)]
+            candidates = [(b.x + dx * s, b.y + side * dy * s) for dx in (-6, -2, 3) for dy in show]
             candidates.append((tx, ty))
             tx, ty = max(candidates, key=lambda c: self._openness(*c) - _dist(c[0], c[1], body.x, body.y) * 0.12)
         return tx, ty, 0.8
@@ -500,6 +522,11 @@ class Pitch:
             tx = body.ax + (b.x - body.ax) * 0.3
             ty = body.ay + (b.y - body.ay) * 0.4
             intensity = 0.75
+        if self.def_mentality in ("DEFENSIVE", "VERY_DEFENSIVE"):
+            tx += (3.0 if self.def_mentality == "DEFENSIVE" else 5.0) * s   # deeper block
+            ty = gy + (ty - gy) * 0.85                                      # more compact
+        elif self.def_mentality in ("ATTACKING", "VERY_ATTACKING"):
+            tx -= 2.0 * s
         if body.role == "DF" and L - b.x < 30 * s:
             tx = max(tx, L - 15 * s)              # protect the box
             ty = gy + (ty - gy) * 0.8
@@ -524,7 +551,8 @@ class Pitch:
                 if not self.shot_live:
                     self._keeper_position(body)
                 continue
-            reaction = DEFENCE_REACTION[0] - body.defending / 100 * DEFENCE_REACTION[1] - self.boost
+            reaction = DEFENCE_REACTION[0] - body.defending / 100 * DEFENCE_REACTION[1] - self.boost \
+                + {"HIGH": -0.06, "LOW": 0.06}.get(self.def_pressure, 0.0)
             if t < reaction:
                 continue
             if body.id in chasers:
@@ -633,12 +661,14 @@ class Pitch:
         b.x, b.y = carrier.x + math.cos(angle) * 0.5, carrier.y + math.sin(angle) * 0.5
         b.vx, b.vy = math.cos(angle) * v0, math.sin(angle) * v0
         self.cue(0.0, "KICK", carrier, action=action, power=round(power, 2))
+        if action in ("PASS", "LOFT"):
+            self.passer = carrier.id
         if not shot and intended is None:
             intended = min((a for a in self.attackers if a is not carrier and a.role != "GK"),
                            key=lambda a: _dist(a.x, a.y, tx, ty), default=None)
         marks = self.assignments()
         ranked = sorted((d for d in self.defenders if d.role != "GK"), key=lambda d: self._time_to_ball(d))
-        chasers = {d.id for d in ranked[:1]}           # one presses the ball...
+        chasers = {d.id for d in ranked[:2 if self.def_pressure == "HIGH" else 1]}   # one presses the ball (two under high pressure)...
         self.cover = ranked[1].id if len(ranked) > 1 else None   # ...one covers; the rest keep their zones
         tried: set[str] = set()
         keeper_reacts = KEEPER_REACTION[0] - (self.keeper.keeping / 100 * KEEPER_REACTION[1] if self.keeper else 0) - self.boost * 0.3
@@ -1372,6 +1402,7 @@ class HighlightMatch:
         self.opportunity = {"id": f"{self.match_id}:O{int(row['index']) + 1:02d}", "index": int(row["index"]), "kind": kind,
                             "attacking": club, "defending": self.clubs[1 - side], "minute": self.minute, "status": "LIVE",
                             "right": self.attacks_right(side),
+                            "tactics": {"style": attack.tactics.style, "def_mentality": defence.tactics.mentality, "def_pressure": defence.tactics.pressure},
                             "bodies": [asdict(b) for b in bodies], "ball": asdict(ball), "carrier": carrier,
                             "actions": 0, "last": None, "opened_at": at, "assist_candidate": None, "result": None}
         self._event("CHANCE", club, self.minute, outcome=kind, reveal=at, extra={"label": KIND_LABEL.get(kind, kind)})
@@ -1482,7 +1513,7 @@ class HighlightMatch:
         carrier = next(b for b in bodies if b.id == opp["carrier"])
         rng = random.Random(f"{self.seed}:act:{opp['index']}:{opp['actions']}")
         boost = min(0.12, 0.02 * int(opp["actions"]))  # the defence tightens as the move drags on
-        pitch = Pitch(bodies, ball, self.mode, rng, boost)
+        pitch = Pitch(bodies, ball, self.mode, rng, boost, opp.get("tactics"))
         kind = str(choice["type"])
         result = pitch.execute(carrier, kind, float(choice["x"]), float(choice["y"]), float(choice["power"]), None)
         club, rival = str(opp["attacking"]), str(opp["defending"])

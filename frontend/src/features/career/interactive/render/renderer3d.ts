@@ -5,6 +5,7 @@ import { predictTarget, type Aim } from "../gesture";
 import { VISUAL, hashOf } from "./config";
 import type { Scene, ScenePlayer } from "./presentation";
 import type { Kit, Overlay } from "./renderer2d";
+import { createHuman, type Detail } from "./human";
 
 /**
  * 3D Imersivo renderer (Three.js, loaded on demand). Original low-poly "blocky" art:
@@ -25,9 +26,10 @@ const PLAYER_HEIGHT = 1.85;       // metres (the model is built at real scale)
 const BALL_RADIUS = 0.15;         // visual: 1.35x the physics ball (0.11 m) for legibility
 const CROSSBAR = 2.44;            // same height the physics uses for lofted balls
 
-type Limb = { upper: THREE.Group; lower: THREE.Group };
+type Limb = { upper: THREE.Object3D; lower: THREE.Object3D };
+type Joint = THREE.Object3D;
 type Rig = {
-  root: THREE.Group; body: THREE.Group; chest: THREE.Group; head: THREE.Group; torso: THREE.Mesh;
+  root: THREE.Group; body: THREE.Group; chest: Joint; head: Joint; torso: THREE.Mesh;
   armL: Limb; armR: Limb; legL: Limb; legR: Limb; ring: THREE.Mesh; key: string;
 };
 
@@ -120,10 +122,10 @@ function limb(parent: THREE.Object3D, x: number, y: number, upperColor: string, 
 function buildRig(p: ScenePlayer, kit: Kit, shadows: boolean): Rig {
   const look = hashOf(p.id);
   const skin = VISUAL.skin[look % VISUAL.skin.length];
-  const hair = VISUAL.hair[(look >> 4) % VISUAL.hair.length];
-  const boots = VISUAL.boots[(look >> 8) % VISUAL.boots.length];
-  const style = (look >> 12) % 5;
-  const build = 0.94 + ((look >> 16) % 13) / 100;     // cosmetic body variation (never physics)
+  const hair = VISUAL.hair[(look >>> 4) % VISUAL.hair.length];
+  const boots = VISUAL.boots[(look >>> 8) % VISUAL.boots.length];
+  const style = (look >>> 12) % 5;
+  const build = 0.94 + ((look >>> 16) % 13) / 100;     // cosmetic body variation (never physics)
   const wear = p.keeper ? (kit.gk ?? { shirt: VISUAL.keeperKits[p.team], shorts: "#2a2a33", socks: VISUAL.keeperKits[p.team], trim: "#ffffff" }) : kit;
   const shirt = wear.shirt, shorts = wear.shorts, socks = wear.socks;
   const gloves = p.keeper ? "#f2f2f2" : skin;
@@ -161,12 +163,77 @@ function buildRig(p: ScenePlayer, kit: Kit, shadows: boolean): Rig {
   return { root, body, chest, head, torso, armL, armR, legL, legR, ring, key: `${p.id}|${shirt}|${kit.shorts}|${kit.pattern ?? ""}` };
 }
 
+/** Number on the back of the semi-realistic shirt (transparent decal on the chest bone). */
+const numberDecals = new Map<string, THREE.MeshBasicMaterial>();
+function numberDecal(number: number, ink: string): THREE.Mesh {
+  const key = `${number}|${ink}`;
+  let m = numberDecals.get(key);
+  if (!m) {
+    const tex = canvasTexture(128, 128, (ctx) => {
+      ctx.clearRect(0, 0, 128, 128);
+      ctx.font = "900 92px 'Barlow Condensed', 'Arial Narrow', sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.lineWidth = 6; ctx.strokeStyle = ink.toLowerCase() === "#ffffff" ? "rgba(0,0,0,0.45)" : "rgba(255,255,255,0.6)";
+      ctx.strokeText(String(number || ""), 64, 70); ctx.fillStyle = ink; ctx.fillText(String(number || ""), 64, 70);
+    });
+    m = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
+    numberDecals.set(key, m);
+  }
+  const plane = new THREE.Mesh(new THREE.PlaneGeometry(0.17, 0.17), m);
+  return plane;
+}
+
+/** Semi-realistic athlete (skinned mesh + humanoid skeleton, see human.ts) wired to the same pose system. */
+function buildHumanRig(p: ScenePlayer, kit: Kit, shadows: boolean, detail: Detail): Rig {
+  const look = hashOf(p.id);
+  const wear = p.keeper ? (kit.gk ?? { shirt: VISUAL.keeperKits[p.team], shorts: "#2a2a33", socks: VISUAL.keeperKits[p.team], trim: "#ffffff" }) : kit;
+  const skin = VISUAL.skin[look % VISUAL.skin.length];
+  const human = createHuman({
+    skin, hair: VISUAL.hair[(look >>> 4) % VISUAL.hair.length], shirt: wear.shirt, trim: wear.trim, shorts: wear.shorts, socks: wear.socks,
+    boots: VISUAL.boots[(look >>> 8) % VISUAL.boots.length], hands: p.keeper ? "#f1f1f1" : skin, pattern: wear.pattern,
+  }, (look >>> 12) % 4, detail, shadows);
+  const root = new THREE.Group();
+  const body = new THREE.Group(); root.add(body);
+  const build = 0.95 + ((look >>> 16) % 11) / 100;      // cosmetic only
+  body.scale.set(build, 1, build);
+  body.add(human.mesh);
+  const decal = numberDecal(p.number, wear.number ?? "#ffffff");
+  decal.position.set(0, 0.075, -0.118); decal.rotation.y = Math.PI;
+  human.bones.chest.add(decal);
+  const b = human.bones;
+  const ring = new THREE.Mesh(geo.ring, new THREE.MeshBasicMaterial({ color: 0xc6f24e, transparent: true, opacity: 0.9, depthWrite: false }));
+  ring.position.y = 0.03; ring.scale.setScalar(0.8); ring.visible = false; root.add(ring);
+  return { root, body, chest: b.chest, head: b.head, torso: decal, armL: { upper: b.upperArmL, lower: b.foreArmL }, armR: { upper: b.upperArmR, lower: b.foreArmR },
+    legL: { upper: b.thighL, lower: b.shinL }, legR: { upper: b.thighR, lower: b.shinR }, ring, key: `H|${p.id}|${wear.shirt}|${kit.shorts}|${kit.pattern ?? ""}` };
+}
+
+/**
+ * Animation blending: the pose system gives the TARGET pose of this frame; joints move
+ * towards it with an exponential crossfade (no snapping between run, kick, save…).
+ */
+const blendState = new WeakMap<Rig, number[]>();
+function blendPose(rig: Rig, p: ScenePlayer, now: number, dt: number) {
+  const joints: THREE.Object3D[] = [rig.body, rig.chest, rig.head, rig.armL.upper, rig.armL.lower, rig.armR.upper, rig.armR.lower, rig.legL.upper, rig.legL.lower, rig.legR.upper, rig.legR.lower];
+  const prev = blendState.get(rig);
+  poseRig(rig, p, now);
+  const next: number[] = [];
+  for (const j of joints) next.push(j.rotation.x, j.rotation.y, j.rotation.z);
+  next.push(rig.body.position.x, rig.body.position.y, rig.body.position.z);
+  if (prev) {
+    const k = 1 - Math.exp(-dt * (p.pose === "run" || p.pose === "idle" ? 26 : 18));
+    for (let i = 0; i < next.length; i += 1) next[i] = prev[i] + (next[i] - prev[i]) * k;
+    joints.forEach((j, i) => j.rotation.set(next[i * 3], next[i * 3 + 1], next[i * 3 + 2]));
+    const o = joints.length * 3;
+    rig.body.position.set(next[o], next[o + 1], next[o + 2]);
+  }
+  blendState.set(rig, next);
+}
+
 function poseRig(rig: Rig, p: ScenePlayer, now: number) {
   const look = hashOf(p.id);
   const run = Math.min(1, p.speed / 7.5);
-  const phase = (p.stride / VISUAL.strideMetres) * Math.PI * 2;
+  const phase = p.stride * Math.PI * 2;
   const moving = p.pose === "run";
-  const swing = moving ? Math.sin(phase) * (0.3 + run * 0.7) : 0;
+  const swing = moving ? Math.sin(phase) * (0.25 + run * 0.5) : 0;
   const b = rig.body, c = rig.chest;
   b.position.set(0, 0, 0); b.rotation.set(0, 0, 0); c.rotation.set(0, 0, 0);
   rig.head.rotation.set(0, 0, 0);
@@ -179,7 +246,9 @@ function poseRig(rig: Rig, p: ScenePlayer, now: number) {
   set(rig.armL, swing * 0.85, -0.35 - run * 0.9, 0.1);
   set(rig.armR, -swing * 0.85, -0.35 - run * 0.9, -0.1);
   // Lean into the run, hips sway, shoulders counter-rotate, a bob per stride; idle breathing.
-  b.rotation.x = run * 0.22;
+  // Lean comes from the torso (legs stay under the hips), hips sway, shoulders counter-rotate.
+  b.rotation.x = run * 0.04;
+  c.rotation.x = run * 0.28;
   b.rotation.y = swing * 0.12;
   c.rotation.y = -swing * 0.22;
   b.position.y = moving ? Math.abs(Math.sin(phase)) * 0.07 * run - 0.03 * run : Math.sin(now * 2 + look) * 0.008;
@@ -249,9 +318,7 @@ export class Renderer3D {
   private nets: { lines: THREE.LineSegments; base: Float32Array; end: 0 | 1 }[] = [];
   private crowd: THREE.Group | null = null;
   private aimGroup = new THREE.Group();
-  private arrow: THREE.Mesh;
   private trajectory: THREE.Line;
-  private sectorDots: THREE.InstancedMesh;
   private target: THREE.Mesh;
   private camPos = new THREE.Vector3(0, 60, 60);
   private camLook = new THREE.Vector3();
@@ -266,6 +333,8 @@ export class Renderer3D {
   private lastGoal = "";
   quality: Quality;
   cameraMode: CameraMode = "auto";
+  /** "human" (semi-realistic, default) or "voxel" (previous blocky style, kept as a fallback/comparison). */
+  characterStyle: "human" | "voxel" = (() => { try { return localStorage.getItem("bm_3d_style") === "voxel" ? "voxel" : "human"; } catch { return "human"; } })();
   lost = false;
   fps = 60;
   private frameTimes: number[] = [];
@@ -280,8 +349,8 @@ export class Renderer3D {
     this.canvas.addEventListener("webglcontextlost", (event) => { event.preventDefault(); this.lost = true; });
     this.scene.background = new THREE.Color(0x9fd3ff);
     this.scene.fog = new THREE.Fog(0x9fd3ff, 160, 420);
-    this.scene.add(new THREE.HemisphereLight(0xf2f8ff, 0x4d7a32, 1.05));
-    this.sun = new THREE.DirectionalLight(0xfff1d6, 1.55);
+    this.scene.add(new THREE.HemisphereLight(0xeef6ff, 0x46703a, 1.25));
+    this.sun = new THREE.DirectionalLight(0xffefd2, 1.9);
     this.sun.position.set(-40, 80, 30);
     this.scene.add(this.sun, this.sun.target);
     this.applyQuality();
@@ -300,17 +369,12 @@ export class Renderer3D {
     this.ballShadow = new THREE.Mesh(geo.disc, new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3, depthWrite: false }));
     this.ballShadow.scale.setScalar(BALL_RADIUS);
     this.scene.add(this.ball, this.ballShadow);
-    // Aim: a thick 3D arrow lying on the grass, dashed trajectory, sector dots and a target ring.
-    const shape = new THREE.Shape();
-    shape.moveTo(-0.32, 0); shape.lineTo(0.32, 0); shape.lineTo(0.32, 0.72); shape.lineTo(0.75, 0.72); shape.lineTo(0, 1); shape.lineTo(-0.75, 0.72); shape.lineTo(-0.32, 0.72); shape.closePath();
-    const arrowGeo = new THREE.ExtrudeGeometry(shape, { depth: 0.22, bevelEnabled: true, bevelThickness: 0.05, bevelSize: 0.05, bevelSegments: 1 });
-    arrowGeo.rotateX(-Math.PI / 2); // lies on the ground, pointing to -Z... reoriented per frame
-    this.arrow = new THREE.Mesh(arrowGeo, new THREE.MeshLambertMaterial({ color: 0xffd31a, emissive: 0x5a4300 }));
-    this.arrow.castShadow = true;
-    this.trajectory = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineDashedMaterial({ color: 0xffffff, dashSize: 0.9, gapSize: 0.6, transparent: true, opacity: 0.95 }));
-    this.sectorDots = new THREE.InstancedMesh(geo.box, new THREE.MeshBasicMaterial({ color: 0xe6ff8c }), 80);
-    this.target = new THREE.Mesh(geo.ring, new THREE.MeshBasicMaterial({ color: 0xffd31a, transparent: true, opacity: 0.9, depthWrite: false }));
-    this.aimGroup.add(this.arrow, this.trajectory, this.sectorDots, this.target);
+    // Aim: one dashed line and a small dot at the predicted destination (nothing else).
+    this.trajectory = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineDashedMaterial({ color: 0xffffff, dashSize: 0.7, gapSize: 0.55, transparent: true, opacity: 0.95, depthTest: false }));
+    this.trajectory.renderOrder = 5;
+    this.target = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 8), new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false }));
+    this.target.renderOrder = 6;
+    this.aimGroup.add(this.trajectory, this.target);
     this.aimGroup.visible = false;
   }
 
@@ -393,12 +457,26 @@ export class Renderer3D {
       const span = Math.hypot(fullL, fullW) * pxm;
       const n = Math.ceil(span / cell);
       for (let i = -n; i < n; i += 1) for (let j = -n; j < n; j += 1) {
-        ctx.fillStyle = Math.abs(i + j) % 2 === 0 ? "#5cb84a" : "#52ab42";
+        ctx.fillStyle = Math.abs(i + j) % 2 === 0 ? "#56b046" : "#54ad44";   // barely-there checker
         ctx.fillRect(i * cell, j * cell, cell + 0.5, cell + 0.5);
       }
       ctx.restore();
       // Soft mowing stripes along the length over the checker, then fine grass grain.
-      for (let i = 0; i < 16; i += 1) { ctx.fillStyle = i % 2 ? "rgba(255,255,255,0.035)" : "rgba(0,0,0,0.03)"; ctx.fillRect(X((L / 16) * i), 0, (L / 16) * pxm, fullW * pxm); }
+      // Broadcast-style mowing stripes along the length, with a soft gradient inside each stripe.
+      for (let i = 0; i < 18; i += 1) {
+        const x0 = X((L / 18) * i), w = (L / 18) * pxm;
+        const grad = ctx.createLinearGradient(x0, 0, x0 + w, 0);
+        const tone = i % 2 ? "rgba(255,255,240,0.075)" : "rgba(0,40,0,0.06)";
+        grad.addColorStop(0, tone); grad.addColorStop(0.5, tone); grad.addColorStop(1, i % 2 ? "rgba(255,255,240,0.05)" : "rgba(0,40,0,0.04)");
+        ctx.fillStyle = grad; ctx.fillRect(x0, Y(0), w, W * pxm);
+      }
+      // Large, soft colour patches (natural variation, not a pattern).
+      for (let i = 0; i < 40; i += 1) {
+        const cx = X(((i * 37) % 100) / 100 * L), cy = Y(((i * 61) % 100) / 100 * W), r = (6 + (i % 5) * 3) * pxm;
+        const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+        g.addColorStop(0, i % 3 ? "rgba(70,140,40,0.06)" : "rgba(150,200,80,0.05)"); g.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.fillStyle = g; ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+      }
       let seed = 11; const rand = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
       for (let i = 0; i < res * 6; i += 1) { ctx.fillStyle = rand() < 0.5 ? "rgba(255,255,255,0.035)" : "rgba(0,0,0,0.05)"; ctx.fillRect(rand() * res, rand() * fullW * pxm, 2, 3); }
       // Surround (darker) outside the touchlines.
@@ -555,11 +633,12 @@ export class Renderer3D {
     if (scene) {
       for (const p of scene.players) {
         const kit = p.team === "A" ? kits.attack : kits.defend;
-        const key = `${p.id}|${p.keeper ? kit.gk?.shirt ?? VISUAL.keeperKits[p.team] : kit.shirt}|${kit.shorts}|${kit.pattern ?? ""}`;
+        const style = this.characterStyle === "voxel" ? "" : "H|";
+        const key = `${style}${p.id}|${p.keeper ? kit.gk?.shirt ?? VISUAL.keeperKits[p.team] : kit.shirt}|${kit.shorts}|${kit.pattern ?? ""}`;
         let rig = this.rigs.get(p.id);
         if (!rig || rig.key !== key) {
           if (rig) this.scene.remove(rig.root);
-          rig = buildRig(p, kit, SHADOW[this.quality] > 0);
+          rig = this.characterStyle === "voxel" ? buildRig(p, kit, SHADOW[this.quality] > 0) : buildHumanRig(p, kit, SHADOW[this.quality] > 0, this.quality as Detail);
           this.rigs.set(p.id, rig);
           this.scene.add(rig.root);
         }
@@ -570,11 +649,10 @@ export class Renderer3D {
         const targetRy = Math.atan2(fx, fz);
         let diff = targetRy - rig.root.rotation.y; diff = Math.atan2(Math.sin(diff), Math.cos(diff));
         rig.root.rotation.y += diff * Math.min(1, dt * 12);   // smooth turning, no snapping
-        poseRig(rig, p, now);
-        const receiver = overlay.receivers.has(p.id);
-        rig.ring.visible = p.carrier || receiver;
-        (rig.ring.material as THREE.MeshBasicMaterial).color.set(p.carrier ? (overlay.yourTurn ? 0xc6f24e : 0xffffff) : 0x7cc8ff);
-        rig.ring.scale.setScalar(p.carrier ? 1.25 + Math.sin(now * 6) * 0.06 : 1);
+        blendPose(rig, p, now, dt);
+        rig.ring.visible = p.carrier && view.state === "DECISION";
+        (rig.ring.material as THREE.MeshBasicMaterial).color.set(overlay.yourTurn ? 0xc6f24e : 0xffffff);
+        rig.ring.scale.setScalar(0.85 + Math.sin(now * 6) * 0.04);
       }
       const b = scene.ball;
       this.world(b.x, b.y, BALL_RADIUS + b.z, this.ball.position);
@@ -607,7 +685,7 @@ export class Renderer3D {
     this.updateAim(view, scene, overlay, now);
     this.updateCamera(view, scene, overlay, dt, now);
     this.renderer.render(this.scene, this.camera);
-    this.drawOverlay(view, scene, overlay);
+    this.drawOverlay(scene, overlay);
     // Performance probe (used for adaptive quality / 2D fallback).
     this.frameTimes.push(performance.now() - t0 + 0);
     if (this.frameTimes.length > 90) this.frameTimes.shift();
@@ -628,53 +706,30 @@ export class Renderer3D {
     return c ? [c.x, c.y] : null;
   }
 
+  /** Minimal aim: one dashed line from the ball (on the grass, or along the real loft apex) and a small dot. */
   private updateAim(view: InteractiveView, scene: Scene | null, overlay: Overlay, now: number) {
-    const aim = overlay.aim ?? overlay.pending;
+    const aim = overlay.aim;
     const from = this.carrierPos(scene, overlay);
     if (!aim || !from) { this.aimGroup.visible = false; return; }
     this.aimGroup.visible = true;
-    const valid = overlay.aim ? overlay.aimValid : true;
-    const angle = Math.atan2(aim.uy * view.pitch.width, aim.ux * view.pitch.length);
-    const dirX = Math.cos(angle), dirZ = Math.sin(angle);
+    const valid = overlay.aimValid;
     const ballP = this.world(from[0], from[1]);
-    // Arrow: starts at the ball, length grows with power.
-    const length = 2 + aim.power * 5.5;
-    this.arrow.scale.set(1.4, 1, length);
-    this.arrow.position.set(ballP.x + dirX * 0.7, 0.06, ballP.z + dirZ * 0.7);
-    this.arrow.rotation.set(0, Math.atan2(dirX, dirZ) + Math.PI, 0);
-    (this.arrow.material as THREE.MeshLambertMaterial).color.set(valid ? 0xffd31a : 0xff4d4f);
-    (this.arrow.material as THREE.MeshLambertMaterial).opacity = overlay.pending && !overlay.aim ? 0.5 : 1;
-    // Predicted path (the same forecast the 2D draws); a lofted ball rises to the physics apex.
     const target = predictTarget(view, from, aim);
     const tp = this.world(target[0], target[1]);
     const pts: THREE.Vector3[] = [];
     for (let i = 0; i <= 32; i += 1) {
       const k = i / 32;
-      const h = aim.type === "LOFT" ? 4 * 3.2 * k * (1 - k) : aim.type === "SHOT" ? 0.3 : 0.15;
-      pts.push(new THREE.Vector3(ballP.x + (tp.x - ballP.x) * k, h + 0.1, ballP.z + (tp.z - ballP.z) * k));
+      const h = aim.type === "LOFT" ? 4 * 3.2 * k * (1 - k) : 0;
+      pts.push(new THREE.Vector3(ballP.x + (tp.x - ballP.x) * k, h + 0.04, ballP.z + (tp.z - ballP.z) * k));
     }
     this.trajectory.geometry.dispose();
     this.trajectory.geometry = new THREE.BufferGeometry().setFromPoints(pts);
     this.trajectory.computeLineDistances();
-    (this.trajectory.material as THREE.LineDashedMaterial).color.set(valid ? VISUAL.aim[aim.type] : VISUAL.aim.invalid);
-    this.target.position.set(tp.x, 0.05, tp.z);
-    this.target.scale.setScalar(1.3 + Math.sin(now * 7) * 0.1);
-    // Dotted assistance sector: the real angular window used by the engine to find a receiver.
-    const sector = view.physics.assist_angle ?? 0.24;
-    const reach = Math.hypot(tp.x - ballP.x, tp.z - ballP.z);
-    const dummy = new THREE.Object3D();
-    let n = 0;
-    if ((aim.type === "PASS" || aim.type === "LOFT") && valid) {
-      for (const s of [-1, 1]) for (let i = 1; i <= 40 && n < 80; i += 1) {
-        const d = (reach * i) / 40;
-        const a = angle + s * sector;
-        dummy.position.set(ballP.x + Math.cos(a) * d, 0.04, ballP.z + Math.sin(a) * d);
-        dummy.scale.set(0.25, 0.04, 0.25); dummy.updateMatrix();
-        this.sectorDots.setMatrixAt(n, dummy.matrix); n += 1;
-      }
-    }
-    this.sectorDots.count = n;
-    this.sectorDots.instanceMatrix.needsUpdate = true;
+    const color = valid ? 0xffffff : 0xff6e6e;
+    (this.trajectory.material as THREE.LineDashedMaterial).color.set(color);
+    (this.target.material as THREE.MeshBasicMaterial).color.set(color);
+    this.target.position.set(tp.x, 0.08, tp.z);
+    void now;
   }
 
   private updateCamera(view: InteractiveView, scene: Scene | null, overlay: Overlay, dt: number, now: number) {
@@ -755,28 +810,13 @@ export class Renderer3D {
     return [((v.x + 1) / 2) * w, ((1 - v.y) / 2) * hh];
   }
 
-  private drawOverlay(view: InteractiveView, scene: Scene | null, overlay: Overlay) {
+  private drawOverlay(scene: Scene | null, overlay: Overlay) {
     const ctx = this.overlay.getContext("2d");
     if (!ctx) return;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, this.overlay.width, this.overlay.height);
     if (!scene) return;
     const dpr = this.overlay.width / Math.max(1, this.overlay.getBoundingClientRect().width || this.overlay.width);
-    const aim = overlay.aim;
-    const from = this.carrierPos(scene, overlay);
-    if (aim && from) {
-      // Power % above the arrow head, live while dragging.
-      const angle = Math.atan2(aim.uy * view.pitch.width, aim.ux * view.pitch.length);
-      const length = 2 + aim.power * 5.5;
-      const L = view.pitch.length, W = view.pitch.width;
-      const hx = from[0] + (Math.cos(angle) * (length + 1.6)) / L, hy = from[1] + (Math.sin(angle) * (length + 1.6)) / W;
-      const s = this.project(hx, hy, 1.2);
-      if (s) {
-        ctx.font = `900 ${Math.round(26 * dpr)}px "Barlow Condensed", Inter, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-        ctx.lineWidth = 5 * dpr; ctx.strokeStyle = "rgba(60,40,0,0.75)"; ctx.strokeText(`${Math.round(aim.power * 100)}%`, s[0], s[1]);
-        ctx.fillStyle = "#ffe36b"; ctx.fillText(`${Math.round(aim.power * 100)}%`, s[0], s[1]);
-      }
-    }
     if (overlay.label && overlay.carrierIndex >= 0) {
       const c = scene.players[overlay.carrierIndex];
       const s = this.project(c.x, c.y, PLAYER_HEIGHT + 0.45);
@@ -801,3 +841,52 @@ export function webglAvailable(): boolean {
 }
 
 export type { Aim };
+
+/**
+ * Athlete showcase (Gameplay Lab, #lab-atleta): one athlete on the grass with a turntable
+ * camera, cycling through idle / run / kick / dive, to review the model and its animation
+ * from the front, back, side and close up. Purely visual; no match state involved.
+ */
+export function mountAthleteShowcase(host: HTMLElement, opts: { keeper?: boolean; style?: "human" | "voxel"; angle?: number; zoom?: number; pose?: string; autoRotate?: boolean }): () => void {
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.shadowMap.enabled = true;
+  host.append(renderer.domElement);
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x9fd3ff);
+  scene.add(new THREE.HemisphereLight(0xeef6ff, 0x46703a, 1.25));
+  const sun = new THREE.DirectionalLight(0xffefd2, 1.9); sun.position.set(-3, 8, 4); sun.castShadow = true; sun.shadow.mapSize.set(1024, 1024);
+  scene.add(sun);
+  const grass = new THREE.Mesh(new THREE.CircleGeometry(6, 48), new THREE.MeshLambertMaterial({ color: 0x56b046 }));
+  grass.rotation.x = -Math.PI / 2; grass.receiveShadow = true; scene.add(grass);
+  const kit: Kit = { shirt: "#C8102E", shorts: "#111111", socks: "#C8102E", trim: "#111111", number: "#FFFFFF", pattern: "plain", gk: { shirt: "#F5B83D", shorts: "#1E1E24", socks: "#F5B83D", trim: "#1E1E24", number: "#111111" } };
+  const player: ScenePlayer = { id: "showcase-10", name: "Atleta", number: 10, team: "A", role: opts.keeper ? "GK" : "MF", club: "LAB", x: 0, y: 0, vx: 0, vy: 0, speed: 0, facing: 0,
+    stride: 0, pose: "idle", poseK: 0, poseDir: 1, carrier: false, keeper: Boolean(opts.keeper) };
+  const rig = opts.style === "voxel" ? buildRig(player, kit, true) : buildHumanRig(player, kit, true, "high");
+  rig.root.traverse((o) => { o.castShadow = true; });
+  scene.add(rig.root);
+  const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
+  let raf = 0; const start = performance.now();
+  const sequence = opts.pose ? [opts.pose] : ["idle", "run", "kick", "run", opts.keeper ? "dive" : "celebrate"];
+  const loop = () => {
+    raf = requestAnimationFrame(loop);
+    const w = host.clientWidth, h = host.clientHeight;
+    if (renderer.domElement.width !== Math.round(w * renderer.getPixelRatio())) { renderer.setSize(w, h); camera.aspect = w / Math.max(1, h); camera.updateProjectionMatrix(); }
+    const t = (performance.now() - start) / 1000;
+    const seg = sequence[Math.floor(t / 2.4) % sequence.length];
+    const k = (t % 2.4) / 2.4;
+    player.pose = seg as ScenePlayer["pose"];
+    player.speed = seg === "run" ? 6.5 : 0;
+    player.stride = seg === "run" ? t * 2.6 : 0;
+    player.poseK = seg === "kick" || seg === "dive" ? Math.min(1, k * 1.6) : k;
+    blendPose(rig, player, t, 1 / 60);
+    const angle = (opts.angle ?? 0) + (opts.autoRotate === false ? 0 : t * 0.5);
+    const dist = (seg === "dive" ? 6.5 : 4.2) / (opts.zoom ?? 1);
+    camera.position.set(Math.sin(angle) * dist, 1.25 + 0.2 / (opts.zoom ?? 1), Math.cos(angle) * dist);
+    camera.lookAt(seg === "dive" ? 0.9 : 0, opts.zoom && opts.zoom > 1.5 ? 1.5 : seg === "dive" ? 0.5 : 0.95, 0);
+    renderer.render(scene, camera);
+  };
+  loop();
+  return () => { cancelAnimationFrame(raf); renderer.dispose(); renderer.domElement.remove(); };
+}

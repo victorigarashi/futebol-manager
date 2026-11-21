@@ -7,7 +7,7 @@ export const VISUAL = {
   marginMetres: 3.2,
   goalDepthMetres: 2.0,
   /** Sprite height in pitch metres (stylised ~2.2x a 1.8 m athlete), clamped in px. */
-  playerHeight: { metres: 4.0, min: 26, max: 78 },
+  playerHeight: { metres: 4.4, min: 30, max: 84 },
   ballRadius: { perPlayerHeight: 0.15, min: 3.2 },
   /** One stride every this many metres run (leg cycle). */
   strideMetres: 1.9,

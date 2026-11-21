@@ -8,6 +8,7 @@ import { ProfileDialog } from "../components/ProfileDialog";
 import { LoadingState, ErrorState } from "../components/ui/AsyncState";
 import { ServerStatusBanner } from "../components/ServerStatusBanner";
 import { GameplayLab } from "../features/lab/GameplayLab";
+import { AthleteShowcase } from "../features/lab/AthleteShowcase";
 
 export function App() {
   const queryClient = useQueryClient();
@@ -36,6 +37,7 @@ export function App() {
     setEditingProfile(false);
   };
   if (hash === "#lab") return <GameplayLab />;
+  if (hash === "#lab-atleta") return <AthleteShowcase />;
   const displayName = identity.data.display_name;
   const needsProfile = !displayName || displayName.startsWith("Técnico ");
   return <><ServerStatusBanner />{catalog.data?.demo && <div className="demo-banner" role="status">MODO DEMONSTRAÇÃO — atletas e valores sintéticos, exclusivo para testes.</div>}<LobbyPage needsProfile={needsProfile} onSaveProfile={saveProfile} onEditProfile={() => setEditingProfile(true)} />{editingProfile && !needsProfile && <ProfileDialog currentName={displayName} onClose={() => setEditingProfile(false)} onSave={saveProfile} />}</>;

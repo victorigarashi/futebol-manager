@@ -425,3 +425,42 @@ def test_lab_second_half_flips_the_direction_and_kits_follow_the_clubs():
     assert view["opportunity"]["right"] is False                  # home attacks to the left after the break
     assert view["kits"] == K.select_kits(clubs[0], clubs[1])
     assert view["pitch"]["length"] == 50
+
+
+# ------------------------------------------------------------------ 8. movement realism (V6)
+def test_fast_players_accelerate_faster():
+    def after(pace: float) -> float:
+        body = _body("r", "A", "MF", 30, 34, pace=pace)
+        pitch = _pitch([body, _body("k", "D", "GK", 104, 34)], Ball(10, 10))
+        for _ in range(8):
+            pitch._steer(body, 80, 34)
+        return body.x - 30
+    assert after(95) > after(40) * 1.15
+
+
+def test_the_passer_goes_again_after_a_pass():
+    passer = _body("p", "A", "MF", 50, 34)
+    mate = _body("m", "A", "MF", 60, 34)
+    defender = _body("d", "D", "DF", 56, 40)
+    bodies = [passer, mate, defender, _body("k", "D", "GK", 104, 34)]
+    for body in bodies:
+        body.ax, body.ay = body.x, body.y
+    pitch = _pitch(bodies, Ball(50.4, 34), 3)
+    result = pitch.execute(passer, "PASS", 60, 34, 0.4, None)
+    assert result.receiver == "m"
+    assert passer.x - 50 > 1.0, "the passer kept running forward (give-and-go)"
+
+
+def test_tactics_change_the_runs():
+    def striker_x(style: str) -> float:
+        st = _body("s", "A", "ST", 70, 34)
+        mf = _body("c", "A", "MF", 55, 30)
+        dfs = [_body(f"d{i}", "D", "DF", 88, 20 + i * 10) for i in range(3)]
+        bodies = [st, mf, *dfs, _body("k", "D", "GK", 104, 34)]
+        for body in bodies:
+            body.ax, body.ay = body.x, body.y
+        pitch = Pitch(bodies, Ball(55.4, 30), "ELEVEN_A_SIDE", random.Random(1), 0.0, {"style": style})
+        for step in range(40):
+            pitch.move_players(step * 0.1 + 0.1, mf, None, set(), {})
+        return st.x
+    assert striker_x("COUNTER") > striker_x("POSSESSION") + 1.0

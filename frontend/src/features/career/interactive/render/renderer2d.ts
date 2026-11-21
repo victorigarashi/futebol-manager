@@ -56,10 +56,8 @@ export function drawScene2D(ctx: CanvasRenderingContext2D, g: Geometry, dpr: num
   for (const { p, s } of players) {
     if (p.carrier && overlay.yourTurn) ring(ctx, s[0], s[1], height * 0.42, "#c6f24e", 0.9, overlay.now);
     else if (p.carrier) ring(ctx, s[0], s[1], height * 0.4, "#ffffff", 0.55, overlay.now);
-    else if (overlay.receivers.has(p.id)) ring(ctx, s[0], s[1], height * 0.36, "#7cc8ff", 0.65, overlay.now);
   }
   if (overlay.aim && overlay.carrierIndex >= 0) drawAim(ctx, g, view, [scene.players[overlay.carrierIndex].x, scene.players[overlay.carrierIndex].y], overlay.aim, overlay.aimValid, ppm, overlay.now);
-  if (overlay.pending && overlay.carrierIndex >= 0) drawAim(ctx, g, view, [scene.players[overlay.carrierIndex].x, scene.players[overlay.carrierIndex].y], overlay.pending, true, ppm, overlay.now, 0.45);
   // Depth: draw from the top of the screen down; the ball between bodies by its ground position.
   const ballS = toScreen(g, scene.ball.x, scene.ball.y);
   const order = [...players].sort((a, b) => a.s[1] - b.s[1]);
@@ -237,16 +235,16 @@ function limb(ctx: CanvasRenderingContext2D, x0: number, y0: number, x1: number,
 export function drawPlayer(ctx: CanvasRenderingContext2D, x: number, y: number, h: number, p: ScenePlayer, kit: Kit, g: Geometry, ppm: number, now: number) {
   const look = hashOf(p.id);
   const skin = VISUAL.skin[look % VISUAL.skin.length];
-  const hair = VISUAL.hair[(look >> 4) % VISUAL.hair.length];
-  const boots = VISUAL.boots[(look >> 8) % VISUAL.boots.length];
-  const hairStyle = (look >> 12) % 4;
+  const hair = VISUAL.hair[(look >>> 4) % VISUAL.hair.length];
+  const boots = VISUAL.boots[(look >>> 8) % VISUAL.boots.length];
+  const hairStyle = (look >>> 12) % 4;
   const wear = p.keeper ? (kit.gk ?? { shirt: VISUAL.keeperKits[p.team], shorts: shade(VISUAL.keeperKits[p.team], -0.45), socks: VISUAL.keeperKits[p.team], trim: "#ffffff" }) : kit;
   const shirt = wear.shirt, shorts = wear.shorts, socks = wear.socks;
   const [fx, fy] = screenDir(g, p.facing);
   const side = fx >= 0 ? 1 : -1;               // sprite mirrored left/right
   const back = fy < -0.45;                       // running up the screen: we see the back (number)
   const run = Math.min(1, p.speed / 7.5);
-  const phase = (p.stride / VISUAL.strideMetres) * Math.PI * 2;
+  const phase = p.stride * Math.PI * 2;
   let bob = p.pose === "run" ? Math.abs(Math.sin(phase)) * h * 0.045 * run : Math.sin(now * 2.2 + look) * h * 0.008;
   let lean = p.pose === "run" ? side * run * 0.16 : 0;
   let rot = 0, lift = 0, dx = 0;
@@ -275,64 +273,78 @@ export function drawPlayer(ctx: CanvasRenderingContext2D, x: number, y: number, 
   ctx.translate(x + dx, y - lift - bob);
   ctx.rotate(rot);
   ctx.transform(1, 0, -lean, 1, 0, 0);
-  const u = h / 10;                              // chibi proportions: big head, short body
-  const hip = -u * 3.4, shoulder = -u * 5.9;
-  // Legs (thigh + shin feel via two strokes), socks and boots.
-  const legW = u * 1.05;
+  // Athletic proportions (head ~1/6 of the height, long legs, shoulders wider than hips).
+  const u = h / 10;
+  const hip = -u * 4.7, shoulder = -u * 7.7;
+  const thigh = u * 2.35, shin = u * 2.3;
+  // Legs: thigh + shin with a knee that folds on the recovery stroke; socks and boots.
+  const legW = u * 0.78;
   for (const which of [-1, 1]) {
     const swing = which === 1 ? legA + kickLeg : -legA;
-    const hx = which * u * 0.65;
-    const kx = hx + Math.sin(swing) * u * 1.8 * side, ky = hip + Math.cos(swing) * u * 1.8;
-    const bend = Math.max(0, -Math.sin(swing)) * 0.9;
-    const fx2 = kx + Math.sin(swing - bend) * u * 1.7 * side, fy2 = Math.min(0, ky + Math.cos(swing - bend) * u * 1.7);
+    const hx = which * u * 0.42;
+    const kx = hx + Math.sin(swing) * thigh * side, ky = hip + Math.cos(swing) * thigh;
+    const bend = Math.max(0, -Math.sin(swing)) * 1.1;
+    const fx2 = kx + Math.sin(swing - bend) * shin * side, fy2 = Math.min(0, ky + Math.cos(swing - bend) * shin);
     limb(ctx, hx, hip, kx, ky, legW, skin);
-    limb(ctx, kx, ky, fx2, fy2, legW * 0.95, socks);
-    ctx.fillStyle = boots; ctx.beginPath(); ctx.ellipse(fx2 + side * u * 0.35, fy2, u * 0.75, u * 0.42, 0, 0, Math.PI * 2); ctx.fill();
+    const sx = kx + (fx2 - kx) * 0.3, sy = ky + (fy2 - ky) * 0.3;
+    limb(ctx, kx, ky, sx, sy, legW * 0.92, skin);
+    limb(ctx, sx, sy, fx2, fy2, legW * 0.9, socks);
+    ctx.fillStyle = boots; ctx.beginPath(); ctx.ellipse(fx2 + side * u * 0.3, fy2 + u * 0.05, u * 0.62, u * 0.3, 0, 0, Math.PI * 2); ctx.fill();
   }
-  // Shorts.
-  ctx.fillStyle = shorts; roundRect(ctx, -u * 1.55, hip - u * 1.1, u * 3.1, u * 1.5, u * 0.4); ctx.fill();
-  // Arms behind the torso when seen from behind.
+  // Shorts (slightly wider than the hips).
+  ctx.fillStyle = shorts; roundRect(ctx, -u * 1.05, hip - u * 0.9, u * 2.1, u * 1.55, u * 0.3); ctx.fill();
+  ctx.fillStyle = "rgba(0,0,0,0.12)"; ctx.fillRect(-u * 0.04, hip - u * 0.2, u * 0.08, u * 0.85);
+  // Arms: sleeve + forearm with an elbow; behind the torso when seen from behind.
   const arm = (which: number) => {
-    const sx = which * u * 1.55, sy = shoulder + u * 0.45;
-    let ang = which * 0.25 + (which === 1 ? armA : -armA) * 0.9;
-    if (armsUp) ang = which * 2.6; else if (armsWide) ang = which * 1.05;
-    const ex = sx + Math.sin(ang) * u * 2.4 * (armsUp || armsWide ? 1 : side * which), ey = sy + Math.cos(ang) * u * 2.4;
-    limb(ctx, sx, sy, sx + (ex - sx) * 0.45, sy + (ey - sy) * 0.45, u * 0.95, shirt);
-    limb(ctx, sx + (ex - sx) * 0.45, sy + (ey - sy) * 0.45, ex, ey, u * 0.85, p.keeper ? "#f4f4f4" : skin);
+    const ax = which * u * 1.28, ay = shoulder + u * 0.35;
+    let ang = which * 0.18 + (which === 1 ? armA : -armA) * 0.9;
+    if (armsUp) ang = which * 2.6; else if (armsWide) ang = which * 1.0;
+    const reach = u * 1.45;
+    const ex = ax + Math.sin(ang) * reach * (armsUp || armsWide ? 1 : side * which), ey = ay + Math.cos(ang) * reach;
+    const elbow = armsUp ? 0 : 0.35 + Math.abs(armA) * 0.5;
+    const wx = ex + Math.sin(ang - elbow * side) * u * 1.35 * (armsUp || armsWide ? 1 : side * which), wy = ey + Math.cos(ang - elbow * side) * u * 1.35;
+    limb(ctx, ax, ay, ax + (ex - ax) * 0.55, ay + (ey - ay) * 0.55, u * 0.72, shirt);
+    limb(ctx, ax + (ex - ax) * 0.55, ay + (ey - ay) * 0.55, ex, ey, u * 0.55, skin);
+    limb(ctx, ex, ey, wx, wy, u * 0.5, p.keeper ? "#f4f4f4" : skin);
   };
   if (back) { arm(-1); arm(1); }
-  // Torso (jersey with a trim band) and number.
-  ctx.fillStyle = shirt; roundRect(ctx, -u * 1.75, shoulder, u * 3.5, u * 3.0, u * 0.8); ctx.fill();
-  ctx.save(); roundRect(ctx, -u * 1.75, shoulder, u * 3.5, u * 3.0, u * 0.8); ctx.clip();
+  // Torso: tapered jersey (shoulders > waist), kit pattern, collar, number.
+  const torso = () => { ctx.beginPath(); ctx.moveTo(-u * 1.45, shoulder + u * 0.25); ctx.quadraticCurveTo(-u * 1.45, shoulder, -u * 1.0, shoulder);
+    ctx.lineTo(u * 1.0, shoulder); ctx.quadraticCurveTo(u * 1.45, shoulder, u * 1.45, shoulder + u * 0.25);
+    ctx.lineTo(u * 1.1, hip - u * 0.75); ctx.lineTo(-u * 1.1, hip - u * 0.75); ctx.closePath(); };
+  ctx.fillStyle = shirt; torso(); ctx.fill();
+  ctx.save(); torso(); ctx.clip();
   ctx.fillStyle = wear.trim;
-  if (wear.pattern === "hoops") for (let i = 0; i < 3; i += 1) ctx.fillRect(-u * 1.75, shoulder + u * (0.5 + i * 0.95), u * 3.5, u * 0.42);
-  else if (wear.pattern === "stripes") for (let i = 0; i < 4; i += 1) ctx.fillRect(-u * 1.55 + i * u * 0.95, shoulder, u * 0.42, u * 3.0);
-  else if (wear.pattern === "sash") { ctx.beginPath(); ctx.moveTo(-u * 1.75, shoulder + u * 0.2); ctx.lineTo(-u * 1.0, shoulder); ctx.lineTo(u * 1.75, shoulder + u * 2.4); ctx.lineTo(u * 1.75, shoulder + u * 3.0); ctx.lineTo(u * 1.1, shoulder + u * 3.0); ctx.closePath(); ctx.fill(); }
-  else ctx.fillRect(-u * 1.75, shoulder + u * 0.15, u * 3.5, u * 0.35);
+  const th = hip - u * 0.75 - shoulder;
+  if (wear.pattern === "hoops") for (let i = 0; i < 3; i += 1) ctx.fillRect(-u * 1.5, shoulder + th * (0.18 + i * 0.3), u * 3, th * 0.12);
+  else if (wear.pattern === "stripes") for (let i = 0; i < 4; i += 1) ctx.fillRect(-u * 1.3 + i * u * 0.75, shoulder, u * 0.32, th);
+  else if (wear.pattern === "sash") { ctx.beginPath(); ctx.moveTo(-u * 1.5, shoulder + th * 0.05); ctx.lineTo(-u * 0.9, shoulder); ctx.lineTo(u * 1.5, shoulder + th * 0.8); ctx.lineTo(u * 1.5, shoulder + th); ctx.lineTo(u * 0.9, shoulder + th); ctx.closePath(); ctx.fill(); }
+  ctx.fillStyle = "rgba(0,0,0,0.12)"; ctx.fillRect(-u * 1.5, shoulder + th * 0.55, u * 3, th * 0.45);    // soft shading
   ctx.restore();
-  ctx.strokeStyle = "rgba(0,0,0,0.28)"; ctx.lineWidth = 1; roundRect(ctx, -u * 1.75, shoulder, u * 3.5, u * 3.0, u * 0.8); ctx.stroke();
-  if (p.number && h >= 26) {
-    ctx.fillStyle = wear.number ?? contrast(shirt); ctx.font = `900 ${Math.round(u * (back ? 1.9 : 1.15))}px "Barlow Condensed", "Arial Narrow", sans-serif`;
+  ctx.fillStyle = wear.trim; ctx.beginPath(); ctx.ellipse(0, shoulder + u * 0.05, u * 0.5, u * 0.22, 0, 0, Math.PI * 2); ctx.fill();  // collar
+  ctx.strokeStyle = "rgba(0,0,0,0.3)"; ctx.lineWidth = 1; torso(); ctx.stroke();
+  if (p.number && h >= 28 && back) {
+    ctx.fillStyle = wear.number ?? contrast(shirt); ctx.font = `900 ${Math.round(u * 1.35)}px "Barlow Condensed", "Arial Narrow", sans-serif`;
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.fillText(String(p.number), back ? 0 : side * u * 0.75, shoulder + u * (back ? 1.65 : 1.1));
+    ctx.fillText(String(p.number), 0, shoulder + th * 0.42);
   }
   if (!back) { arm(-1); arm(1); }
-  // Head (big, chibi): skin, hair by style, eyes looking where he faces.
-  const hy = shoulder - u * 1.9, hr = u * 2.05;
-  ctx.fillStyle = skin; ctx.beginPath(); ctx.ellipse(0, hy, hr * 0.95, hr, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = "rgba(0,0,0,0.25)"; ctx.lineWidth = 1; ctx.stroke();
+  // Neck and head (human-sized), hair by style, a simple face when seen from the front.
+  ctx.fillStyle = skin; ctx.fillRect(-u * 0.28, shoulder - u * 0.45, u * 0.56, u * 0.55);
+  const hy = shoulder - u * 1.15, hr = u * 0.82;
+  ctx.fillStyle = skin; ctx.beginPath(); ctx.ellipse(side * u * 0.05, hy, hr * 0.88, hr, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = "rgba(0,0,0,0.25)"; ctx.lineWidth = 0.8; ctx.stroke();
   ctx.fillStyle = hair;
   ctx.beginPath();
-  if (back) ctx.ellipse(0, hy - hr * 0.05, hr * 0.97, hr * 0.92, 0, Math.PI * 1.0, Math.PI * 2.0);
-  else ctx.ellipse(-side * hr * 0.1, hy - hr * 0.35, hr * 0.92, hr * (hairStyle === 0 ? 0.45 : 0.62), 0, Math.PI, Math.PI * 2);
+  if (back) ctx.ellipse(side * u * 0.05, hy - hr * 0.1, hr * 0.9, hr * 0.92, 0, Math.PI * 0.95, Math.PI * 2.05);
+  else ctx.ellipse(side * u * 0.02, hy - hr * 0.42, hr * 0.9, hr * (hairStyle === 0 ? 0.45 : 0.62), 0, Math.PI, Math.PI * 2);
   ctx.fill();
-  if (back) { ctx.beginPath(); ctx.ellipse(0, hy, hr * 0.95, hr * 0.8, 0, 0, Math.PI); ctx.fill(); }
-  if (hairStyle === 2) { ctx.beginPath(); ctx.ellipse(0, hy - hr * 0.95, hr * 0.3, hr * 0.35, 0, 0, Math.PI * 2); ctx.fill(); }
-  if (!back) {
+  if (back) { ctx.beginPath(); ctx.ellipse(side * u * 0.05, hy + hr * 0.05, hr * 0.88, hr * 0.7, 0, 0, Math.PI); ctx.fill(); }
+  if (hairStyle === 2) { ctx.beginPath(); ctx.ellipse(0, hy - hr * 0.95, hr * 0.35, hr * 0.3, 0, 0, Math.PI * 2); ctx.fill(); }
+  if (!back && h >= 34) {
     ctx.fillStyle = "#1a1a1a";
-    const ex = side * hr * 0.35;
-    ctx.beginPath(); ctx.arc(ex - hr * 0.22, hy + hr * 0.05, Math.max(1, hr * 0.11), 0, Math.PI * 2); ctx.arc(ex + hr * 0.22, hy + hr * 0.05, Math.max(1, hr * 0.11), 0, Math.PI * 2); ctx.fill();
-    if (p.pose === "celebrate") { ctx.beginPath(); ctx.fillStyle = "#5a1a14"; ctx.arc(ex, hy + hr * 0.45, hr * 0.18, 0, Math.PI); ctx.fill(); }
+    const ex = side * hr * 0.3;
+    ctx.beginPath(); ctx.arc(ex - hr * 0.22, hy + hr * 0.02, Math.max(0.8, hr * 0.09), 0, Math.PI * 2); ctx.arc(ex + hr * 0.22, hy + hr * 0.02, Math.max(0.8, hr * 0.09), 0, Math.PI * 2); ctx.fill();
   }
   ctx.restore();
   void ppm;
@@ -383,59 +395,37 @@ export function drawBall(ctx: CanvasRenderingContext2D, x: number, y: number, z:
   ctx.beginPath(); ctx.arc(x, by, br, 0, Math.PI * 2); ctx.strokeStyle = "rgba(0,0,0,0.55)"; ctx.lineWidth = 1; ctx.stroke();
 }
 
-// ---------------------------------------------------------------------------- aim (intention, never a guarantee)
-export function drawAim(ctx: CanvasRenderingContext2D, g: Geometry, view: InteractiveView, from: [number, number], aim: Aim, valid: boolean, ppm: number, now: number, alpha = 1) {
+// ---------------------------------------------------------------------------- aim (minimal: one dashed line + a small dot)
+/**
+ * The only aiming aid: a thin dashed line from the ball along the drag, ending in a small
+ * dot at the predicted destination. Its length shows the power. A lofted ball is drawn
+ * along its real height profile (the same apex the physics uses); nothing else is drawn.
+ */
+export function drawAim(ctx: CanvasRenderingContext2D, g: Geometry, view: InteractiveView, from: [number, number], aim: Aim, valid: boolean, ppm: number, now: number) {
   const target = predictTarget(view, from, aim);
   const [x0, y0] = toScreen(g, from[0], from[1]);
   const [x1, y1] = toScreen(g, target[0], target[1]);
-  const color = valid ? VISUAL.aim[aim.type] : VISUAL.aim.invalid;
-  const len = Math.hypot(x1 - x0, y1 - y0);
-  if (len < 4) return;
-  const ux = (x1 - x0) / len, uy = (y1 - y0) / len;
+  if (Math.hypot(x1 - x0, y1 - y0) < 4) return;
+  const color = valid ? "rgba(255,255,255,0.95)" : "rgba(255,110,110,0.95)";
   ctx.save();
-  ctx.globalAlpha = alpha;
-  // Assistance sector: the real angular window the engine uses to pick a receiver.
-  const sector = view.physics.assist_angle ?? 0.24;
-  if ((aim.type === "PASS" || aim.type === "LOFT") && valid) {
-    ctx.setLineDash([2, 7]); ctx.lineDashOffset = -now * 20; ctx.strokeStyle = "rgba(230,255,140,0.75)"; ctx.lineWidth = 2.5;
-    for (const s of [-1, 1]) { const c = Math.cos(sector * s), si = Math.sin(sector * s); const vx = ux * c - uy * si, vy = ux * si + uy * c; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x0 + vx * len, y0 + vy * len); ctx.stroke(); }
-  }
-  // Trajectory: lofted balls rise (with their ground shadow), others go straight.
-  ctx.setLineDash(aim.type === "CARRY" ? [6, 6] : [12, 8]); ctx.lineDashOffset = -now * 40;
   ctx.lineCap = "round";
-  if (aim.type === "LOFT") {
-    const apex = Math.min(len * 0.35, 4.2 * ppm * 2);
-    ctx.strokeStyle = "rgba(0,0,0,0.35)"; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
-    ctx.strokeStyle = color; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.quadraticCurveTo((x0 + x1) / 2, (y0 + y1) / 2 - apex * 2, x1, y1); ctx.stroke();
-  } else {
-    ctx.strokeStyle = "rgba(0,0,0,0.35)"; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(x0, y0 + 2); ctx.lineTo(x1, y1 + 2); ctx.stroke();
-    ctx.strokeStyle = color; ctx.lineWidth = 4.5; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+  ctx.setLineDash([7, 7]);
+  ctx.lineDashOffset = -now * 18;
+  // Soft dark underlay keeps the line readable on every stripe of grass.
+  for (const [w, c] of [[4, "rgba(0,0,0,0.28)"], [2.2, color]] as const) {
+    ctx.strokeStyle = c; ctx.lineWidth = w;
+    ctx.beginPath(); ctx.moveTo(x0, y0);
+    if (aim.type === "LOFT") {
+      for (let i = 1; i <= 24; i += 1) {
+        const k = i / 24;
+        const lift = 4 * 3.2 * k * (1 - k) * ppm * 0.85;      // same apex as the server's lofted ball
+        ctx.lineTo(x0 + (x1 - x0) * k, y0 + (y1 - y0) * k - lift);
+      }
+    } else ctx.lineTo(x1, y1);
+    ctx.stroke();
   }
   ctx.setLineDash([]);
-  // Big arrow near the ball, its length proportional to the power (the look players expect).
-  const arrow = 22 + aim.power * 52;
-  const ax = x0 + ux * (14 + arrow), ay = y0 + uy * (14 + arrow);
-  const nx = -uy, ny = ux, wBody = 7, wHead = 15;
-  ctx.beginPath();
-  ctx.moveTo(x0 + ux * 14 + nx * wBody, y0 + uy * 14 + ny * wBody);
-  ctx.lineTo(ax - ux * 16 + nx * wBody, ay - uy * 16 + ny * wBody);
-  ctx.lineTo(ax - ux * 16 + nx * wHead, ay - uy * 16 + ny * wHead);
-  ctx.lineTo(ax, ay);
-  ctx.lineTo(ax - ux * 16 - nx * wHead, ay - uy * 16 - ny * wHead);
-  ctx.lineTo(ax - ux * 16 - nx * wBody, ay - uy * 16 - ny * wBody);
-  ctx.lineTo(x0 + ux * 14 - nx * wBody, y0 + uy * 14 - ny * wBody);
-  ctx.closePath();
-  ctx.fillStyle = "rgba(0,0,0,0.3)"; ctx.save(); ctx.translate(2, 3); ctx.fill(); ctx.restore();
-  ctx.fillStyle = valid ? "#ffd31a" : VISUAL.aim.invalid; ctx.fill();
-  ctx.strokeStyle = "rgba(120,80,0,0.7)"; ctx.lineWidth = 1.5; ctx.stroke();
-  // Power percentage at the arrow head.
-  ctx.font = `900 ${Math.round(15 + aim.power * 5)}px "Barlow Condensed", Inter, sans-serif`;
-  ctx.textAlign = "center"; ctx.textBaseline = "middle";
-  ctx.lineWidth = 4; ctx.strokeStyle = "rgba(0,0,0,0.65)";
-  const label = `${Math.round(aim.power * 100)}%`;
-  ctx.strokeText(label, ax + ux * 18, ay + uy * 18 - 4); ctx.fillStyle = "#fff6c7"; ctx.fillText(label, ax + ux * 18, ay + uy * 18 - 4);
-  // Destination marker.
-  ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 2.5; ctx.arc(x1, y1, 9 + Math.sin(now * 7) * 1.5, 0, Math.PI * 2); ctx.stroke();
-  ctx.beginPath(); ctx.fillStyle = color; ctx.globalAlpha = alpha * 0.3; ctx.arc(x1, y1, 14, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.fillStyle = "rgba(0,0,0,0.3)"; ctx.arc(x1, y1 + 1, 5, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.fillStyle = color; ctx.arc(x1, y1, 4, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
 }

@@ -17,7 +17,7 @@ export type ScenePlayer = {
   x: number; y: number; vx: number; vy: number; speed: number;
   /** Body orientation in pitch metres (radians, 0 = towards x = 1). */
   facing: number;
-  /** Metres run so far in this action (drives the stride cycle). */
+  /** Stride cycles run so far in this action (phase = stride · 2π). */
   stride: number;
   pose: Pose; poseK: number; poseDir: number;
   carrier: boolean; keeper: boolean;
@@ -94,7 +94,13 @@ function cumulative(frames: InteractiveFrame[], count: number, L: number, W: num
     if (f > 0) {
       const a = frames[f - 1], b = frames[f];
       acc[count] += Math.hypot((b[1] - a[1]) * L, (b[2] - a[2]) * W);
-      for (let i = 0; i < count; i += 1) acc[i] += Math.hypot((b[4 + i * 2] - a[4 + i * 2]) * L, (b[5 + i * 2] - a[5 + i * 2]) * W);
+      // Players: stride CYCLES (not metres). A step cycle lengthens with speed (walk ~1.4 m,
+      // sprint ~2.4 m), so the legs move in step with the official displacement (no sliding).
+      const dt = Math.max(0.05, b[0] - a[0]);
+      for (let i = 0; i < count; i += 1) {
+        const d = Math.hypot((b[4 + i * 2] - a[4 + i * 2]) * L, (b[5 + i * 2] - a[5 + i * 2]) * W);
+        acc[i] += d / (1.3 + 0.13 * (d / dt));
+      }
     }
     cached.push([...acc]);
   }
