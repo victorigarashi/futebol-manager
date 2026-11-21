@@ -38,7 +38,7 @@ export function createAthlete(opts: AthleteOptions): Athlete {
   const look = opts.look ?? cosmeticFor(opts.seed ?? 7);
   const shared = bodyGeometry(opts.detail ?? "high", { keeper, hair: look.hairStyle, build: look.build });
   const geo = new THREE.BufferGeometry();
-  for (const name of ["position", "normal", "uv", "skinIndex", "skinWeight"]) geo.setAttribute(name, shared.getAttribute(name));
+  for (const name of ["position", "normal", "uv", "skinIndex", "skinWeight", "region"]) geo.setAttribute(name, shared.getAttribute(name));
   geo.setIndex(shared.index);
   geo.boundingSphere = shared.boundingSphere;
   geo.setAttribute("color", colourAttribute(shared, { ...regionPalette(opts.kit, look, keeper), ...opts.regionColours }));

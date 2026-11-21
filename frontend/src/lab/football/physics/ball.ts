@@ -21,6 +21,7 @@ export type BallParams = {
   cdLow: number; cdHigh: number; crisis: [number, number];
   liftGain: number; liftMax: number; spinDecay: number;
   rollResist: number;        // rolling resistance coefficient (decel = c * g)
+  grassDrag: number;         // speed-proportional grass resistance (1/s): blades deform more at speed
   slideFriction: number;     // kinetic friction while the ball skids on grass
   restitution: [number, number];  // e at low and high impact speed
   bounceFriction: number;    // tangential friction coefficient at impact
@@ -31,7 +32,7 @@ export const BALL_DEFAULTS: BallParams = {
   mass: 0.43, radius: 0.11, airDensity: 1.2,
   cdLow: 0.45, cdHigh: 0.22, crisis: [8, 12],
   liftGain: 1.0, liftMax: 0.3, spinDecay: 0.05,
-  rollResist: 0.065, slideFriction: 0.55,
+  rollResist: 0.065, grassDrag: 0.22, slideFriction: 0.55,
   restitution: [0.72, 0.55], bounceFriction: 0.45,
   gravity: 9.81, substep: 1 / 240,
 };
@@ -91,7 +92,7 @@ function subStep(b: BallState, h: number, P: BallParams, goals: Goal[], events: 
       rollLock(b, r);
       const sp = Math.hypot(b.v.x, b.v.y);
       if (sp > 0) {
-        const dec = P.rollResist * g + k * dragCoefficient(sp, P) * sp * sp;
+        const dec = P.rollResist * g + P.grassDrag * sp + k * dragCoefficient(sp, P) * sp * sp;
         const ns = Math.max(0, sp - dec * h);
         b.v.x *= ns / sp; b.v.y *= ns / sp;
         rollLock(b, r);

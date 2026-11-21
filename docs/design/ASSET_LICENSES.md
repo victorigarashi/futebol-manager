@@ -30,3 +30,7 @@ A licença de cada um precisa ser confirmada **asset por asset** antes de qualqu
 2. Fazer as texturas: uniforme com máscaras de cor, para manter a escolha de uniformes do servidor; pele; rosto.
 3. Exportar em GLB e otimizar com glTF-Transform e meshopt.
 4. O `buildHumanRig` troca a malha procedural pela GLB clonada com `SkeletonUtils.clone`. O sistema de poses, a mistura de poses (blending) e o resto da pipeline continuam iguais.
+
+## Football Lab (branch research/football-gameplay-lab, só em desenvolvimento)
+
+Os assets do laboratório também são originais: o atleta em loft, o rig de 21 ossos, os 30 clipes, os sprites gerados e as capturas. O único asset de terceiros é o GLB CC0 da Quaternius, usado como comparação. Ele **não é commitado**: fica em `public/lab-assets/third-party/`, que está no `.gitignore`. O detalhamento está em `docs/research/football-lab/LICENCAS.md`.

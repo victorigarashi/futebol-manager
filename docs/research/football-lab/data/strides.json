@@ -1,0 +1,22 @@
+{
+  "walk": {
+    "stride": 1.4819114466361798,
+    "contactShare": 0.625
+  },
+  "run": {
+    "stride": 2.8326215841709814,
+    "contactShare": 0.3875
+  },
+  "sprint": {
+    "stride": 3.5431929292380624,
+    "contactShare": 0.4041666666666667
+  },
+  "dribble": {
+    "stride": 1.7822828475001238,
+    "contactShare": 0.5625
+  },
+  "gk_shuffle": {
+    "stride": 0.30832964254055156,
+    "contactShare": 0.8645833333333334
+  }
+}

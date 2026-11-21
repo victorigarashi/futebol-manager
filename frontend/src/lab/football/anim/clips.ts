@@ -144,7 +144,7 @@ const cut: ClipDef = {
 // ------------------------------------------------------------------ ball actions (right foot; mirror for left)
 const approach = run.keys[0].p;
 function kick(name: string, label: string, d: number, o: { back: number; knee: number; contact: number; follow: number; lean: number; twist: number; ankle: number; across?: number; tc: number; notes: string; part?: ContactPart }): ClipDef {
-  const tb = o.tc * 0.55;
+  const tb = o.tc - Math.min(0.1, o.tc * 0.45);   // real swings: ~0.1 s from top of backswing to contact
   return {
     meta: { name, label, category: "ball", duration: d, loop: false, direction: "forward", speed: [0, 4], contact: { u: o.tc / d, time: o.tc, part: o.part ?? "footR" }, plant: { time: tb, foot: "L" }, recovery: Math.max(0.2, d - o.tc - 0.15), notes: o.notes },
     keys: secs([
@@ -152,7 +152,9 @@ function kick(name: string, label: string, d: number, o: { back: number; knee: n
       // plant + backswing: support foot beside the ball, kicking leg cocked
       { t: tb, ground: "L", p: P(flat({ hipFlexL: 14, kneeL: 30, pelvisFlex: 4 }, "L"), { pelvisFlex: 4, spineFlex: 8, spineRoll: 9, chestRoll: 4, neckFlex: 6, headFlex: 14, pelvisYaw: -18 + o.twist * 0.2, chestYaw: 12, hipFlexR: -o.back, kneeR: o.knee, ankleR: o.ankle, hipTwistR: o.twist, shAbdL: 62, shFlexL: 24, elbowL: 30, shFlexR: -30, shAbdR: 30, elbowR: 40, rootX: 0.03 }) },
       // contact: knee snaps through, foot locked, body over the ball
-      { t: o.tc, ground: "L", p: P(flat({ hipFlexL: 6, kneeL: 26, pelvisFlex: 4 }, "L", 4), { pelvisFlex: 4, spineFlex: 12 + o.lean, spineRoll: 7, neckFlex: 8, headFlex: 16, pelvisYaw: 12, chestYaw: -6, hipFlexR: o.contact, kneeR: o.knee * 0.28, ankleR: o.ankle, hipTwistR: o.twist, hipAbdR: -(o.across ?? 0) * 0.3, shAbdL: 54, shFlexL: 38, elbowL: 34, shFlexR: -20, shAbdR: 34, elbowR: 36, rootX: 0.03 }) },
+      { t: o.tc, ground: "L", p: P(flat({ hipFlexL: 6, kneeL: 26, pelvisFlex: 4 }, "L", 4), { pelvisFlex: 4, spineFlex: 12 + o.lean, spineRoll: 7, neckFlex: 8, headFlex: 16, pelvisYaw: 12, chestYaw: -6, hipFlexR: o.contact, kneeR: o.knee * 0.4, ankleR: o.ankle, hipTwistR: o.twist, hipAbdR: -(o.across ?? 0) * 0.3, shAbdL: 54, shFlexL: 38, elbowL: 34, shFlexR: -20, shAbdR: 34, elbowR: 36, rootX: 0.03 }) },
+      // the knee is still extending through contact (peak velocity at contact, as in real kicks)
+      { t: o.tc + 0.05, ground: "L", p: P(flat({ hipFlexL: 4, kneeL: 24, pelvisFlex: 4 }, "L", 6), { pelvisFlex: 4, spineFlex: 10 + o.lean, spineRoll: 6, neckFlex: 7, headFlex: 14, pelvisYaw: 17, chestYaw: -8, hipFlexR: o.contact + (o.follow - o.contact) * 0.45, kneeR: 4, ankleR: o.ankle, hipTwistR: o.twist, hipAbdR: -(o.across ?? 0) * 0.6, shAbdL: 52, shFlexL: 34, elbowL: 36, shFlexR: -8, shAbdR: 36, elbowR: 38 }) },
       // follow-through: leg continues up/across, support foot rises onto the toes
       { t: o.tc + 0.16, ground: "L", p: P({ pelvisFlex: 2, spineFlex: 4 + o.lean * 0.5, spineRoll: 4, neckFlex: 4, headFlex: 8, pelvisYaw: 22, chestYaw: -10, hipFlexL: -6, kneeL: 22, ankleL: 30, toeL: 25, hipFlexR: o.follow, kneeR: 22, ankleR: o.ankle * 0.8, hipTwistR: o.twist * 0.6, hipAbdR: -(o.across ?? 0), shAbdL: 50, shFlexL: 30, elbowL: 40, shFlexR: 10, shAbdR: 40, elbowR: 40 }) },
       // land on the kicking foot and recover

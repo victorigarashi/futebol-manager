@@ -1,0 +1,568 @@
+[
+  {
+    "id": "central",
+    "label": "Chute central",
+    "speed": 22,
+    "line": {
+      "y": 0.2,
+      "z": 0.9,
+      "t": 0.82
+    },
+    "gk45": {
+      "outcome": "CATCH",
+      "plan": "gather",
+      "takeoff": null,
+      "contact": 0.73,
+      "maxComSpeed": 0.87,
+      "detail": "encaixe (18.2 m/s, extensão 0%)"
+    },
+    "gk70": {
+      "outcome": "CATCH",
+      "plan": "gather",
+      "takeoff": null,
+      "contact": 0.73,
+      "maxComSpeed": 0.87,
+      "detail": "encaixe (18.2 m/s, extensão 0%)"
+    },
+    "gk92": {
+      "outcome": "CATCH",
+      "plan": "gather",
+      "takeoff": null,
+      "contact": 0.73,
+      "maxComSpeed": 0.87,
+      "detail": "encaixe (18.2 m/s, extensão 0%)"
+    },
+    "v6_70": {
+      "result": "SAVE",
+      "probability": 1
+    }
+  },
+  {
+    "id": "left_low",
+    "label": "Canto esquerdo rasteiro",
+    "speed": 22,
+    "line": {
+      "y": 3.2,
+      "z": 0.19,
+      "t": 0.89
+    },
+    "gk45": {
+      "outcome": "GOAL",
+      "plan": "dive",
+      "takeoff": 0.4,
+      "contact": null,
+      "maxComSpeed": 5.1,
+      "detail": "gol"
+    },
+    "gk70": {
+      "outcome": "PARRY",
+      "plan": "dive",
+      "takeoff": 0.37,
+      "contact": 0.77,
+      "maxComSpeed": 5.42,
+      "detail": "espalmada (15.8 m/s) → escanteio"
+    },
+    "gk92": {
+      "outcome": "PARRY",
+      "plan": "dive",
+      "takeoff": 0.33,
+      "contact": 0.75,
+      "maxComSpeed": 5.54,
+      "detail": "espalmada (15.8 m/s) → rebote em (0.8, 11.0)"
+    },
+    "v6_70": {
+      "result": "MAYBE",
+      "probability": 0.43
+    }
+  },
+  {
+    "id": "right_low",
+    "label": "Canto direito rasteiro",
+    "speed": 22,
+    "line": {
+      "y": -3.2,
+      "z": 0.19,
+      "t": 0.89
+    },
+    "gk45": {
+      "outcome": "GOAL",
+      "plan": "dive",
+      "takeoff": 0.4,
+      "contact": null,
+      "maxComSpeed": 5.1,
+      "detail": "gol"
+    },
+    "gk70": {
+      "outcome": "PARRY",
+      "plan": "dive",
+      "takeoff": 0.37,
+      "contact": 0.77,
+      "maxComSpeed": 5.42,
+      "detail": "espalmada (15.8 m/s) → escanteio"
+    },
+    "gk92": {
+      "outcome": "PARRY",
+      "plan": "dive",
+      "takeoff": 0.33,
+      "contact": 0.75,
+      "maxComSpeed": 5.54,
+      "detail": "espalmada (15.8 m/s) → rebote em (0.8, -11.0)"
+    },
+    "v6_70": {
+      "result": "MAYBE",
+      "probability": 0.43
+    }
+  },
+  {
+    "id": "left_high",
+    "label": "Ângulo esquerdo (alto)",
+    "speed": 26,
+    "line": {
+      "y": 3.3,
+      "z": 2.2,
+      "t": 0.82
+    },
+    "gk45": {
+      "outcome": "GOAL",
+      "plan": "dive",
+      "takeoff": 0.4,
+      "contact": null,
+      "maxComSpeed": 4.7,
+      "detail": "gol"
+    },
+    "gk70": {
+      "outcome": "GOAL",
+      "plan": "dive",
+      "takeoff": 0.37,
+      "contact": null,
+      "maxComSpeed": 5.07,
+      "detail": "gol"
+    },
+    "gk92": {
+      "outcome": "GOAL",
+      "plan": "dive",
+      "takeoff": 0.33,
+      "contact": null,
+      "maxComSpeed": 5.39,
+      "detail": "gol"
+    },
+    "v6_70": {
+      "result": "MAYBE",
+      "probability": 0.43
+    }
+  },
+  {
+    "id": "right_mid",
+    "label": "Meia altura à direita",
+    "speed": 24,
+    "line": {
+      "y": -2.4,
+      "z": 1.19,
+      "t": 0.91
+    },
+    "gk45": {
+      "outcome": "PARRY",
+      "plan": "dive",
+      "takeoff": 0.4,
+      "contact": 0.79,
+      "maxComSpeed": 5.19,
+      "detail": "espalmada (18.6 m/s) → escanteio"
+    },
+    "gk70": {
+      "outcome": "PARRY",
+      "plan": "dive",
+      "takeoff": 0.42,
+      "contact": 0.79,
+      "maxComSpeed": 5.24,
+      "detail": "espalmada (18.7 m/s) → escanteio"
+    },
+    "gk92": {
+      "outcome": "PARRY",
+      "plan": "dive",
+      "takeoff": 0.44,
+      "contact": 0.79,
+      "maxComSpeed": 5.19,
+      "detail": "espalmada (18.7 m/s) → rebote em (0.6, -13.1)"
+    },
+    "v6_70": {
+      "result": "SAVE",
+      "probability": 1
+    }
+  },
+  {
+    "id": "close",
+    "label": "Chute de perto (8 m)",
+    "speed": 24,
+    "line": {
+      "y": -1.8,
+      "z": 0.59,
+      "t": 0.37
+    },
+    "gk45": {
+      "outcome": "GOAL",
+      "plan": "dive",
+      "takeoff": 0.4,
+      "contact": null,
+      "maxComSpeed": 4.04,
+      "detail": "gol"
+    },
+    "gk70": {
+      "outcome": "GOAL",
+      "plan": "dive",
+      "takeoff": 0.37,
+      "contact": null,
+      "maxComSpeed": 4.44,
+      "detail": "gol"
+    },
+    "gk92": {
+      "outcome": "GOAL",
+      "plan": "dive",
+      "takeoff": 0.33,
+      "contact": null,
+      "maxComSpeed": 4.82,
+      "detail": "gol"
+    },
+    "v6_70": {
+      "result": "MISS",
+      "probability": 0
+    }
+  },
+  {
+    "id": "far",
+    "label": "Chute de longe (28 m)",
+    "speed": 25,
+    "line": {
+      "y": 2.6,
+      "z": 1.59,
+      "t": 1.46
+    },
+    "gk45": {
+      "outcome": "PARRY",
+      "plan": "gather",
+      "takeoff": null,
+      "contact": 1.36,
+      "maxComSpeed": 2.76,
+      "detail": "espalmada (17.5 m/s) → escanteio"
+    },
+    "gk70": {
+      "outcome": "PARRY",
+      "plan": "gather",
+      "takeoff": null,
+      "contact": 1.36,
+      "maxComSpeed": 2.96,
+      "detail": "espalmada (17.6 m/s) → escanteio"
+    },
+    "gk92": {
+      "outcome": "PARRY",
+      "plan": "gather",
+      "takeoff": null,
+      "contact": 1.36,
+      "maxComSpeed": 3.14,
+      "detail": "espalmada (17.7 m/s) → escanteio"
+    },
+    "v6_70": {
+      "result": "SAVE",
+      "probability": 1
+    }
+  },
+  {
+    "id": "strong",
+    "label": "Chute forte (32 m/s)",
+    "speed": 32,
+    "line": {
+      "y": 2.5,
+      "z": 0.99,
+      "t": 0.64
+    },
+    "gk45": {
+      "outcome": "GOAL",
+      "plan": "dive",
+      "takeoff": 0.4,
+      "contact": null,
+      "maxComSpeed": 4.17,
+      "detail": "gol"
+    },
+    "gk70": {
+      "outcome": "GOAL",
+      "plan": "dive",
+      "takeoff": 0.37,
+      "contact": null,
+      "maxComSpeed": 4.56,
+      "detail": "gol"
+    },
+    "gk92": {
+      "outcome": "GOAL",
+      "plan": "dive",
+      "takeoff": 0.33,
+      "contact": 0.57,
+      "maxComSpeed": 5.77,
+      "detail": "gol (tocou: na trave)"
+    },
+    "v6_70": {
+      "result": "MAYBE",
+      "probability": 0.43
+    }
+  },
+  {
+    "id": "weak",
+    "label": "Chute fraco (13 m/s)",
+    "speed": 13,
+    "line": {
+      "y": 1.8,
+      "z": 0.18,
+      "t": 2.19
+    },
+    "gk45": {
+      "outcome": "CATCH",
+      "plan": "gather",
+      "takeoff": null,
+      "contact": 1.91,
+      "maxComSpeed": 2.76,
+      "detail": "encaixe (5.5 m/s, extensão 0%)"
+    },
+    "gk70": {
+      "outcome": "CATCH",
+      "plan": "gather",
+      "takeoff": null,
+      "contact": 1.91,
+      "maxComSpeed": 2.96,
+      "detail": "encaixe (5.5 m/s, extensão 0%)"
+    },
+    "gk92": {
+      "outcome": "CATCH",
+      "plan": "gather",
+      "takeoff": null,
+      "contact": 1.91,
+      "maxComSpeed": 3.14,
+      "detail": "encaixe (5.5 m/s, extensão 0%)"
+    },
+    "v6_70": {
+      "result": "SAVE",
+      "probability": 1
+    }
+  },
+  {
+    "id": "out_of_reach",
+    "label": "Fora do alcance",
+    "speed": 28,
+    "line": {
+      "y": 3.45,
+      "z": 2.09,
+      "t": 0.46
+    },
+    "gk45": {
+      "outcome": "GOAL",
+      "plan": "dive",
+      "takeoff": 0.4,
+      "contact": null,
+      "maxComSpeed": 4.7,
+      "detail": "gol"
+    },
+    "gk70": {
+      "outcome": "GOAL",
+      "plan": "dive",
+      "takeoff": 0.37,
+      "contact": null,
+      "maxComSpeed": 5.07,
+      "detail": "gol"
+    },
+    "gk92": {
+      "outcome": "GOAL",
+      "plan": "dive",
+      "takeoff": 0.33,
+      "contact": null,
+      "maxComSpeed": 5.39,
+      "detail": "gol"
+    },
+    "v6_70": {
+      "result": "MISS",
+      "probability": 0
+    }
+  },
+  {
+    "id": "in_reach",
+    "label": "Dentro do alcance",
+    "speed": 22,
+    "line": {
+      "y": 1.3,
+      "z": 1,
+      "t": 0.96
+    },
+    "gk45": {
+      "outcome": "CATCH",
+      "plan": "gather",
+      "takeoff": null,
+      "contact": 0.86,
+      "maxComSpeed": 2.76,
+      "detail": "encaixe (17.5 m/s, extensão 0%)"
+    },
+    "gk70": {
+      "outcome": "CATCH",
+      "plan": "gather",
+      "takeoff": null,
+      "contact": 0.86,
+      "maxComSpeed": 2.96,
+      "detail": "encaixe (17.5 m/s, extensão 0%)"
+    },
+    "gk92": {
+      "outcome": "CATCH",
+      "plan": "gather",
+      "takeoff": null,
+      "contact": 0.86,
+      "maxComSpeed": 3.14,
+      "detail": "encaixe (17.6 m/s, extensão 0%)"
+    },
+    "v6_70": {
+      "result": "SAVE",
+      "probability": 1
+    }
+  },
+  {
+    "id": "rebound",
+    "label": "Rebote (espalmada forte)",
+    "speed": 30,
+    "line": {
+      "y": 1.2,
+      "z": 0.5,
+      "t": 0.55
+    },
+    "gk45": {
+      "outcome": "GOAL",
+      "plan": "dive",
+      "takeoff": 0.4,
+      "contact": 0.48,
+      "maxComSpeed": 4.87,
+      "detail": "gol (tocou: espalmada (24.8 m/s))"
+    },
+    "gk70": {
+      "outcome": "PARRY",
+      "plan": "dive",
+      "takeoff": 0.37,
+      "contact": 0.47,
+      "maxComSpeed": 4.15,
+      "detail": "espalmada (25.1 m/s) → escanteio"
+    },
+    "gk92": {
+      "outcome": "PARRY",
+      "plan": "dive",
+      "takeoff": 0.33,
+      "contact": 0.46,
+      "maxComSpeed": 3.79,
+      "detail": "espalmada (25.3 m/s) → rebote para a área"
+    },
+    "v6_70": {
+      "result": "SAVE",
+      "probability": 1
+    }
+  },
+  {
+    "id": "curl",
+    "label": "Chute colocado (efeito)",
+    "speed": 24,
+    "line": {
+      "y": 2.9,
+      "z": 1.5,
+      "t": 1.09
+    },
+    "gk45": {
+      "outcome": "GOAL",
+      "plan": "dive",
+      "takeoff": 0.4,
+      "contact": 1,
+      "maxComSpeed": 5.67,
+      "detail": "gol (tocou: na trave)"
+    },
+    "gk70": {
+      "outcome": "PARRY",
+      "plan": "dive",
+      "takeoff": 0.47,
+      "contact": 0.97,
+      "maxComSpeed": 5.7,
+      "detail": "espalmada (17.1 m/s) → escanteio"
+    },
+    "gk92": {
+      "outcome": "PARRY",
+      "plan": "dive",
+      "takeoff": 0.55,
+      "contact": 0.96,
+      "maxComSpeed": 5.7,
+      "detail": "espalmada (17.2 m/s) → rebote para a área"
+    },
+    "v6_70": {
+      "result": "SAVE",
+      "probability": 1
+    }
+  },
+  {
+    "id": "dip",
+    "label": "Chute com topspin",
+    "speed": 27,
+    "line": {
+      "y": 0.8,
+      "z": 2,
+      "t": 1.13
+    },
+    "gk45": {
+      "outcome": "GOAL",
+      "plan": "jump",
+      "takeoff": 0.72,
+      "contact": 1.07,
+      "maxComSpeed": 2.65,
+      "detail": "gol (tocou: espalmada (19.8 m/s))"
+    },
+    "gk70": {
+      "outcome": "GOAL",
+      "plan": "jump",
+      "takeoff": 0.75,
+      "contact": 1.07,
+      "maxComSpeed": 2.51,
+      "detail": "gol (tocou: espalmada (19.8 m/s))"
+    },
+    "gk92": {
+      "outcome": "GOAL",
+      "plan": "jump",
+      "takeoff": 0.76,
+      "contact": null,
+      "maxComSpeed": 2.51,
+      "detail": "gol"
+    },
+    "v6_70": {
+      "result": "SAVE",
+      "probability": 1
+    }
+  },
+  {
+    "id": "cross",
+    "label": "Cruzamento",
+    "speed": 21,
+    "line": null,
+    "gk45": {
+      "outcome": "WIDE",
+      "plan": "claim",
+      "takeoff": 1.28,
+      "contact": null,
+      "maxComSpeed": 4.42,
+      "detail": "tempo"
+    },
+    "gk70": {
+      "outcome": "WIDE",
+      "plan": "claim",
+      "takeoff": 1.28,
+      "contact": null,
+      "maxComSpeed": 4.74,
+      "detail": "tempo"
+    },
+    "gk92": {
+      "outcome": "CATCH",
+      "plan": "claim",
+      "takeoff": 1.28,
+      "contact": 1.61,
+      "maxComSpeed": 5.02,
+      "detail": "encaixe (15.1 m/s, extensão 69%)"
+    },
+    "v6_70": {
+      "result": "MISS",
+      "probability": 0
+    }
+  }
+]

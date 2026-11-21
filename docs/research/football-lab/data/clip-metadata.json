@@ -1,0 +1,556 @@
+[
+  {
+    "name": "idle",
+    "label": "Idle",
+    "category": "locomotion",
+    "duration": 3.2,
+    "loop": true,
+    "direction": "in-place",
+    "speed": [
+      0,
+      0.3
+    ],
+    "contactFootSpeed": null
+  },
+  {
+    "name": "walk",
+    "label": "Caminhada",
+    "category": "locomotion",
+    "duration": 1.05,
+    "loop": true,
+    "direction": "forward",
+    "speed": [
+      0.6,
+      2.2
+    ],
+    "stance": {
+      "L": [
+        0,
+        0.6
+      ],
+      "R": [
+        0.5,
+        1.1
+      ]
+    },
+    "stride": 1.482,
+    "contactFootSpeed": null
+  },
+  {
+    "name": "run",
+    "label": "Corrida",
+    "category": "locomotion",
+    "duration": 0.66,
+    "loop": true,
+    "direction": "forward",
+    "speed": [
+      2.5,
+      6
+    ],
+    "stance": {
+      "L": [
+        0,
+        0.26
+      ],
+      "R": [
+        0.5,
+        0.76
+      ]
+    },
+    "stride": 2.833,
+    "contactFootSpeed": null
+  },
+  {
+    "name": "sprint",
+    "label": "Sprint",
+    "category": "locomotion",
+    "duration": 0.46,
+    "loop": true,
+    "direction": "forward",
+    "speed": [
+      6,
+      9.5
+    ],
+    "stance": {
+      "L": [
+        0,
+        0.21
+      ],
+      "R": [
+        0.5,
+        0.71
+      ]
+    },
+    "stride": 3.543,
+    "contactFootSpeed": null
+  },
+  {
+    "name": "brake",
+    "label": "Frenagem",
+    "category": "locomotion",
+    "duration": 0.8,
+    "loop": false,
+    "direction": "forward",
+    "speed": [
+      6,
+      0
+    ],
+    "recovery": 0.2,
+    "notes": "A raiz desacelera pelo motor (~6 → 0 m/s em 0,6 s ≈ 10 m/s²). O passo longo do pé direito marca o início da frenagem.",
+    "contactFootSpeed": null
+  },
+  {
+    "name": "cut",
+    "label": "Mudança de direção",
+    "category": "locomotion",
+    "duration": 0.62,
+    "loop": false,
+    "direction": "lateral",
+    "speed": [
+      3,
+      7
+    ],
+    "plant": {
+      "time": 0.14,
+      "foot": "R"
+    },
+    "recovery": 0.18,
+    "notes": "Plantar o pé direito aberto, inclinar o tronco para dentro da curva e girar a pélvis para a nova direção. A raiz faz a curva pelo motor.",
+    "contactFootSpeed": null
+  },
+  {
+    "name": "dribble",
+    "label": "Condução",
+    "category": "ball",
+    "duration": 0.72,
+    "loop": true,
+    "direction": "forward",
+    "speed": [
+      2,
+      5.5
+    ],
+    "stance": {
+      "L": [
+        0,
+        0.3
+      ],
+      "R": [
+        0.5,
+        0.8
+      ]
+    },
+    "contact": {
+      "u": 0.46,
+      "time": 0.33,
+      "part": "footR"
+    },
+    "notes": "Um toque por ciclo com o peito do pé direito (u≈0,46). A bola é empurrada pelo motor; a animação só marca o instante do toque.",
+    "stride": 1.782,
+    "contactFootSpeed": 12.5302176697315
+  },
+  {
+    "name": "pass_short",
+    "label": "Passe curto",
+    "category": "ball",
+    "duration": 0.7,
+    "loop": false,
+    "direction": "forward",
+    "speed": [
+      0,
+      4
+    ],
+    "contact": {
+      "u": 0.34285714285714286,
+      "time": 0.24,
+      "part": "footR"
+    },
+    "plant": {
+      "time": 0.13999999999999999,
+      "foot": "L"
+    },
+    "recovery": 0.30999999999999994,
+    "notes": "Parte interna: quadril em rotação externa (~42°), tornozelo travado, pouca preparação.",
+    "contactFootSpeed": 8.62585888778701
+  },
+  {
+    "name": "pass_long",
+    "label": "Passe longo",
+    "category": "ball",
+    "duration": 0.95,
+    "loop": false,
+    "direction": "forward",
+    "speed": [
+      0,
+      4
+    ],
+    "contact": {
+      "u": 0.33684210526315794,
+      "time": 0.32,
+      "part": "footR"
+    },
+    "plant": {
+      "time": 0.22,
+      "foot": "L"
+    },
+    "recovery": 0.47999999999999987,
+    "notes": "Lançamento: tronco inclinado para trás no contato para levantar a bola; contato abaixo do centro.",
+    "contactFootSpeed": 18.159923640991625
+  },
+  {
+    "name": "cross",
+    "label": "Cruzamento",
+    "category": "ball",
+    "duration": 0.95,
+    "loop": false,
+    "direction": "forward",
+    "speed": [
+      0,
+      4
+    ],
+    "contact": {
+      "u": 0.33684210526315794,
+      "time": 0.32,
+      "part": "footR"
+    },
+    "plant": {
+      "time": 0.22,
+      "foot": "L"
+    },
+    "recovery": 0.47999999999999987,
+    "notes": "Contato com o peito/parte interna e finalização cruzando o corpo (adução), gerando curva.",
+    "contactFootSpeed": 15.128589259565992
+  },
+  {
+    "name": "shot",
+    "label": "Chute",
+    "category": "ball",
+    "duration": 0.95,
+    "loop": false,
+    "direction": "forward",
+    "speed": [
+      0,
+      4
+    ],
+    "contact": {
+      "u": 0.3157894736842105,
+      "time": 0.3,
+      "part": "footR"
+    },
+    "plant": {
+      "time": 0.19999999999999998,
+      "foot": "L"
+    },
+    "recovery": 0.4999999999999999,
+    "notes": "Chute de peito do pé. Velocidade do pé no contato medida por FK (ver tabela do Animation Lab).",
+    "contactFootSpeed": 19.0121239449832
+  },
+  {
+    "name": "first_time",
+    "label": "Chute de primeira",
+    "category": "ball",
+    "duration": 0.7,
+    "loop": false,
+    "direction": "forward",
+    "speed": [
+      0,
+      4
+    ],
+    "contact": {
+      "u": 0.2571428571428572,
+      "time": 0.18,
+      "part": "footR"
+    },
+    "plant": {
+      "time": 0.09899999999999999,
+      "foot": "L"
+    },
+    "recovery": 0.37,
+    "notes": "Sem domínio: preparação curta (0,1 s) porque a bola chega em movimento.",
+    "contactFootSpeed": 16.65145713542101
+  },
+  {
+    "name": "receive",
+    "label": "Recepção",
+    "category": "ball",
+    "duration": 0.62,
+    "loop": false,
+    "direction": "any",
+    "speed": [
+      0,
+      4
+    ],
+    "contact": {
+      "u": 0.41935483870967744,
+      "time": 0.26,
+      "part": "footR"
+    },
+    "recovery": 0.2,
+    "notes": "Parte interna oferecida à frente e recolhida no contato (amortecimento): a bola perde velocidade em vez de quicar.",
+    "contactFootSpeed": 1.705464773290272
+  },
+  {
+    "name": "chest_control",
+    "label": "Domínio de peito",
+    "category": "ball",
+    "duration": 0.9,
+    "loop": false,
+    "direction": "in-place",
+    "contact": {
+      "u": 0.3333333333333333,
+      "time": 0.3,
+      "part": "chest"
+    },
+    "recovery": 0.35,
+    "notes": "Tronco recua e o peito 'abre' para a bola; logo depois o tronco flexiona e a bola cai à frente dos pés.",
+    "contactFootSpeed": 0.47012232900928563
+  },
+  {
+    "name": "header",
+    "label": "Cabeceio",
+    "category": "ball",
+    "duration": 1,
+    "loop": false,
+    "direction": "in-place",
+    "contact": {
+      "u": 0.46,
+      "time": 0.46,
+      "part": "head"
+    },
+    "recovery": 0.4,
+    "notes": "Impulsão com os dois pés (0,22 s), arco do tronco para trás no ápice e golpe da cabeça para a frente no contato.",
+    "contactFootSpeed": 3.3151188591673746
+  },
+  {
+    "name": "stand_tackle",
+    "label": "Desarme (em pé)",
+    "category": "duel",
+    "duration": 0.7,
+    "loop": false,
+    "direction": "forward",
+    "speed": [
+      0,
+      4
+    ],
+    "contact": {
+      "u": 0.37142857142857144,
+      "time": 0.26,
+      "part": "footR"
+    },
+    "recovery": 0.3,
+    "notes": "Bote: avanço com a perna direita estendida e o corpo baixo, sem ir ao chão.",
+    "contactFootSpeed": 1.3101620665463998
+  },
+  {
+    "name": "slide_tackle",
+    "label": "Desarme (carrinho)",
+    "category": "duel",
+    "duration": 1.5,
+    "loop": false,
+    "direction": "forward",
+    "speed": [
+      3,
+      7
+    ],
+    "contact": {
+      "u": 0.26666666666666666,
+      "time": 0.4,
+      "part": "footL"
+    },
+    "recovery": 0.8,
+    "notes": "Desce pelo lado direito (quadril e coxa no chão), perna esquerda estendida na bola. A raiz desliza pelo motor (~2 m).",
+    "contactFootSpeed": 0.3092229327215893
+  },
+  {
+    "name": "fall",
+    "label": "Queda",
+    "category": "reaction",
+    "duration": 1.6,
+    "loop": false,
+    "direction": "forward",
+    "speed": [
+      2,
+      7
+    ],
+    "recovery": 1,
+    "notes": "Tropeço: perde o apoio, mãos à frente para amortecer, rola de frente no chão e fica deitado.",
+    "contactFootSpeed": null
+  },
+  {
+    "name": "celebrate",
+    "label": "Comemoração",
+    "category": "celebration",
+    "duration": 2,
+    "loop": true,
+    "direction": "in-place",
+    "notes": "Salto com socos no ar alternados. Sem gestos de marcas/atletas reais.",
+    "contactFootSpeed": null
+  },
+  {
+    "name": "gk_ready",
+    "label": "GK: postura de espera",
+    "category": "keeper",
+    "duration": 1.2,
+    "loop": true,
+    "direction": "in-place",
+    "notes": "Base larga, joelhos a ~40°, peso na ponta dos pés, mãos à frente na altura da cintura com as palmas para a frente.",
+    "contactFootSpeed": null
+  },
+  {
+    "name": "gk_set",
+    "label": "GK: preparação (split step)",
+    "category": "keeper",
+    "duration": 0.3,
+    "loop": false,
+    "direction": "in-place",
+    "notes": "Pequeno salto no instante do chute adversário: o goleiro aterrissa carregado (joelhos ~50°) e pronto para empurrar para qualquer lado.",
+    "contactFootSpeed": null
+  },
+  {
+    "name": "gk_shuffle",
+    "label": "GK: passos laterais",
+    "category": "keeper",
+    "duration": 0.46,
+    "loop": true,
+    "direction": "lateral",
+    "speed": [
+      0.5,
+      3.4
+    ],
+    "stance": {
+      "L": [
+        0.3,
+        1
+      ],
+      "R": [
+        0,
+        0.6
+      ]
+    },
+    "notes": "Passo lateral: pé esquerdo abre, o direito fecha sem cruzar. Ciclo medido por FK no eixo X.",
+    "stride": 0.308,
+    "contactFootSpeed": null
+  },
+  {
+    "name": "gk_dive_low",
+    "label": "GK: mergulho rasteiro",
+    "category": "keeper",
+    "duration": 1,
+    "loop": false,
+    "direction": "lateral",
+    "rootDriven": true,
+    "contact": {
+      "u": 0.62,
+      "time": 0.62,
+      "part": "hands"
+    },
+    "notes": "Normalizado pelo progresso do mergulho (u = 0 carga, 0,18 impulsão, 0,62 alcance máximo, 1 aterrissagem). A física do goleiro move a raiz e gira o corpo; o clip só dá a forma.",
+    "contactFootSpeed": 2.7757650134019323
+  },
+  {
+    "name": "gk_dive_high",
+    "label": "GK: mergulho alto",
+    "category": "keeper",
+    "duration": 1,
+    "loop": false,
+    "direction": "lateral",
+    "rootDriven": true,
+    "contact": {
+      "u": 0.62,
+      "time": 0.62,
+      "part": "hands"
+    },
+    "notes": "Normalizado pelo progresso do mergulho (u = 0 carga, 0,18 impulsão, 0,62 alcance máximo, 1 aterrissagem). A física do goleiro move a raiz e gira o corpo; o clip só dá a forma.",
+    "contactFootSpeed": 2.8636257765348083
+  },
+  {
+    "name": "gk_collapse",
+    "label": "GK: defesa baixa (colapso)",
+    "category": "keeper",
+    "duration": 0.6,
+    "loop": false,
+    "direction": "lateral",
+    "rootDriven": true,
+    "contact": {
+      "u": 0.5,
+      "time": 0.3,
+      "part": "hands"
+    },
+    "notes": "Bola rasteira perto do corpo: a perna do lado da bola cede e o goleiro cai de lado com as mãos no chão, sem impulsão.",
+    "contactFootSpeed": 9.484316687154998
+  },
+  {
+    "name": "gk_jump",
+    "label": "GK: salto (bola alta)",
+    "category": "keeper",
+    "duration": 0.9,
+    "loop": false,
+    "direction": "in-place",
+    "contact": {
+      "u": 0.42,
+      "time": 0.38,
+      "part": "hands"
+    },
+    "recovery": 0.35,
+    "notes": "Impulsão com uma perna (joelho da outra para cima, proteção), braços estendidos acima da cabeça.",
+    "contactFootSpeed": 4.09582144445142
+  },
+  {
+    "name": "gk_catch",
+    "label": "GK: encaixe",
+    "category": "keeper",
+    "duration": 0.6,
+    "loop": false,
+    "direction": "in-place",
+    "contact": {
+      "u": 0.33333333333333337,
+      "time": 0.2,
+      "part": "hands"
+    },
+    "recovery": 0.3,
+    "notes": "Mãos em 'W' à frente do peito, recolhe a bola no contato (amortece) e protege com o corpo.",
+    "contactFootSpeed": 3.470445921911784
+  },
+  {
+    "name": "gk_parry",
+    "label": "GK: espalmada",
+    "category": "keeper",
+    "duration": 0.5,
+    "loop": false,
+    "direction": "in-place",
+    "contact": {
+      "u": 0.36,
+      "time": 0.18,
+      "part": "handL"
+    },
+    "recovery": 0.25,
+    "notes": "Mão firme (punho estendido) empurra a bola para fora; usada como camada sobre o mergulho quando o contato não permite encaixe.",
+    "contactFootSpeed": 2.4105751816323973
+  },
+  {
+    "name": "gk_getup",
+    "label": "GK: recuperação",
+    "category": "keeper",
+    "duration": 1.1,
+    "loop": false,
+    "direction": "in-place",
+    "rootDriven": true,
+    "notes": "Do chão de lado: apoia o antebraço, ajoelha e volta à postura de espera. A física decide quanto tempo o goleiro fica fora do lance (0,6–0,9 s).",
+    "contactFootSpeed": null
+  },
+  {
+    "name": "gk_throw",
+    "label": "GK: reposição (mão)",
+    "category": "keeper",
+    "duration": 1.1,
+    "loop": false,
+    "direction": "forward",
+    "contact": {
+      "u": 0.5090909090909091,
+      "time": 0.56,
+      "part": "handR"
+    },
+    "recovery": 0.3,
+    "notes": "Lançamento por cima: passo à frente com a perna esquerda, braço direito estendido atrás e soltura no ponto alto (u≈0,51).",
+    "contactFootSpeed": 4.5250187009930425
+  }
+]

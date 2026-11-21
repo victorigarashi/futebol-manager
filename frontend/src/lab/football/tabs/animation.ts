@@ -192,7 +192,7 @@ export function mount(view: HTMLElement, panel: HTMLElement) {
     const toe = new THREE.Vector3(); athlete.rig.bones.toeR.getWorldPosition(toe);
     const ahead = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
     const p = toe.clone().addScaledVector(ahead, 0.25); p.y = BALL_DEFAULTS.radius;
-    const sp = driver.speed * 1.45 + 0.6;
+    const sp = driver.speed * 1.2 + 0.5;   // close-control touch (see physics/player.ts carryGap)
     ballSim = newBall(toLab(p), { x: ahead.z * sp, y: ahead.x * sp, z: 0 }, { x: -ahead.x * sp / 0.11, y: ahead.z * sp / 0.11, z: 0 });
   };
 

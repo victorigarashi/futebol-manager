@@ -11,12 +11,12 @@ describe("ball physics", () => {
     expect(rolling.v.x / 15).toBeLessThan(0.64);
     expect(rolling.p.x).toBeLessThan(15);   // a spinless strike skids for metres before it rolls
   });
-  it("a 15 m/s pass travels farther than V6's constant 5 m/s² but stops on grass", () => {
+  it("a 15 m/s pass rolls 25-45 m (V6: 22.5 m) and stops on grass", () => {
     const { v } = strike(15, 0, 0, 15 / BALL_DEFAULTS.radius * 0.6);   // struck with some forward roll
     const { path } = simulate(newBall({ x: 0, y: 0, z: BALL_DEFAULTS.radius }, v, { x: 0, y: 15 / BALL_DEFAULTS.radius * 0.6, z: 0 }), 20, 0.02);
     const end = path[path.length - 1];
     expect(end.p.x).toBeGreaterThan(v6GroundDistance(15, 5).distance);
-    expect(end.p.x).toBeLessThan(80);
+    expect(end.p.x).toBeLessThan(45);
     expect(Math.hypot(end.v.x, end.v.y)).toBeLessThan(0.05);
   });
   it("drag: a 30 m/s shot loses 15-30 % of its speed over 20 m", () => {
@@ -43,5 +43,23 @@ describe("ball physics", () => {
     expect(bounces.length).toBeGreaterThanOrEqual(2);
     expect(bounces[1].speed).toBeLessThan(bounces[0].speed * 0.8);
     expect(path[path.length - 1].p.z).toBeCloseTo(BALL_DEFAULTS.radius, 2);
+  });
+});
+
+import { diagonalAccel, sprintCurve, splitTime, cutPath } from "../physics/player";
+describe("player kinematics", () => {
+  it("V6 per-axis clamp accelerates sqrt(2) faster on a diagonal; the proposed model does not", () => {
+    expect(diagonalAccel("v6", 80) / (6 + 3.5 * 0.8)).toBeCloseTo(Math.SQRT2, 1);
+    expect(diagonalAccel("model", 80)).toBeLessThanOrEqual(7.8 + 2.2 * 0.8 + 0.01);
+  });
+  it("proposed sprint splits are in the professional range (10 m 1.7-2.0 s, 30 m 4.0-4.5 s)", () => {
+    const c = sprintCurve("model", 80);
+    expect(splitTime(c, 10)!).toBeGreaterThan(1.7); expect(splitTime(c, 10)!).toBeLessThan(2.0);
+    expect(splitTime(c, 30)!).toBeGreaterThan(4.0); expect(splitTime(c, 30)!).toBeLessThan(4.5);
+  });
+  it("a cut at speed curves (no instant 90° turn)", () => {
+    const p = cutPath("model", 80, 7);
+    const overshoot = Math.max(...p.map((q) => q.x));
+    expect(overshoot).toBeGreaterThan(2.5);   // needs metres to turn at 7 m/s with 7.5 m/s² of grip
   });
 });

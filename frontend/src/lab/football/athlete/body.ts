@@ -212,7 +212,8 @@ const HEAD_C = new THREE.Vector3(0, 1.706, 0.012);
 /** Skull + face as a displaced ellipsoid (unit direction -> surface point). */
 function headSurface(dir: THREE.Vector3, out: THREE.Vector3): THREE.Vector3 {
   const { x, y, z } = dir;
-  let rx = 0.077, ry = 0.112, rz = 0.098;
+  let rx = 0.077, rz = 0.098;
+  const ry = 0.112;
   if (y < 0) { const k = (-y) ** 1.4; rx *= 1 - 0.3 * k * (z > -0.2 ? 1 : 0.6); rz *= 1 - 0.12 * k * (z < 0 ? 1.8 : 0); }   // jaw and chin taper, no back of neck
   if (z < -0.1 && y > -0.35) rz *= 1.07;                    // occiput
   if (z > 0.55) rz *= 0.965;                                // flatter face
