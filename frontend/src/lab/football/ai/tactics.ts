@@ -20,9 +20,11 @@ import { modelFromPace, steer, type PlayerModel, type V2 } from "../physics/play
 export type Team = "A" | "D";
 export type Role = "GK" | "CB" | "FB" | "DM" | "CM" | "W" | "ST";
 export type Agent = { id: string; team: Team; role: Role; num: number; p: V2; v: V2; anchor: V2; m: PlayerModel; target: V2; score: number; task: string; lastPass: number; side: number };
-export type BallState2D = { p: V2; v: V2; owner: string | null; inFlight: { from: V2; to: V2; t0: number; receiver: string | null } | null; lastTouch: Team };
+export type BallState2D = { p: V2; v: V2; owner: string | null; inFlight: { from: V2; to: V2; t0: number; receiver: string | null; passer?: string; aerial?: boolean } | null; lastTouch: Team };
 export type World = { L: number; W: number; t: number; agents: Agent[]; ball: BallState2D; events: string[]; params: AIParams; done: string | null; seed: number };
 export type AIParams = { block: "low" | "mid" | "high"; pressers: number; reaction: number; temperature: number; hysteresis: number };
+/** Flight time of a cross/lofted ball in the 2D prototype (s). */
+const AERIAL_TIME = 1.1;
 export const AI_DEFAULTS: AIParams = { block: "mid", pressers: 1, reaction: 0.25, temperature: 0.45, hysteresis: 0.06 };
 
 const dist = (a: V2, b: V2) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -73,15 +75,15 @@ export function threat(w: World, x: V2): number {
   return clamp(Math.exp(-d / 18) * (1 - ang / 1.8), 0, 1);
 }
 /** Probability a pass from a to b is completed: no defender reaches the path before the ball. */
-export function passSafety(w: World, from: V2, to: V2, receiver?: Agent): number {
+export function passSafety(w: World, from: V2, to: V2, receiver?: Agent, aerial = false): number {
   const d = dist(from, to);
   if (d < 1) return 1;
   const v0 = passSpeed(d);
   let worst = Infinity;
-  for (let i = 1; i <= 10; i += 1) {
+  for (let i = aerial ? 8 : 1; i <= 10; i += 1) {
     const k = i / 10;
     const pt = { x: from.x + (to.x - from.x) * k, y: from.y + (to.y - from.y) * k };
-    const tb = ballTime(v0, d * k);
+    const tb = aerial ? AERIAL_TIME * k : ballTime(v0, d * k);
     for (const a of w.agents) if (a.team === "D") worst = Math.min(worst, tti(a, pt, w.params.reaction * 0.6) - tb);
   }
   let rec = 1;
@@ -118,7 +120,7 @@ export function spotScore(w: World, a: Agent, x: V2): number {
   let overlap = 0;
   if (a.role === "FB" && c && c.role === "W" && Math.sign(c.side) === Math.sign(a.side)) {
     const outside = a.side < 0 ? x.y < c.p.y - 2 : x.y > c.p.y + 2;
-    overlap = outside && x.x > c.p.x - 1 ? 0.6 : 0;
+    overlap = outside && x.x > c.p.x - 1 ? 1.1 : 0;
   }
   // through run: behind the line is valuable when the carrier can see it (not pressed, facing forward)
   let through = 0;
@@ -127,7 +129,8 @@ export function spotScore(w: World, a: Agent, x: V2): number {
     if (behind && c && c.task !== "pressed") through = 0.7 * passSafety(w, c.p, x);
     if (behind) through += 1.0;   // compensates the offside term: the run is timed (the pass is played before he crosses)
   }
-  return 1.1 * pc + 1.4 * th + 0.9 * pass + 0.5 * spacing + 1.0 * lane + offside + effort + tooClose + pm + overlap + through * 0.6;
+  // an overlap runs past the carrier by definition: it is exempt from the 'too close to the ball' penalty
+  return 1.1 * pc + 1.4 * th + 0.9 * pass + 0.5 * spacing + 1.0 * lane + offside + effort + (overlap ? 0 : tooClose) + pm + overlap + through * 0.6;
 }
 
 function decideAttackers(w: World) {
@@ -160,23 +163,32 @@ function decideCarrier(w: World, rngv: () => number) {
   const dGoal = dist(c.p, g);
   const shotValue = dGoal < 24 ? threat(w, c.p) * (nearestD > 1.5 ? 1 : 0.6) : 0;
   // best pass
-  let bestPass: { to: Agent; at: V2; value: number } | null = null;
+  let bestPass: { to: Agent; at: V2; value: number; aerial: boolean } | null = null;
   for (const m of w.agents) {
     if (m.team !== "A" || m.id === c.id || m.role === "GK") continue;
     // lead the receiver: pass into the space he is running to
     const lead = { x: m.p.x + m.v.x * 0.6, y: m.p.y + m.v.y * 0.6 };
     const at = { x: clamp(lead.x, 1, w.L - 1), y: clamp(lead.y, 1, w.W - 1) };
     if (at.x > lastDefX(w) + 0.3 && m.p.x > lastDefX(w) + 0.3) continue;   // receiver offside at the pass
-    const safe = passSafety(w, c.p, at, m);
-    const value = safe * (0.35 + threat(w, at) * 1.6 + pitchControl(w, at) * 0.3) - (at.x < c.p.x - 5 ? 0.15 : 0);
-    if (!bestPass || value > bestPass.value) bestPass = { to: m, at, value };
+    // a cross: from wide in the final third into the box, played in the air
+    const aerial = c.p.x > w.L - 22 && (c.p.y < w.W * 0.22 || c.p.y > w.W * 0.78) && at.x > w.L - 16.5 && Math.abs(at.y - w.W / 2) < 12 && dist(c.p, at) > 10;
+    const safe = passSafety(w, c.p, at, m, aerial);
+    if (safe < 0.55) continue;   // never gamble a pass the defence physically reaches first
+    // a team-mate already making a run (overlap / run in behind) is worth serving: he arrives with momentum
+    const runner = m.task === "ultrapassagem" || m.task === "ruptura" ? 0.22 : 0;
+    const value = safe * (0.35 + threat(w, at) * 1.6 + pitchControl(w, at) * 0.3 + runner) - (at.x < c.p.x - 5 ? 0.15 : 0);
+    if (!bestPass || value > bestPass.value) bestPass = { to: m, at, value, aerial };
   }
   // carry: open space ahead
   const carryDir = [0, 0.5, -0.5, 1, -1].map((a) => ({ a, x: { x: clamp(c.p.x + Math.cos(a) * 6, 1, w.L - 1), y: clamp(c.p.y + Math.sin(a) * 6, 1, w.W - 1) } }))
     .map((o) => ({ ...o, v: pitchControl(w, o.x) * (0.3 + threat(w, o.x) * 1.4) })).sort((a, b) => b.v - a.v)[0];
   const carryValue = carryDir.v * (nearestD < 2 ? 0.4 : 1);
-  const holdTime = w.t - c.lastPass;
+  const holdTime = w.t - Math.max(0, c.lastPass);   // lastPass = -9 means "never": the initial carrier has held it since t = 0
   if (shotValue > 0.42 && shotValue > (bestPass?.value ?? 0) * 0.9) { w.done = `Finalização (${(shotValue * 100).toFixed(0)}% de ameaça)`; w.events.push(`${w.t.toFixed(1)}s: #${c.num} chuta`); return; }
+  // let an overlap develop: while the runner has not gone past me and nobody presses me, keep the ball
+  const overlapper = w.agents.find((m) => m.team === "A" && m.task === "ultrapassagem" && m.id !== c.id);
+  const waitForRun = overlapper && overlapper.p.x < c.p.x + 1.5 && nearestD > 3.5 && holdTime < 3.5;
+  if (waitForRun) { c.target = { x: clamp(c.p.x + 3, 1, w.L - 1), y: c.p.y + (w.W / 2 - c.p.y) * 0.15 }; c.task = "segura"; return; }
   if (bestPass && bestPass.value > carryValue * 1.05 && bestPass.value > 0.3 && holdTime > 0.6) {
     const d = dist(c.p, bestPass.at);
     const v0 = passSpeed(d);
@@ -184,9 +196,10 @@ function decideCarrier(w: World, rngv: () => number) {
     // small execution error, seeded
     const err = (rngv() - 0.5) * 0.06;
     const ex = { x: dir.x * Math.cos(err) - dir.y * Math.sin(err), y: dir.x * Math.sin(err) + dir.y * Math.cos(err) };
-    w.ball = { p: { ...c.p }, v: { x: ex.x * v0, y: ex.y * v0 }, owner: null, inFlight: { from: { ...c.p }, to: bestPass.at, t0: w.t, receiver: bestPass.to.id }, lastTouch: "A" };
+    const sp0 = bestPass.aerial ? d / AERIAL_TIME : v0;
+    w.ball = { p: { ...c.p }, v: { x: ex.x * sp0, y: ex.y * sp0 }, owner: null, inFlight: { from: { ...c.p }, to: bestPass.at, t0: w.t, receiver: bestPass.to.id, passer: c.id, aerial: bestPass.aerial }, lastTouch: "A" };
     c.lastPass = w.t;
-    w.events.push(`${w.t.toFixed(1)}s: #${c.num} passa para #${bestPass.to.num} (${(passSafety(w, c.p, bestPass.at, bestPass.to) * 100).toFixed(0)}% seguro)`);
+    w.events.push(`${w.t.toFixed(1)}s: #${c.num} ${bestPass.aerial ? "cruza" : "passa"} para #${bestPass.to.num} (${(passSafety(w, c.p, bestPass.at, bestPass.to, bestPass.aerial) * 100).toFixed(0)}% seguro)`);
     return;
   }
   c.target = carryDir.x;
@@ -280,11 +293,18 @@ export function step(w: World, dt: number, rngv: () => number) {
     }
   } else {
     const sp = Math.hypot(w.ball.v.x, w.ball.v.y);
-    if (sp > 0) { const ns = Math.max(0, sp - (0.065 * 9.81 + 0.22 * sp) * dt); w.ball.v.x *= ns / sp; w.ball.v.y *= ns / sp; }
+    const fl = w.ball.inFlight;
+    const airborne = !!fl?.aerial && w.t - fl.t0 < AERIAL_TIME;
+    if (sp > 0 && !airborne) { const ns = Math.max(0, sp - (0.065 * 9.81 + 0.22 * sp) * dt); w.ball.v.x *= ns / sp; w.ball.v.y *= ns / sp; }
     w.ball.p.x += w.ball.v.x * dt; w.ball.p.y += w.ball.v.y * dt;
     // whoever reaches the ball first controls it (control radius 0.9 m, like CONTROL_RADIUS)
     let best: Agent | null = null, bd = 0.9;
-    for (const a of w.agents) { const d = dist(a.p, w.ball.p); if (d < bd) { bd = d; best = a; } }
+    const inAir = !!fl?.aerial && w.t - fl.t0 < AERIAL_TIME * 0.8;
+    for (const a of w.agents) {
+      if (fl && a.id === fl.passer && w.t - fl.t0 < 0.8) continue;   // you cannot receive your own pass
+      if (inAir) continue;                                            // over everyone's head until it drops
+      const d = dist(a.p, w.ball.p); if (d < bd) { bd = d; best = a; }
+    }
     if (best && (w.t - (w.ball.inFlight?.t0 ?? -9) > 0.15)) {
       if (best.team === "D") { w.done = `Interceptação de #${best.num}`; w.events.push(`${w.t.toFixed(1)}s: #${best.num} intercepta`); return; }
       w.ball.owner = best.id; w.ball.inFlight = null; w.ball.lastTouch = "A";

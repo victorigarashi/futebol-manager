@@ -6,13 +6,13 @@ Este documento não aprova nada só porque funciona. A nota final fica com o pla
 
 | Critério ("não aceitar…") | Situação | Evidência |
 |---|---|---|
-| Personagem humano deslizando | **Parcial.** Caminhada 13 cm/s e corrida 34 cm/s com IK. **O sprint ainda desliza: 205 cm/s** | `data/foot-sliding.json`, `video-corrida.webm` contra `video-deslize-ingenuo.webm` |
+| Personagem humano deslizando | **Parcial.** Caminhada 10 cm/s e corrida 26 cm/s com IK. **O sprint ainda desliza: 110 cm/s** | `data/foot-sliding.json`, `video-corrida.webm` contra `video-deslize-ingenuo.webm` |
 | Corrida sem flexão natural | Atendido: joelho de 100–128° no balanço, fase de voo, braços com cotovelo a cerca de 90° | `06-perfil-sprint.png`, `video-corrida.webm` |
-| Chute sem contato | Atendido. O contato é um quadro definido no clipe, a bola é posicionada por FK e o pé chega a 19 m/s. A captura do cabeceio (`12-`) ficou com enquadramento apertado: use o vídeo | `10-chute-contato.png`, `video-chute.webm` |
+| Chute sem contato | Atendido. O contato é um quadro definido no clipe, a bola é posicionada por FK e o pé chega a 19 m/s | `10-chute-contato.png`, `video-chute.webm` |
 | Goleiro teleportando | Atendido. A velocidade do CG é limitada e verificada por teste | `tests/keeper.test.ts`, `video-mergulho.webm` |
 | Mergulho instantâneo | Atendido: preparação de 0,12 s, decolagem depois da reação e inclinação progressiva (teste) | quadros `gk-left_low-*.png` |
 | Sprite estático durante a corrida | Atendido. O quadro avança pela distância percorrida | `video-sprites-2d.webm` |
-| Movimentação coletiva artificial | **Parcial.** Perseguidores e espaçamento estão bons. **Tabela e ultrapassagem não são confiáveis** | `data/ai-scenarios.json`, `video-coletivo.webm` |
+| Movimentação coletiva artificial | **Parcial.** Perseguidores e espaçamento estão bons, a tabela fecha e o cruzamento é aéreo. **A ultrapassagem é só parcial** | `data/ai-scenarios.json`, `video-coletivo.webm` |
 | Bola colada ao atleta | Atendido no protótipo de condução (toques na bola solta). **O V6 ainda cola a bola** | `video-conducao.webm`, gráfico 6 de `30-fisica.png` |
 | Modelos incompatíveis com o navegador | Atendido. É gerado em código e exporta GLB pelo `GLTFExporter` | aba Characters |
 | Performance sem diagnóstico | Atendido com números medidos (PERFORMANCE.md). Só o iGPU Intel; **sem medição em celular** | `data/performance-*.json` |
@@ -28,7 +28,7 @@ Este documento não aprova nada só porque funciona. A nota final fica com o pla
 **Animações.**
 
 - *Parece futebol?* O chute, o passe, o cabeceio, o carrinho e o encaixe têm preparação, contato e acompanhamento corretos.
-- *Movimento humano?* A corrida e a caminhada, sim. O sprint escrito à mão é o elo fraco.
+- *Movimento humano?* A corrida e a caminhada, sim. O sprint escrito à mão é o elo fraco (110 cm/s de deslize).
 - *Acompanha a física?* Sim na locomoção, com fase e IK. Nas ações, o contato é sincronizado por metadado.
 
 **Goleiro.**
@@ -43,7 +43,7 @@ Este documento não aprova nada só porque funciona. A nota final fica com o pla
 
 **IA.**
 
-- O bloco defensivo e a disciplina de pressão estão bons. **A criatividade ofensiva (combinações) está fraca.** Ainda é um protótipo 2D sem bola aérea.
+- O bloco defensivo e a disciplina de pressão estão bons. A tabela e o cruzamento aéreo funcionam. **A ultrapassagem ainda é parcial.** Ainda é um protótipo 2D.
 
 **Sprites.**
 

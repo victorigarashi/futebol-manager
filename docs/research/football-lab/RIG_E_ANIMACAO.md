@@ -40,6 +40,7 @@ hips ─ thighL ─ shinL ─ footL ─ toeL                               (e o 
 - As chaves de voo estavam apoiadas no pé errado, e o pé de balanço atravessava o gramado em 30 cm. Agora usam "lowest".
 - A passada medida estava inflada em 40%, porque o ponto mais baixo da sola alterna entre calcanhar e ponta. Agora a medição compara sempre o mesmo ponto.
 - No chute, a velocidade do pé no contato era de 10,7 m/s, irreal. Com o golpe em 0,1 s e o joelho ainda estendendo no contato, passou a **19,0 m/s**, dentro da faixa real de 18–25 m/s.
+- No cabeceio, o ponto de contato estava 0,2 m à frente do rosto e a cabeça olhava para o peito. O contato agora é na testa e a cabeça fica erguida.
 
 ## Metadados: o contrato para integração
 
@@ -71,15 +72,15 @@ O motor move a raiz e a animação só escolhe a pose. O teste usa um trajeto re
 
 | Velocidade | Ingênuo (clipe no ritmo do autor) | Sincronizado (fase = v ÷ passada medida) | Sincronizado + IK de pé |
 |---|---|---|---|
-| 1,5 m/s | 45 cm/s | 54 cm/s | **13 cm/s** |
-| 4,2 m/s | 224 cm/s | 212 cm/s | **34 cm/s** |
-| 7,5 m/s | 552 cm/s | 519 cm/s | **205 cm/s** |
+| 1,5 m/s | 45 cm/s | 54 cm/s | **10 cm/s** |
+| 4,2 m/s | 224 cm/s | 212 cm/s | **26 cm/s** |
+| 7,5 m/s | 552 cm/s | 519 cm/s | **110 cm/s** |
 
 **Conclusões:**
 
 - **Sincronizar a cadência sozinha não basta.** Com chaves feitas à mão, o pé gira em torno do tornozelo no contato do calcanhar e varre para trás a cerca de 2 m/s, mesmo com a fase correta.
-- **O que resolve** é travar o **ponto real da sola** (calcanhar e depois a ponta, re-ancorando no rolamento) com IK de dois ossos (`anim/ik.ts`) e um limite suave de 22 cm. Isso reduz o deslizamento 6,6× na corrida e 3,6× na caminhada.
-- **No sprint o resultado ainda é insuficiente: 205 cm/s.** A fase de apoio do sprint escrito à mão tem a varredura do pé irregular. A recomendação é captura de movimento (Mixamo, com parecer, ou uma gravação própria) ou um sprint escrito com o pé travado por IK desde a autoria.
+- **O que resolve** é travar o **ponto real da sola** (calcanhar e depois a ponta, re-ancorando no rolamento) com IK de dois ossos (`anim/ik.ts`) e um limite suave de 0,40 m. A correção máxima foi testada: o joelho nunca fica com menos de 20° de flexão, ou seja, a perna não trava estendida. O deslizamento cai 8,6× na corrida e 4,6× na caminhada.
+- **O sprint melhorou (205 → 110 cm/s), mas ainda desliza.** A fase de apoio do sprint escrito à mão é irregular. A recomendação continua sendo captura de movimento ou autoria com o pé travado por IK.
 - **Passadas medidas:** caminhada 1,48 m, corrida 2,83 m (cerca de 3,0 passos/s a 4,2 m/s), sprint 3,54 m (cerca de 4,5 passos/s a 8 m/s), condução 1,78 m e passo lateral do goleiro 0,31 m. Todas estão na faixa humana.
 
 Na aba Animation, o modo "Locomoção" mostra as pegadas (azul = esquerda, vermelho = direita) e o medidor ao vivo. Os vídeos são `video-corrida.webm` (sincronizado + IK) e `video-deslize-ingenuo.webm`.

@@ -139,8 +139,8 @@ export class Locomotion {
     if (lock.active) lock.delta.set(lock.pos.x - pts[lock.id].x, 0, lock.pos.z - pts[lock.id].z);
     if (lock.w > 0.01 && lock.delta.lengthSq() > 1e-8) {
       const dl = lock.delta.length();
-      if (dl > 0.22) {   // soft clamp: the anchor drifts instead of snapping (bounded slip, never over-stretch)
-        const k = (dl - 0.22) / dl;
+      if (dl > 0.4) {   // soft clamp: the anchor drifts instead of snapping (bounded slip, never over-stretch)
+        const k = (dl - 0.4) / dl;
         lock.pos.addScaledVector(lock.delta, -k); lock.delta.multiplyScalar(1 - k);
       }
       const ankle = foot.getWorldPosition(new THREE.Vector3());

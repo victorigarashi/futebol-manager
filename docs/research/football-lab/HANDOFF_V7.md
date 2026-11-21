@@ -73,8 +73,8 @@ node scripts/football-lab/evidence.cjs   # regera capturas, vídeos e benchmarks
 ## Riscos e limitações
 
 - O atleta gerado em código tem um teto visual. Ver REVISAO_CRITICA.md.
-- O sprint desliza: 205 cm/s.
-- A tabela e a ultrapassagem não são confiáveis na IA.
+- O sprint ainda desliza: 110 cm/s.
+- A ultrapassagem é parcial na IA.
 - O termo de resistência da grama não foi calibrado com dados reais.
 - Performance medida só no iGPU Intel da máquina de desenvolvimento. **Falta celular real.**
 - O multiplayer não foi testado com nada do lab.

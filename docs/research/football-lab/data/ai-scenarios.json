@@ -3,31 +3,30 @@
     "id": "2v1",
     "label": "2 contra 1",
     "ai": {
-      "meanChasers": 0.33,
+      "meanChasers": 0.31,
       "maxChasers": 2,
-      "meanSpacing": 8.3,
-      "end": "Finalização (43% de ameaça)",
+      "meanSpacing": 12.5,
+      "end": "8 s",
       "events": [
-        "0.2s: #9 passa para #10 (97% seguro)",
-        "1.5s: #10 domina",
-        "2.2s: #10 passa para #9 (98% seguro)",
-        "3.6s: #9 domina",
-        "4.4s: #9 passa para #10 (90% seguro)",
-        "4.6s: #9 domina",
-        "5.4s: #9 chuta"
+        "0.6s: #9 passa para #10 (91% seguro)",
+        "1.9s: #10 domina",
+        "2.6s: #10 passa para #9 (97% seguro)",
+        "4.5s: #9 domina",
+        "5.2s: #9 passa para #10 (84% seguro)",
+        "6.3s: #10 domina",
+        "7.0s: #10 passa para #9 (93% seguro)"
       ]
     },
     "naive": {
-      "meanChasers": 0.99,
-      "maxChasers": 2,
-      "meanSpacing": 3.9,
-      "end": "Finalização (44% de ameaça)",
+      "meanChasers": 0.95,
+      "maxChasers": 3,
+      "meanSpacing": 4.9,
+      "end": "Interceptação de #5",
       "events": [
-        "0.2s: #9 passa para #10 (96% seguro)",
-        "1.0s: #10 domina",
-        "1.8s: #10 passa para #9 (86% seguro)",
-        "2.0s: #9 domina",
-        "3.8s: #9 chuta"
+        "0.6s: #9 passa para #10 (92% seguro)",
+        "1.3s: #10 domina",
+        "2.0s: #10 passa para #9 (81% seguro)",
+        "2.2s: #5 intercepta"
       ]
     }
   },
@@ -35,35 +34,33 @@
     "id": "3v2",
     "label": "3 contra 2",
     "ai": {
-      "meanChasers": 0.25,
-      "maxChasers": 2,
-      "meanSpacing": 14.9,
+      "meanChasers": 0.11,
+      "maxChasers": 1,
+      "meanSpacing": 15.4,
       "end": "8 s",
       "events": [
-        "0.2s: #9 passa para #7 (97% seguro)",
-        "2.2s: #7 domina",
-        "2.8s: #7 passa para #9 (85% seguro)",
-        "5.1s: #9 domina",
-        "5.8s: #9 passa para #7 (98% seguro)",
-        "7.3s: #7 domina"
+        "0.6s: #9 passa para #7 (98% seguro)",
+        "2.6s: #7 domina",
+        "3.2s: #7 passa para #10 (99% seguro)",
+        "6.3s: #10 domina",
+        "7.0s: #10 passa para #9 (80% seguro)"
       ]
     },
     "naive": {
-      "meanChasers": 1.82,
+      "meanChasers": 1.68,
       "maxChasers": 4,
-      "meanSpacing": 6.8,
-      "end": "Interceptação de #4",
+      "meanSpacing": 7.2,
+      "end": "Desarme de #4",
       "events": [
-        "0.2s: #9 passa para #7 (97% seguro)",
-        "1.5s: #7 domina",
-        "2.2s: #7 passa para #10 (87% seguro)",
-        "2.4s: #9 domina",
-        "3.0s: #9 passa para #10 (89% seguro)",
+        "0.6s: #9 passa para #7 (96% seguro)",
+        "1.7s: #7 domina",
+        "2.4s: #7 passa para #10 (88% seguro)",
+        "2.6s: #9 domina",
+        "3.2s: #9 passa para #10 (95% seguro)",
         "3.8s: #10 domina",
-        "4.4s: #10 passa para #9 (60% seguro)",
+        "4.4s: #10 passa para #9 (66% seguro)",
         "4.6s: #7 domina",
-        "5.2s: #7 passa para #9 (100% seguro)",
-        "5.4s: #4 intercepta"
+        "4.9s: #4 desarma"
       ]
     }
   },
@@ -71,33 +68,28 @@
     "id": "counter",
     "label": "Contra-ataque",
     "ai": {
-      "meanChasers": 0.42,
-      "maxChasers": 3,
-      "meanSpacing": 13.7,
+      "meanChasers": 0.19,
+      "maxChasers": 1,
+      "meanSpacing": 13.6,
       "end": "8 s",
       "events": [
-        "0.2s: #9 passa para #11 (91% seguro)",
-        "1.2s: #11 domina",
-        "1.8s: #11 passa para #7 (94% seguro)",
-        "2.3s: #9 domina",
-        "6.4s: #9 passa para #7 (94% seguro)",
-        "8.0s: #7 domina"
+        "0.6s: #9 passa para #7 (98% seguro)",
+        "3.0s: #7 domina",
+        "5.8s: #7 passa para #11 (81% seguro)"
       ]
     },
     "naive": {
-      "meanChasers": 2.76,
+      "meanChasers": 2.51,
       "maxChasers": 6,
-      "meanSpacing": 6.7,
-      "end": "Interceptação de #5",
+      "meanSpacing": 6.2,
+      "end": "Interceptação de #3",
       "events": [
-        "0.2s: #9 passa para #11 (91% seguro)",
-        "0.8s: #11 domina",
-        "1.6s: #11 passa para #7 (89% seguro)",
-        "2.7s: #7 domina",
-        "3.4s: #7 passa para #11 (49% seguro)",
-        "3.6s: #11 domina",
-        "4.2s: #11 passa para #9 (49% seguro)",
-        "4.4s: #5 intercepta"
+        "0.6s: #9 passa para #7 (99% seguro)",
+        "2.0s: #7 domina",
+        "2.6s: #7 passa para #11 (100% seguro)",
+        "4.3s: #7 domina",
+        "5.2s: #7 passa para #10 (86% seguro)",
+        "5.4s: #3 intercepta"
       ]
     }
   },
@@ -105,35 +97,33 @@
     "id": "organised",
     "label": "Ataque organizado",
     "ai": {
-      "meanChasers": 0.38,
-      "maxChasers": 3,
-      "meanSpacing": 12.8,
-      "end": "8 s",
+      "meanChasers": 0.85,
+      "maxChasers": 2,
+      "meanSpacing": 12,
+      "end": "Interceptação de #6",
       "events": [
-        "0.2s: #11 passa para #8 (96% seguro)",
-        "1.9s: #8 domina",
-        "2.6s: #8 passa para #3 (97% seguro)",
-        "3.7s: #3 domina",
-        "4.4s: #3 passa para #11 (93% seguro)",
-        "4.6s: #3 domina",
-        "5.2s: #3 passa para #11 (85% seguro)",
-        "5.4s: #3 domina",
-        "6.0s: #3 passa para #8 (91% seguro)",
-        "7.8s: #8 domina"
+        "0.6s: #11 passa para #8 (98% seguro)",
+        "2.2s: #8 domina",
+        "3.0s: #8 passa para #3 (78% seguro)",
+        "4.1s: #3 domina",
+        "4.8s: #3 passa para #8 (71% seguro)",
+        "5.1s: #6 intercepta"
       ]
     },
     "naive": {
-      "meanChasers": 3.06,
-      "maxChasers": 10,
-      "meanSpacing": 7.5,
-      "end": "Interceptação de #6",
+      "meanChasers": 4.51,
+      "maxChasers": 12,
+      "meanSpacing": 5.6,
+      "end": "Interceptação de #8",
       "events": [
-        "0.2s: #11 passa para #8 (95% seguro)",
-        "1.3s: #8 domina",
-        "2.0s: #8 passa para #10 (81% seguro)",
-        "3.2s: #10 domina",
-        "3.8s: #10 passa para #7 (67% seguro)",
-        "4.0s: #6 intercepta"
+        "0.6s: #11 passa para #8 (91% seguro)",
+        "1.5s: #8 domina",
+        "2.2s: #8 passa para #7 (88% seguro)",
+        "3.2s: #7 domina",
+        "3.8s: #7 passa para #10 (62% seguro)",
+        "4.7s: #10 domina",
+        "5.4s: #10 passa para #8 (100% seguro)",
+        "5.6s: #8 intercepta"
       ]
     }
   },
@@ -141,26 +131,26 @@
     "id": "through",
     "label": "Passe em profundidade",
     "ai": {
-      "meanChasers": 0.23,
-      "maxChasers": 1,
-      "meanSpacing": 14.6,
-      "end": "Finalização (44% de ameaça)",
+      "meanChasers": 0.66,
+      "maxChasers": 2,
+      "meanSpacing": 12,
+      "end": "Finalização (42% de ameaça)",
       "events": [
-        "0.2s: #9 passa para #10 (67% seguro)",
-        "1.5s: #10 domina",
-        "3.2s: #10 chuta"
+        "1.0s: #9 passa para #10 (67% seguro)",
+        "1.8s: #10 domina",
+        "4.0s: #10 chuta"
       ]
     },
     "naive": {
-      "meanChasers": 1.78,
-      "maxChasers": 4,
-      "meanSpacing": 11.7,
+      "meanChasers": 1.25,
+      "maxChasers": 3,
+      "meanSpacing": 11.1,
       "end": "Interceptação de #4",
       "events": [
-        "0.2s: #9 passa para #10 (68% seguro)",
-        "1.1s: #10 domina",
-        "1.8s: #10 passa para #9 (72% seguro)",
-        "2.0s: #4 intercepta"
+        "0.6s: #9 passa para #10 (77% seguro)",
+        "1.2s: #10 domina",
+        "2.0s: #10 passa para #9 (61% seguro)",
+        "2.2s: #4 intercepta"
       ]
     }
   },
@@ -168,32 +158,32 @@
     "id": "onetwo",
     "label": "Tabela",
     "ai": {
-      "meanChasers": 0.83,
-      "maxChasers": 2,
-      "meanSpacing": 12.2,
+      "meanChasers": 1.36,
+      "maxChasers": 3,
+      "meanSpacing": 7.1,
       "end": "8 s",
       "events": [
-        "0.2s: #9 passa para #10 (77% seguro)",
-        "1.4s: #10 domina",
-        "2.2s: #10 passa para #9 (94% seguro)",
-        "2.4s: #10 domina",
-        "3.0s: #10 passa para #9 (87% seguro)",
-        "3.2s: #10 domina",
-        "4.0s: #10 passa para #9 (81% seguro)",
-        "5.4s: #9 domina",
-        "6.8s: #9 passa para #10 (48% seguro)"
+        "0.6s: #9 passa para #10 (58% seguro)",
+        "1.8s: #10 domina",
+        "2.4s: #10 passa para #9 (88% seguro)",
+        "3.6s: #9 domina",
+        "4.2s: #9 passa para #10 (89% seguro)",
+        "5.2s: #10 domina",
+        "5.8s: #10 passa para #9 (65% seguro)",
+        "6.4s: #9 domina"
       ]
     },
     "naive": {
-      "meanChasers": 2.32,
+      "meanChasers": 2.45,
       "maxChasers": 4,
-      "meanSpacing": 5.4,
-      "end": "Interceptação de #4",
+      "meanSpacing": 2.2,
+      "end": "Desarme de #5",
       "events": [
-        "0.2s: #9 passa para #10 (77% seguro)",
-        "1.0s: #10 domina",
-        "1.6s: #10 passa para #9 (51% seguro)",
-        "1.8s: #4 intercepta"
+        "0.6s: #9 passa para #10 (80% seguro)",
+        "1.2s: #10 domina",
+        "2.4s: #10 passa para #9 (65% seguro)",
+        "4.3s: #10 domina",
+        "4.8s: #5 desarma"
       ]
     }
   },
@@ -201,33 +191,33 @@
     "id": "overlap",
     "label": "Ultrapassagem",
     "ai": {
-      "meanChasers": 0.37,
-      "maxChasers": 3,
-      "meanSpacing": 12.1,
-      "end": "Interceptação de #2",
+      "meanChasers": 0.5,
+      "maxChasers": 2,
+      "meanSpacing": 12.7,
+      "end": "8 s",
       "events": [
-        "0.2s: #9 passa para #10 (99% seguro)",
-        "1.4s: #10 domina",
-        "2.0s: #10 passa para #7 (83% seguro)",
-        "3.7s: #7 domina",
-        "4.4s: #7 passa para #11 (97% seguro)",
-        "5.7s: #11 domina",
-        "7.0s: #11 passa para #7 (55% seguro)",
-        "7.3s: #2 intercepta"
+        "1.0s: #9 passa para #7 (91% seguro)",
+        "3.3s: #7 domina",
+        "4.2s: #7 passa para #10 (79% seguro)",
+        "6.0s: #10 domina",
+        "6.8s: #10 passa para #11 (79% seguro)"
       ]
     },
     "naive": {
-      "meanChasers": 2.23,
-      "maxChasers": 6,
-      "meanSpacing": 6.3,
-      "end": "Interceptação de #4",
+      "meanChasers": 2.41,
+      "maxChasers": 7,
+      "meanSpacing": 5.6,
+      "end": "Desarme de #5",
       "events": [
-        "0.2s: #9 passa para #10 (97% seguro)",
-        "1.0s: #10 domina",
-        "1.6s: #10 passa para #7 (68% seguro)",
-        "2.4s: #7 domina",
-        "3.2s: #7 passa para #11 (100% seguro)",
-        "3.4s: #4 intercepta"
+        "1.0s: #9 passa para #10 (62% seguro)",
+        "1.5s: #10 domina",
+        "2.2s: #10 passa para #7 (65% seguro)",
+        "2.4s: #9 domina",
+        "3.0s: #9 passa para #7 (78% seguro)",
+        "3.4s: #7 domina",
+        "4.0s: #7 passa para #9 (100% seguro)",
+        "4.2s: #9 domina",
+        "4.4s: #5 desarma"
       ]
     }
   },
@@ -235,23 +225,38 @@
     "id": "cross",
     "label": "Cruzamento",
     "ai": {
-      "meanChasers": 0.81,
+      "meanChasers": 0.11,
       "maxChasers": 1,
-      "meanSpacing": 16,
-      "end": "Interceptação de #5",
+      "meanSpacing": 15.3,
+      "end": "8 s",
       "events": [
-        "1.0s: #9 passa para #10 (54% seguro)",
-        "1.2s: #5 intercepta"
+        "0.6s: #9 cruza para #10 (95% seguro)",
+        "1.7s: #10 domina",
+        "2.8s: #10 passa para #7 (99% seguro)",
+        "3.9s: #7 domina",
+        "4.8s: #7 passa para #11 (98% seguro)",
+        "7.0s: #11 domina",
+        "7.6s: #11 cruza para #7 (64% seguro)"
       ]
     },
     "naive": {
-      "meanChasers": 1.23,
-      "maxChasers": 3,
-      "meanSpacing": 13.8,
-      "end": "Interceptação de #4",
+      "meanChasers": 2.48,
+      "maxChasers": 7,
+      "meanSpacing": 7.6,
+      "end": "Desarme de #3",
       "events": [
-        "2.6s: #9 passa para #10 (44% seguro)",
-        "2.9s: #4 intercepta"
+        "0.6s: #9 cruza para #10 (56% seguro)",
+        "1.5s: #10 domina",
+        "2.2s: #10 passa para #11 (85% seguro)",
+        "3.6s: #11 domina",
+        "4.4s: #11 passa para #10 (100% seguro)",
+        "4.6s: #7 domina",
+        "5.4s: #7 passa para #9 (100% seguro)",
+        "5.6s: #11 domina",
+        "6.4s: #11 passa para #7 (100% seguro)",
+        "6.6s: #7 domina",
+        "6.6s: #7 chuta",
+        "6.6s: #3 desarma"
       ]
     }
   },
@@ -259,35 +264,35 @@
     "id": "lowblock",
     "label": "Defesa compacta",
     "ai": {
-      "meanChasers": 0.25,
-      "maxChasers": 2,
-      "meanSpacing": 11.8,
-      "end": "8 s",
+      "meanChasers": 0.66,
+      "maxChasers": 3,
+      "meanSpacing": 11.6,
+      "end": "Interceptação de #5",
       "events": [
-        "0.2s: #11 passa para #8 (88% seguro)",
-        "2.1s: #8 domina",
-        "2.8s: #8 passa para #3 (97% seguro)",
-        "3.0s: #8 domina",
-        "3.6s: #8 passa para #11 (80% seguro)",
-        "5.1s: #11 domina",
-        "5.8s: #11 passa para #3 (96% seguro)",
-        "7.5s: #3 domina"
+        "0.6s: #11 passa para #8 (98% seguro)",
+        "2.4s: #8 domina",
+        "3.2s: #8 passa para #3 (96% seguro)",
+        "4.0s: #3 domina",
+        "4.8s: #3 passa para #8 (84% seguro)",
+        "5.0s: #8 domina",
+        "5.6s: #8 passa para #11 (80% seguro)",
+        "5.8s: #5 intercepta"
       ]
     },
     "naive": {
-      "meanChasers": 4.46,
-      "maxChasers": 11,
-      "meanSpacing": 5.8,
-      "end": "Interceptação de #8",
+      "meanChasers": 5.19,
+      "maxChasers": 12,
+      "meanSpacing": 5,
+      "end": "Interceptação de #2",
       "events": [
-        "0.2s: #11 passa para #8 (87% seguro)",
-        "1.4s: #8 domina",
-        "2.0s: #8 passa para #9 (100% seguro)",
-        "2.2s: #11 domina",
-        "2.8s: #11 passa para #10 (75% seguro)",
-        "3.7s: #10 domina",
-        "4.4s: #10 passa para #7 (79% seguro)",
-        "4.6s: #8 intercepta"
+        "0.6s: #11 passa para #8 (90% seguro)",
+        "1.6s: #8 domina",
+        "2.2s: #8 passa para #7 (85% seguro)",
+        "3.2s: #7 domina",
+        "4.0s: #7 passa para #10 (76% seguro)",
+        "4.5s: #6 domina",
+        "5.2s: #6 passa para #9 (100% seguro)",
+        "5.4s: #2 intercepta"
       ]
     }
   },
@@ -295,28 +300,27 @@
     "id": "highpress",
     "label": "Pressão alta",
     "ai": {
-      "meanChasers": 0.25,
-      "maxChasers": 1,
-      "meanSpacing": 15.9,
+      "meanChasers": 0.33,
+      "maxChasers": 2,
+      "meanSpacing": 15.3,
       "end": "8 s",
       "events": [
-        "0.2s: #10 passa para #7 (87% seguro)",
-        "2.4s: #7 domina",
-        "3.0s: #7 passa para #8 (97% seguro)",
-        "5.1s: #8 domina",
-        "6.6s: #8 passa para #11 (57% seguro)"
+        "0.6s: #10 passa para #7 (77% seguro)",
+        "2.7s: #7 domina",
+        "3.4s: #7 passa para #8 (91% seguro)",
+        "5.5s: #8 domina"
       ]
     },
     "naive": {
-      "meanChasers": 1.84,
+      "meanChasers": 1.86,
       "maxChasers": 5,
-      "meanSpacing": 10.3,
+      "meanSpacing": 10.1,
       "end": "Interceptação de #3",
       "events": [
-        "0.2s: #10 passa para #7 (87% seguro)",
-        "1.6s: #7 domina",
-        "2.4s: #7 passa para #10 (69% seguro)",
-        "3.3s: #3 intercepta"
+        "0.6s: #10 passa para #7 (88% seguro)",
+        "1.8s: #7 domina",
+        "2.6s: #7 passa para #10 (70% seguro)",
+        "3.5s: #3 intercepta"
       ]
     }
   }

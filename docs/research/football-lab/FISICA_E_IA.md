@@ -42,20 +42,29 @@
 
 | Cenário | Perseguidores médios (IA / baseline) | Espaçamento médio dos atacantes (IA / baseline) | Fim |
 |---|---|---|---|
-| 2 contra 1 | 0,33 / 0,99 | 8,3 / 3,9 m | finalização |
-| 3 contra 2 | 0,25 / 1,82 | 14,9 / 6,8 m | — |
-| Contra-ataque | 0,42 / 2,76 | 13,7 / 6,7 m | — |
-| Ataque organizado | 0,38 / 3,06 | 12,8 / 7,5 m | — |
-| Passe em profundidade | 0,23 / 1,78 | 14,6 / 11,7 m | finalização |
-| Tabela | 0,83 / 2,32 | 12,2 / 5,4 m | — |
-| Ultrapassagem | 0,37 / 2,23 | 12,1 / 6,3 m | interceptação |
-| Cruzamento | 0,81 / 1,23 | 16,0 / 13,8 m | interceptação |
-| Defesa compacta | 0,25 / 4,46 | 11,8 / 5,8 m | — |
-| Pressão alta | 0,25 / 1,84 | 15,9 / 10,3 m | — |
+| 2 contra 1 | 0,31 / 0,95 | 12,5 / 4,9 m | — |
+| 3 contra 2 | 0,11 / 1,68 | 15,4 / 7,2 m | — |
+| Contra-ataque | 0,19 / 2,51 | 13,6 / 6,2 m | — |
+| Ataque organizado | 0,85 / 4,51 | 12,0 / 5,6 m | interceptação |
+| Passe em profundidade | 0,66 / 1,25 | 12,0 / 11,1 m | finalização |
+| Tabela | 1,36 / 2,45 | 7,1 / 2,2 m | — |
+| Ultrapassagem | 0,50 / 2,41 | 12,7 / 5,6 m | — |
+| Cruzamento | 0,11 / 2,48 | 15,3 / 7,6 m | — |
+| Defesa compacta | 0,66 / 5,19 | 11,6 / 5,0 m | interceptação |
+| Pressão alta | 0,33 / 1,86 | 15,3 / 10,1 m | — |
+
+**Correções feitas depois da primeira rodada.** Foram achadas no registro de eventos:
+
+1. O passador "dominava" o próprio passe 0,2 s depois, e por isso a tabela nunca fechava.
+2. O portador jogava passes com só 48–55% de segurança.
+3. O cruzamento era rasteiro e cortado no meio do caminho. Agora é aéreo e só pode ser disputado perto da área de queda.
+4. O portador inicial "achava" que estava com a bola havia 9 s (`lastPass = -9`). Por isso todos os cenários começavam com um passe instantâneo, e a regra de segurar a bola para a ultrapassagem nunca disparava.
+5. A ultrapassagem perdia para "ficar parado" por causa da penalidade de estar perto do portador.
 
 **Leitura crítica:**
 
-- **O espaçamento e a disciplina estão bons.** Ninguém persegue a bola sem função, e o bloco fica compacto: cerca de 12 m de profundidade por 40 m de largura no ataque organizado.
-- **A tabela e a ultrapassagem ainda não acontecem de forma confiável.** O "passa e se move" e a corrida por fora aparecem como intenção nos alvos desenhados, mas o portador nem sempre escolhe devolver ou servir o lateral. A ultrapassagem terminou em interceptação. Os pesos da utilidade do portador precisam de ajuste, ou de um gatilho explícito de combinação.
-- **O cruzamento** é um passe rasteiro no protótipo 2D, porque a IA tática ainda não usa a bola 3D. Ataque ao primeiro e ao segundo pau existe só como posicionamento.
-- **Os scripts de cenário são posições iniciais.** O comportamento vem todo da mesma IA, não de roteiros.
+- **O espaçamento e a disciplina estão bons.** Ninguém persegue a bola sem função, e o bloco fica compacto.
+- **A tabela agora fecha** (#9 → #10 → #9). A métrica de "perseguidores" no cenário da tabela (1,36) inclui o passador correndo ao lado da bola, o que nesse caso é o comportamento desejado.
+- **O cruzamento agora é aéreo** e é dominado na área.
+- **A ultrapassagem é parcial.** O ponta segura a bola até 1 s e o lateral avança, mas o lateral recebe pela meia (6 s), e não do ponta. Falta um gatilho de combinação explícito.
+- **Os cenários são só posições iniciais.** Todo o comportamento vem da mesma IA, sem roteiro.

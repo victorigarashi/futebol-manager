@@ -81,7 +81,7 @@ export function mount(view: HTMLElement, panel: HTMLElement) {
     applyPose(rig, mir ? mirrorPose(p) : p);
     let bone = PART_BONE[c.part];
     if (mir) bone = bone.endsWith("L") ? bone.slice(0, -1) + "R" : bone.endsWith("R") ? bone.slice(0, -1) + "L" : bone;
-    const local = c.part === "head" ? new THREE.Vector3(0, 0.2, 0.1) : c.part === "chest" ? new THREE.Vector3(0, 0.12, 0.16) : c.part.startsWith("foot") ? new THREE.Vector3(0, 0.0, 0.03) : new THREE.Vector3(0, -0.12, 0.02);
+    const local = c.part === "head" ? new THREE.Vector3(0, 0.11, 0.21) : c.part === "chest" ? new THREE.Vector3(0, 0.12, 0.16) : c.part.startsWith("foot") ? new THREE.Vector3(0, 0.0, 0.03) : new THREE.Vector3(0, -0.12, 0.02);
     return worldOf(rig, bone as never, local);
   };
   const toLab = (v: THREE.Vector3) => ({ x: v.z, y: v.x, z: v.y });
@@ -124,6 +124,8 @@ export function mount(view: HTMLElement, panel: HTMLElement) {
     }
     if (!contactFired && time >= c.time) {
       contactFired = true;
+      // snap to the exact contact point (an incoming ball moves ~0.2 m per frame at 60 fps)
+      if (!ballHeld) ball.position.copy(at);
       marker.position.copy(ball.position); marker.visible = true;
       if (clip.meta.name === "gk_catch") { ballHeld = "hands"; return; }
       ballHeld = null;

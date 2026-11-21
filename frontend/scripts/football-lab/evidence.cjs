@@ -37,8 +37,8 @@ const shot = async (page, name) => { await page.screenshot({ path: path.join(OUT
   if (want("anim")) {
     // contact frames of ball actions
     const s = await open(browser, "tab=animation");
-    for (const [clip, file, cam] of [["shot", "10-chute-contato.png", [2.4, 1.2, 2.0]], ["pass_short", "11-passe-contato.png", [2.2, 1.2, 2.2]], ["header", "12-cabeceio-contato.png", [2.8, 1.8, 2.6]], ["slide_tackle", "13-carrinho-contato.png", [3, 1.4, 1.2]], ["gk_catch", "14-encaixe-contato.png", [2.2, 1.3, 2.6]], ["cross", "15-cruzamento-contato.png", [2.4, 1.2, 2.0]]]) {
-      await s.page.evaluate(([c, cm]) => { window.__lab.pickClip(c); const m = window.__lab.metadata().find((x) => x.name === c); window.__lab.play(true); window.__lab.timeScale(1); window.__lab.cam(cm, [0, 0.8, 0.3]); window.__contactU = m.contact.u; }, [clip, cam]);
+    for (const [clip, file, cam] of [["shot", "10-chute-contato.png", [2.4, 1.2, 2.0]], ["pass_short", "11-passe-contato.png", [2.2, 1.2, 2.2]], ["header", "12-cabeceio-contato.png", [3.6, 1.7, 3.6]], ["slide_tackle", "13-carrinho-contato.png", [3, 1.4, 1.2]], ["gk_catch", "14-encaixe-contato.png", [2.2, 1.3, 2.6]], ["cross", "15-cruzamento-contato.png", [2.4, 1.2, 2.0]]]) {
+      await s.page.evaluate(([c, cm]) => { window.__lab.pickClip(c); const m = window.__lab.metadata().find((x) => x.name === c); window.__lab.play(true); window.__lab.timeScale(1); window.__lab.cam(cm, [0, c === "header" ? 1.4 : 0.8, 0.3]); window.__contactU = m.contact.u; }, [clip, cam]);
       await s.page.waitForFunction(() => document.querySelector(".hud").textContent.includes("● contato"), null, { timeout: 5000 }).catch(() => {});
       await s.page.evaluate(() => window.__lab.play(false)); await wait(200); await shot(s.page, file);
     }
