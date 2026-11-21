@@ -7,7 +7,7 @@ export const VISUAL = {
   marginMetres: 3.2,
   goalDepthMetres: 2.0,
   /** Player sprite height relative to the pitch width on screen (clamped in px). */
-  playerHeight: { perPitchWidth: 1 / 17, min: 22, max: 46 },
+  playerHeight: { perPitchWidth: 1 / 14, min: 30, max: 50 },
   ballRadius: { perPlayerHeight: 0.15, min: 3.2 },
   /** One stride every this many metres run (leg cycle). */
   strideMetres: 1.9,

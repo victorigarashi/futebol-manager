@@ -655,10 +655,17 @@ export class Renderer3D {
         // Build-up/finishing: elevated and tilted behind the ball carrier (ball in the lower third,
         // team-mates and the goal ahead), the goal kept in frame when close to it.
         const k = Math.max(0.6, s);
-        const lead = Math.min(9 * k, toGoal * 0.45);
-        look.set(ball.x + dir * lead, 0, ball.z * 0.92);
         const back = (portrait ? 17 : 15) * k, height = (portrait ? 17 : 14) * k;
-        pos.set(ball.x - dir * back, height, ball.z * 0.97);
+        // Far from goal: look down the pitch. Close to it (crosses, byline, box): turn towards
+        // the goal mouth so the goal never leaves the frame.
+        const near = Math.max(0, Math.min(1, 1 - (toGoal - 12 * k) / (22 * k)));
+        let ax = dir, az = 0;
+        const gx = goalX - ball.x, gz = -ball.z, gl = Math.hypot(gx, gz) || 1;
+        ax = ax * (1 - near) + (gx / gl) * near; az = (gz / gl) * near;
+        const al = Math.hypot(ax, az) || 1; ax /= al; az /= al;
+        const lead = Math.min(9 * k, Math.max(4 * k, gl * 0.5));
+        look.set(ball.x + ax * lead, 0, ball.z + az * lead);
+        pos.set(ball.x - ax * back, height, ball.z - az * back);
       }
       const c = this.cinematic;
       if (c && now < c.until) {
