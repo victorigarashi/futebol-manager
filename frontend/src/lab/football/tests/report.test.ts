@@ -1,6 +1,6 @@
 import { it } from "vitest";
 import { AI_SCENARIOS, makeWorld, metrics, seededRng, step } from "../ai/tactics";
-import { clipMetadata, contactSpeed, CLIP_DEFS, measureStride, CLIPS } from "../anim/clips";
+import { clipMetadata, contactSpeed, CLIP_DEFS, measureStride, CLIPS } from "../../../football/anim/clips";
 import { keeperFromRating, scenarios, simulateShot, v6KeeperOutcome, lineCrossing } from "../keeper/sim";
 import { slideRun } from "./anim.test";
 

@@ -2,11 +2,11 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
 import { createHuman } from "../../../features/career/interactive/render/human";
-import { createAthlete, type Athlete } from "../athlete/athlete";
-import { triangleCount, type Detail } from "../athlete/body";
-import { cosmeticFor, KIT_AWAY, KIT_HOME, KIT_KEEPER, type KitSpec, type Pattern } from "../athlete/kit";
-import { BONES, type Pose } from "../athlete/rig";
-import { POSES } from "../anim/poses";
+import { createAthlete, type Athlete } from "../../../football/athlete/athlete";
+import { triangleCount, type Detail } from "../../../football/athlete/body";
+import { cosmeticFor, KIT_AWAY, KIT_HOME, KIT_KEEPER, type KitSpec, type Pattern } from "../../../football/athlete/kit";
+import { BONES, type Pose } from "../../../football/athlete/rig";
+import { POSES } from "../../../football/anim/poses";
 import { button, createStage, el, select, slider, checkbox } from "../stage";
 
 /** Characters: the new lofted athlete, keeper, kits and cosmetic variety, next to the V6 athlete and a CC0 baseline. */
@@ -108,7 +108,7 @@ export function mount(view: HTMLElement, panel: HTMLElement) {
   };
 
   const exportGlb = async () => {
-    const { allClips } = await import("../anim/clips");
+    const { allClips } = await import("../../../football/anim/clips");
     const a = createAthlete({ kit: KIT_HOME, detail: "medium", seed: 11 });
     const clips = allClips();
     new GLTFExporter().parse(a.group, (res) => {

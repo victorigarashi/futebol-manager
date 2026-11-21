@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { Avatar3D } from "./avatar3d";
 
 import type { InteractiveView } from "../../../../lib/api";
 import { predictTarget, type Aim } from "../gesture";
@@ -334,7 +335,11 @@ export class Renderer3D {
   quality: Quality;
   cameraMode: CameraMode = "auto";
   /** "human" (semi-realistic, default) or "voxel" (previous blocky style, kept as a fallback/comparison). */
-  characterStyle: "human" | "voxel" = (() => { try { return localStorage.getItem("bm_3d_style") === "voxel" ? "voxel" : "human"; } catch { return "human"; } })();
+  /** "athlete" (V8 default): skinned human + clip library + matched locomotion. "human"/"voxel": V6 styles, kept for comparison. */
+  characterStyle: "athlete" | "human" | "voxel" = (() => { try { const v = localStorage.getItem("bm_3d_style"); return v === "voxel" ? "voxel" : v === "human" ? "human" : "athlete"; } catch { return "athlete"; } })();
+  private avatars = new Map<string, Avatar3D>();
+  /** Mean planted-foot sliding of the visible athletes (cm/s), for the Lab diagnostics. */
+  footSlide = 0;
   lost = false;
   fps = 60;
   private frameTimes: number[] = [];
@@ -630,7 +635,34 @@ export class Renderer3D {
     this.lastTime = now;
     const opp = view.opportunity;
     const seen = new Set<string>();
-    if (scene) {
+    if (scene && this.characterStyle === "athlete") {
+      let slideSum = 0, slideN = 0;
+      for (const p of scene.players) {
+        const kit = p.team === "A" ? kits.attack : kits.defend;
+        const key = `A|${p.id}|${p.keeper ? kit.gk?.shirt ?? VISUAL.keeperKits[p.team] : kit.shirt}|${kit.shorts}|${kit.pattern ?? ""}|${this.quality}`;
+        let av = this.avatars.get(p.id);
+        if (!av || av.key !== key) {
+          if (av) { this.scene.remove(av.root); av.dispose(); }
+          av = new Avatar3D(p, kit, this.quality, SHADOW[this.quality] > 0, geo.ring, key);
+          this.avatars.set(p.id, av);
+          this.scene.add(av.root);
+        }
+        seen.add(p.id);
+        av.root.visible = true;
+        this.world(p.x, p.y, 0, av.root.position);
+        const targetRy = Math.atan2(Math.cos(p.facing), Math.sin(p.facing));
+        let diff = targetRy - av.root.rotation.y; diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+        av.root.rotation.y += diff * Math.min(1, dt * 12);
+        av.root.updateMatrixWorld(true);
+        av.update(p, scene.step, scene.t, dt, now, scene.playing);
+        if (p.speed > 1 && av.slide > 0) { slideSum += av.slide; slideN += 1; }
+        av.ring.visible = p.carrier && view.state === "DECISION";
+        (av.ring.material as THREE.MeshBasicMaterial).color.set(overlay.yourTurn ? 0xc6f24e : 0xffffff);
+        av.ring.scale.setScalar(0.85 + Math.sin(now * 6) * 0.04);
+      }
+      this.footSlide = slideN ? slideSum / slideN : 0;
+    }
+    if (scene && this.characterStyle !== "athlete") {
       for (const p of scene.players) {
         const kit = p.team === "A" ? kits.attack : kits.defend;
         const style = this.characterStyle === "voxel" ? "" : "H|";
@@ -654,6 +686,8 @@ export class Renderer3D {
         (rig.ring.material as THREE.MeshBasicMaterial).color.set(overlay.yourTurn ? 0xc6f24e : 0xffffff);
         rig.ring.scale.setScalar(0.85 + Math.sin(now * 6) * 0.04);
       }
+    }
+    if (scene) {
       const b = scene.ball;
       this.world(b.x, b.y, BALL_RADIUS + b.z, this.ball.position);
       this.ball.visible = !b.held;
@@ -680,7 +714,8 @@ export class Renderer3D {
         pos.needsUpdate = true;
       }
     }
-    for (const [id, rig] of this.rigs) if (!seen.has(id)) rig.root.visible = false;
+    for (const [id, rig] of this.rigs) if (!seen.has(id) || this.characterStyle === "athlete") rig.root.visible = false;
+    for (const [id, av] of this.avatars) if (!seen.has(id) || this.characterStyle !== "athlete") av.root.visible = false;
     if (this.crowd) this.crowd.position.y = scene?.ripple && scene.ripple.age < 2 ? Math.abs(Math.sin(now * 10)) * 0.25 : 0;
     this.updateAim(view, scene, overlay, now);
     this.updateCamera(view, scene, overlay, dt, now);

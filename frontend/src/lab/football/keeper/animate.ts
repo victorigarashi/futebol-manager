@@ -1,8 +1,8 @@
 import * as THREE from "three";
-import type { Athlete } from "../athlete/athlete";
-import { lerpPose, mirrorPose, type Pose } from "../athlete/rig";
-import { CLIPS, GK_READY_POSE, measureStride, samplePose } from "../anim/clips";
-import { twoBoneIK } from "../anim/ik";
+import type { Athlete } from "../../../football/athlete/athlete";
+import { lerpPose, mirrorPose, type Pose } from "../../../football/athlete/rig";
+import { CLIPS, GK_READY_POSE, measureStride, samplePose } from "../../../football/anim/clips";
+import { twoBoneIK } from "../../../football/anim/ik";
 import { toThree } from "../props";
 import type { KeeperResult, KFrame } from "./sim";
 

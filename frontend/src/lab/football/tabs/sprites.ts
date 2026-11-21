@@ -1,6 +1,6 @@
-import { KIT_AWAY, KIT_HOME, KIT_KEEPER, SKIN_TONES, HAIR_COLOURS, type Pattern } from "../athlete/kit";
-import { measureStride, CLIPS } from "../anim/clips";
-import { bakeAtlas, cellXY, directionIndex, paletteFor, recolour, DIRECTIONS, type AtlasMeta } from "../sprites/bake";
+import { KIT_AWAY, KIT_HOME, KIT_KEEPER, SKIN_TONES, HAIR_COLOURS, type Pattern } from "../../../football/athlete/kit";
+import { measureStride, CLIPS } from "../../../football/anim/clips";
+import { bakeAtlas, cellXY, directionIndex, paletteFor, recolour, DIRECTIONS, type AtlasMeta } from "../../../football/sprites/bake";
 import { button, checkbox, el, select, slider } from "../stage";
 
 /**

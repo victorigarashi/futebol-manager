@@ -1,9 +1,9 @@
 import * as THREE from "three";
 import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
-import { createAthlete, type Athlete } from "../athlete/athlete";
-import { bodyGeometry, triangleCount, REGIONS, type Detail } from "../athlete/body";
-import { cosmeticFor, KIT_AWAY, KIT_HOME, regionPalette } from "../athlete/kit";
-import { allClips, CLIPS, samplePose } from "../anim/clips";
+import { createAthlete, type Athlete } from "../../../football/athlete/athlete";
+import { bodyGeometry, triangleCount, REGIONS, type Detail } from "../../../football/athlete/body";
+import { cosmeticFor, KIT_AWAY, KIT_HOME, regionPalette } from "../../../football/athlete/kit";
+import { allClips, CLIPS, samplePose } from "../../../football/anim/clips";
 import { button, checkbox, createStage, el, select } from "../stage";
 
 /**

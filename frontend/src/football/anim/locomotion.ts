@@ -1,6 +1,8 @@
 import * as THREE from "three";
 import { addPose, lerpPose, type Pose, type Rig } from "../athlete/rig";
 import { CLIPS, measureStride, samplePose, type ClipDef } from "./clips";
+import { contactPoints, fkRig, lowestWithId } from "./fk";
+import { applyPose } from "../athlete/rig";
 import { twoBoneIK } from "./ik";
 
 /**
@@ -14,7 +16,65 @@ import { twoBoneIK } from "./ik";
  *                 IK until it lifts, then released smoothly.
  * Leans come from the root's own kinematics: forward lean ∝ acceleration, bank ∝ v·ω.
  */
-export type LocoMode = "naive" | "synced" | "synced+ik";
+export type LocoMode = "naive" | "synced" | "synced+ik" | "matched+ik";
+
+/**
+ * Distance-matched phase (V8). A hand-authored cycle does not move the planted foot
+ * backwards at a constant speed, so advancing the phase at a constant rate (speed/stride)
+ * always leaves some sliding — worst in the sprint. Instead we measure, along the clip,
+ * how far the weight-bearing sole travels backwards (`S(u)`, cumulative), and advance the
+ * phase by DISTANCE RUN: u = S⁻¹(distance mod S(1)). While a foot is planted it then moves
+ * back at exactly the root speed (world velocity ≈ 0) at any speed; the flight phase is
+ * spread evenly. The cycle length S(1) is the clip's natural stride.
+ */
+const MAP_SAMPLES = 480;
+type PhaseMap = { st: Float32Array; fl: Float32Array; stTotal: number; flTotal: number };
+/** Human cadence (steps per second) at a speed: ~3.1 jogging at 4.2 m/s, ~4.3 sprinting at 8.5 m/s. */
+export function cadence(speed: number): number { return 2.0 + 0.27 * Math.max(0, speed); }
+const phaseMaps = new Map<string, PhaseMap>();
+export function phaseMap(def: ClipDef): PhaseMap {
+  const cached = phaseMaps.get(def.meta.name);
+  if (cached) return cached;
+  const rig = fkRig();
+  const back = new Float32Array(MAP_SAMPLES);
+  const planted = new Uint8Array(MAP_SAMPLES);
+  let prev: { y: number; side: "L" | "R"; id: number; z: number[] } | null = null;
+  for (let i = 0; i <= MAP_SAMPLES; i += 1) {
+    applyPose(rig, samplePose(def, i / MAP_SAMPLES));
+    const c = contactPoints(rig);
+    const l = lowestWithId(c, "L"), r = lowestWithId(c, "R");
+    const side: "L" | "R" = l.p.y <= r.p.y ? "L" : "R";
+    const low = side === "L" ? l : r;
+    const all = side === "L" ? [c.heelL, c.ballL, c.tipL] : [c.heelR, c.ballR, c.tipR];
+    if (prev && i > 0 && low.p.y < 0.02 && prev.y < 0.02 && prev.side === side) {
+      const d = prev.z[prev.id] - all[prev.id].z;
+      if (d > 0) { back[i - 1] = d; planted[i - 1] = 1; }
+    }
+    prev = { y: low.p.y, side, id: low.id, z: all.map((q) => q.z) };
+  }
+  let sum = 0, n = 0;
+  for (let i = 0; i < MAP_SAMPLES; i += 1) if (planted[i]) { sum += back[i]; n += 1; }
+  const fill = n ? sum / n : 1 / MAP_SAMPLES;   // flight samples: spread evenly (scaled per speed, see progressAt)
+  const st = new Float32Array(MAP_SAMPLES + 1), fl = new Float32Array(MAP_SAMPLES + 1);
+  for (let i = 0; i < MAP_SAMPLES; i += 1) { st[i + 1] = st[i] + (planted[i] ? back[i] : 0); fl[i + 1] = fl[i] + (planted[i] ? 0 : fill); }
+  const map = { st, fl, stTotal: st[MAP_SAMPLES], flTotal: fl[MAP_SAMPLES] };
+  phaseMaps.set(def.meta.name, map);
+  return map;
+}
+/**
+ * Normalised progress (0..1) of a clip at phase u, for a cycle of `cycle` metres: the stance
+ * part is the real backward travel of the planted sole (zero slip); the flight part is
+ * stretched or shrunk so that the cycle matches a human cadence at this speed.
+ */
+function flightScale(m: PhaseMap, cycle: number): number { return m.flTotal > 1e-6 ? Math.max(0.15, (cycle - m.stTotal) / m.flTotal) : 0; }
+function progressAt(m: PhaseMap, u: number, cycle: number): number {
+  const x = (((u % 1) + 1) % 1) * MAP_SAMPLES, i = Math.floor(x), f = x - i, j = Math.min(MAP_SAMPLES, i + 1);
+  const k = flightScale(m, cycle);
+  const at = (q: number) => m.st[q] + k * m.fl[q];
+  return (at(i) + (at(j) - at(i)) * f) / (m.stTotal + k * m.flTotal);
+}
+/** Metres per gait cycle (two steps) at a speed. */
+export function cycleLength(speed: number): number { return (2 * Math.max(0.3, speed)) / cadence(speed); }
 export type Body = { group: THREE.Object3D; rig: Rig; setPose: (p: Pose) => void };
 
 type Gait = { def: ClipDef; stride: number; centre: number };
@@ -44,6 +104,8 @@ export class Locomotion {
   mode: LocoMode = "synced+ik";
   dribble = false;
   phase = 0;
+  /** Distance progress through the cycle (0..1) in "matched+ik". */
+  progress = 0;
   private idleT = 0;
   private naiveT: Record<string, number> = { walk: 0, run: 0, sprint: 0, dribble: 0 };
   private lastYaw: number | null = null;
@@ -90,6 +152,22 @@ export class Locomotion {
       pose = useDribble ? p("dribble") : blend([[p("walk"), w.walk], [p("run"), w.run], [p("sprint"), w.sprint]]);
       this.phase = useDribble ? this.naiveT.dribble % 1 : this.naiveT.run % 1;
       this.lastCadence = 1 / CLIPS.run.meta.duration;
+    } else if (this.mode === "matched+ik" && !useDribble) {
+      // Blend of the gait clips' distance maps (weights of this speed), inverted by bisection.
+      const maps = [phaseMap(g[0].def), phaseMap(g[1].def), phaseMap(g[2].def)];
+      const ws = [w.walk, w.run, w.sprint];
+      const wsum = ws[0] + ws[1] + ws[2];
+      // Each clip keeps its real stance travel; the cycle length follows a human cadence.
+      const want = cycleLength(speed);
+      const cycleOf = (m: PhaseMap) => m.stTotal + flightScale(m, want) * m.flTotal;
+      const cycle = wsum > 1e-6 ? (ws[0] * cycleOf(maps[0]) + ws[1] * cycleOf(maps[1]) + ws[2] * cycleOf(maps[2])) / wsum : want;
+      const prog = (u: number) => wsum > 1e-6 ? (ws[0] * progressAt(maps[0], u, want) + ws[1] * progressAt(maps[1], u, want) + ws[2] * progressAt(maps[2], u, want)) / wsum : u;
+      this.progress = (this.progress + (speed > 0.05 ? (speed * dt) / Math.max(0.3, cycle) : 0)) % 1;
+      let lo = 0, hi = 1;
+      for (let k = 0; k < 22; k += 1) { const mid = (lo + hi) / 2; if (prog(mid) < this.progress) lo = mid; else hi = mid; }
+      this.phase = (lo + hi) / 2;
+      this.lastCadence = speed / Math.max(0.3, cycle);
+      pose = blend([[samplePose(g[0].def, this.phase), w.walk], [samplePose(g[1].def, this.phase), w.run], [samplePose(g[2].def, this.phase), w.sprint]]);
     } else {
       const rate = speed > 0.05 ? speed / Math.max(0.3, strideNow) : 0;
       this.phase = (this.phase + rate * dt) % 1;
@@ -111,7 +189,7 @@ export class Locomotion {
     body.group.updateMatrixWorld(true);
 
     // ---- foot locking
-    if (this.mode === "synced+ik") {
+    if (this.mode === "synced+ik" || this.mode === "matched+ik") {
       for (const side of ["L", "R"] as const) this.footLock(body, side, dt, speed);
     }
     this.meter(body, dt);

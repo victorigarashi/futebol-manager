@@ -2,10 +2,10 @@ import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 
 declare const process: { stderr: { write: (s: string) => void } };
-import { applyPose, createSkeleton } from "../athlete/rig";
-import { CLIPS, CLIP_DEFS, clipMetadata, contactSpeed, measureStride, samplePose, bakeClip } from "../anim/clips";
-import { contactPoints, fkRig, lowestOf } from "../anim/fk";
-import { Locomotion, RootDriver, type LocoMode } from "../anim/locomotion";
+import { applyPose, createSkeleton } from "../../../football/athlete/rig";
+import { CLIPS, CLIP_DEFS, clipMetadata, contactSpeed, measureStride, samplePose, bakeClip } from "../../../football/anim/clips";
+import { contactPoints, fkRig, lowestOf } from "../../../football/anim/fk";
+import { Locomotion, RootDriver, cadence, cycleLength, type LocoMode } from "../../../football/anim/locomotion";
 
 function headlessBody() {
   const rig = createSkeleton();
@@ -43,14 +43,15 @@ describe("animation library", () => {
     const c = contactPoints(rig);
     expect(Math.min(lowestOf(c, "L").y, lowestOf(c, "R").y)).toBeCloseTo(0, 2);
   });
-  it("measured strides are in the human range (walk 1.2-1.8 m, run 2-3.2 m, sprint 3.4-4.8 m per cycle)", () => {
-    const walk = measureStride(CLIPS.walk).stride, run = measureStride(CLIPS.run).stride, sprint = measureStride(CLIPS.sprint).stride;
-    process.stderr.write(`strides walk=${walk.toFixed(2)} run=${run.toFixed(2)} sprint=${sprint.toFixed(2)}\n`);
+  it("cycles and cadence are in the human range (V8: real flight phases, cadence-matched cycle)", () => {
+    // The clip's natural strides grew when the flight phase became really airborne (V8 grounding);
+    // the played cycle now follows a human cadence instead (cycleLength / cadence).
+    const walk = measureStride(CLIPS.walk).stride;
+    process.stderr.write(`strides walk=${walk.toFixed(2)} run(cycle@4.2)=${cycleLength(4.2).toFixed(2)} sprint(cycle@8.5)=${cycleLength(8.5).toFixed(2)}\n`);
     expect(walk).toBeGreaterThan(1.0); expect(walk).toBeLessThan(1.9);
-    expect(run).toBeGreaterThan(1.8); expect(run).toBeLessThan(3.3);
-    expect(sprint).toBeGreaterThan(3.0); expect(sprint).toBeLessThan(5.0);
-    // cadence at typical speeds (steps per second = 2 / cycle time)
-    process.stderr.write(`cadence run@4.2=${(2 * 4.2 / run).toFixed(2)} steps/s sprint@8=${(2 * 8 / sprint).toFixed(2)} steps/s\n`);
+    expect(cycleLength(4.2)).toBeGreaterThan(2.4); expect(cycleLength(4.2)).toBeLessThan(3.2);
+    expect(cycleLength(8.5)).toBeGreaterThan(3.6); expect(cycleLength(8.5)).toBeLessThan(4.6);
+    expect(cadence(4.2)).toBeGreaterThan(2.8); expect(cadence(8.5)).toBeGreaterThan(4.0); expect(cadence(8.5)).toBeLessThan(4.8);
   });
   it("contact metadata is consistent and the kicking foot moves fast at contact", () => {
     for (const m of clipMetadata()) if (m.contact) { expect(m.contact.time).toBeGreaterThan(0); expect(m.contact.time).toBeLessThan(m.duration); }

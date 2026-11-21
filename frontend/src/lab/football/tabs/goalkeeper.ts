@@ -1,9 +1,9 @@
 import * as THREE from "three";
-import { createAthlete } from "../athlete/athlete";
-import { KIT_AWAY, KIT_KEEPER } from "../athlete/kit";
-import { applyPose } from "../athlete/rig";
-import { CLIPS, samplePose } from "../anim/clips";
-import { fkRig, worldOf } from "../anim/fk";
+import { createAthlete } from "../../../football/athlete/athlete";
+import { KIT_AWAY, KIT_KEEPER } from "../../../football/athlete/kit";
+import { applyPose } from "../../../football/athlete/rig";
+import { CLIPS, samplePose } from "../../../football/anim/clips";
+import { fkRig, worldOf } from "../../../football/anim/fk";
 import { KeeperAnimator, frameAt } from "../keeper/animate";
 import { aimShot, KEEPER_DEFAULTS, keeperFromRating, lineCrossing, scenarios, setPosition, simulateShot, v6KeeperOutcome, type KeeperParams, type KeeperResult, type Shot } from "../keeper/sim";
 import { BALL_DEFAULTS, newBall, simulate, strike } from "../physics/ball";

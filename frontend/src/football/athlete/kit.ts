@@ -85,12 +85,14 @@ export function shirtCanvas(kit: KitSpec, size = 256, look?: Cosmetic): HTMLCanv
   g.textAlign = "center"; g.textBaseline = "middle";
   g.font = numberFont(H * 0.3);
   g.lineWidth = H * 0.012; g.strokeStyle = kit.primary === kit.numberColor ? kit.secondary : shadeHex(kit.numberColor, kit.numberColor === "#ffffff" ? -0.6 : 0.6);
-  g.save(); g.scale(0.78, 1);
-  g.strokeText(String(kit.number), (Wd * 0.5) / 0.78, vy(0.6));
-  g.fillStyle = kit.numberColor; g.fillText(String(kit.number), (Wd * 0.5) / 0.78, vy(0.6));
+  // The shirt's UV runs right-to-left over the body (seen from outside), so both numbers are
+  // drawn mirrored to read correctly on the 3D model (V8 fix: "10" used to read "01").
+  g.save(); g.translate(Wd * 0.5, 0); g.scale(-0.78, 1);
+  g.strokeText(String(kit.number), 0, vy(0.6));
+  g.fillStyle = kit.numberColor; g.fillText(String(kit.number), 0, vy(0.6));
   g.restore();
   g.font = numberFont(H * 0.075); g.fillStyle = kit.numberColor;
-  g.fillText(String(kit.number), Wd * 0.92, vy(0.74));
+  g.save(); g.translate(Wd * 0.92, 0); g.scale(-1, 1); g.fillText(String(kit.number), 0, vy(0.74)); g.restore();
   // crest placeholder (fictional) on the right chest
   g.beginPath(); g.arc(Wd * 0.085, vy(0.74), H * 0.022, 0, Math.PI * 2); g.fillStyle = kit.secondary; g.fill();
   g.strokeStyle = kit.numberColor; g.lineWidth = 1.5; g.stroke();

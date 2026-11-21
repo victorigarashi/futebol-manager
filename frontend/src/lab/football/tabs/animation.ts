@@ -1,10 +1,10 @@
 import * as THREE from "three";
-import { createAthlete } from "../athlete/athlete";
-import { KIT_HOME, KIT_KEEPER } from "../athlete/kit";
-import { applyPose, lerpPose, mirrorPose, type Pose } from "../athlete/rig";
-import { CLIP_DEFS, CLIPS, clipMetadata, contactSpeed, samplePose, type ClipDef, type ContactPart } from "../anim/clips";
-import { fkRig, worldOf } from "../anim/fk";
-import { Locomotion, RootDriver, type LocoMode, type PathKind } from "../anim/locomotion";
+import { createAthlete } from "../../../football/athlete/athlete";
+import { KIT_HOME, KIT_KEEPER } from "../../../football/athlete/kit";
+import { applyPose, lerpPose, mirrorPose, type Pose } from "../../../football/athlete/rig";
+import { CLIP_DEFS, CLIPS, clipMetadata, contactSpeed, samplePose, type ClipDef, type ContactPart } from "../../../football/anim/clips";
+import { fkRig, worldOf } from "../../../football/anim/fk";
+import { Locomotion, RootDriver, type LocoMode, type PathKind } from "../../../football/anim/locomotion";
 import { BALL_DEFAULTS, newBall, stepBall, strike, type BallState } from "../physics/ball";
 import { makeBall } from "../props";
 import { button, checkbox, createStage, el, select, slider } from "../stage";

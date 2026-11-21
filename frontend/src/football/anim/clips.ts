@@ -424,12 +424,35 @@ function groundTable(def: ClipDef): Float32Array {
   const hit = groundCache.get(def.meta.name);
   if (hit) return hit;
   const tab = new Float32Array(GROUND_SAMPLES + 1);
+  const stance = def.meta.stance;
+  const peak = Math.max(0, ...def.keys.map((k) => k.lift ?? 0));
+  const inWin = (u: number, w: [number, number]) => { const a = w[0], b = w[1]; return b <= 1 ? u >= a && u <= b : u >= a || u <= b - 1; };
   for (let i = 0; i <= GROUND_SAMPLES; i += 1) {
     const u = i / GROUND_SAMPLES;
     const p = rawPose(def, u);
+    if (stance && def.meta.loop && peak > 0) {
+      // V8 gait grounding from the declared stance windows: the stance foot carries the
+      // weight; between windows the body is airborne on a smooth arc (real flight phase).
+      if (inWin(u, stance.L) || inWin(u, stance.R)) {
+        const foot: Ground = inWin(u, stance.L) && !inWin(u, stance.R) ? "L" : !inWin(u, stance.L) ? "R" : "lowest";
+        tab[i] = Math.max(groundOffset(p, foot), groundOffset(p, "lowest"));
+      } else {
+        // flight window: from the end of one stance to the start of the next
+        const ends = [stance.L[1] % 1, stance.R[1] % 1].sort((a, b) => a - b);
+        const starts = [stance.L[0] % 1, stance.R[0] % 1].sort((a, b) => a - b);
+        let a = 0, b = 1;
+        for (const e of ends) { const nxt = starts.find((st) => st > e) ?? starts[0] + 1; const uu = u < e ? u + 1 : u; if (uu >= e && uu <= nxt) { a = e; b = nxt; } }
+        const k = Math.max(0, Math.min(1, ((u < a ? u + 1 : u) - a) / Math.max(1e-6, b - a)));
+        tab[i] = groundOffset(p, "lowest") + peak * Math.sin(Math.PI * k);
+      }
+      continue;
+    }
     const g = groundAt(def.keys, u, def.meta.loop);
     const lift = catmullValue(def.keys, u, "lift", def.meta.loop);
-    tab[i] = g === "none" ? 0 : groundOffset(p, g) + lift;
+    // V8: the chosen support foot defines the height, but NO part of either foot may go below
+    // the grass (a reaching swing foot used to sink 20+ cm while still moving forward — the
+    // eye and the meter read it as a planted foot sliding; see docs/v8/SPRINT.md).
+    tab[i] = g === "none" ? 0 : Math.max(groundOffset(p, g) + lift, groundOffset(p, "lowest"));
   }
   // smooth the switch between grounding feet (avoid a pop when the support changes)
   const sm = new Float32Array(tab.length);
