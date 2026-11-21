@@ -411,7 +411,8 @@ class SeasonService:
                     fixture.id, season.mode, home_input, away_input, home_view, away_view,
                     [club for club in (fixture.home, fixture.away) if club in human_clubs], seed,
                     str(season.rules.get("ruleset", "ARCADE")), int(season.rules.get("decision_seconds", 10) or 10),
-                    bool(season.rules.get("decision_free_vs_bots", False)), announced + self.intro_seconds)
+                    bool(season.rules.get("decision_free_vs_bots", False)), announced + self.intro_seconds,
+                    engine=get_settings().gameplay_engine)
                 season.matches[fixture.id] = {"id": fixture.id, "home": fixture.home, "away": fixture.away, "status": "LIVE", "seed": seed,
                                               "competition": extra["kind"], "stage": extra.get("stage"), "leg": extra.get("leg"),
                                               "inputs": {"home": home_view, "away": away_view}, "bot_sides": bot_sides, "interactive": True}

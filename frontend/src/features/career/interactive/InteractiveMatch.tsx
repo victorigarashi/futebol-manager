@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, type Club, type InteractiveActionType, type InteractiveView } from "../../../lib/api";
 import { ClubCrest } from "../../../components/ClubCrest";
 import { clubColors, matchKits } from "../clubColors";
-import { aimFromDrag, attackDir, fromScreen, predictTarget, type Aim, type Geometry } from "./gesture";
+import { aimFromDrag, attackDir, fromScreen, predictTarget, toScreen, type Aim, type Geometry } from "./gesture";
 import { roomSource, type MatchSource } from "./source";
 import { buildScene, crossedCues, type Scene } from "./render/presentation";
 import { drawScene2D, geometryFor, playRegion, type Kit, type Overlay } from "./render/renderer2d";
@@ -250,6 +250,29 @@ export function InteractiveMatch({ roomId, clubCode, clubs, source: given, onExi
     raf = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(raf);
   }, [offset, kits, r3dStatus]);
+
+  // Lab-only playtest hook (#lab): lets the automated playtest drag from real screen points.
+  // Read-only: it exposes the official view and the projection, never a way to change the state.
+  useEffect(() => {
+    let flag = false;
+    try { flag = localStorage.getItem("bm_playtest") === "1"; } catch { /* optional */ }
+    if (!window.location.hash.startsWith("#lab") && !flag) return;
+    const w = window as unknown as { __bmMatch?: unknown };
+    w.__bmMatch = {
+      view: () => viewRef.current,
+      experience: () => (r3d.current && !r3d.current.lost ? "3D" : "2D"),
+      toClient: (nx: number, ny: number): [number, number] | null => {
+        const renderer = r3d.current;
+        if (renderer && !renderer.lost) return renderer.clientOf(nx, ny);
+        const element = canvas2d.current;
+        if (!element) return null;
+        const rect = element.getBoundingClientRect();
+        const [sx, sy] = toScreen(geometry.current, nx, ny);
+        return [rect.left + sx, rect.top + sy];
+      },
+    };
+    return () => { delete w.__bmMatch; };
+  }, []);
 
   // --------------------------------------------------------------- gestures (same intent in 2D and 3D)
   const pick = (clientX: number, clientY: number): [number, number] | null => {

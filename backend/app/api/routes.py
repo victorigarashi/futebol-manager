@@ -1188,7 +1188,7 @@ async def lab_create(payload: LabCreate, identity: GuestIdentity = Depends(curre
         raise HTTPException(status_code=503, detail="Catálogo indisponível.")
     try:
         return envelope(lab_service.create(identity.id, catalog, payload.mode, payload.kind, payload.home, payload.away, payload.seed,
-                                           second_half=payload.second_half))
+                                           second_half=payload.second_half, engine=payload.engine, difficulty=payload.difficulty))
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
 

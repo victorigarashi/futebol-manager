@@ -37,9 +37,12 @@ export function playRegion(view: InteractiveView, ballX: number, ballY: number, 
   const aspect = portrait ? height / Math.max(1, width) : width / Math.max(1, height);
   const across = Math.min(W + 2 * m, along / aspect);
   const cx = ballX * L + dir * along * 0.2;                  // look ahead, towards the goal
-  const cy = ballY * W * 0.55 + (W / 2) * 0.45;               // follow the ball, biased to the middle
+  const cy = ballY * W * 0.75 + (W / 2) * 0.25;               // follow the ball, slightly biased to the middle
+  // Across, the camera may look past the touchline (boards, track): a play on the wing stays
+  // in the middle of the screen instead of under the score bug or the action bar (V7 audit).
+  const side = m + 6;
   const x0 = Math.max(-m, Math.min(L + m - along, cx - along / 2));
-  const y0 = Math.max(-m, Math.min(W + m - across, cy - across / 2));
+  const y0 = Math.max(-side, Math.min(W + side - across, cy - across / 2));
   return { x0: x0 / L, x1: (x0 + along) / L, y0: y0 / W, y1: (y0 + across) / W };
 }
 

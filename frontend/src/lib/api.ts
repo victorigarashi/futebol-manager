@@ -13,18 +13,25 @@ export type ExecutionMode = "TECHNICAL" | "INTERACTIVE";
 export type Ruleset = "ARCADE" | "TRADITIONAL";
 export type DecisionSeconds = 5 | 10 | 15 | 20;
 export type InteractiveActionType = "PASS" | "LOFT" | "CARRY" | "SHOT";
-/** One physics frame: [t, ballX, ballY, ballZ, x0, y0, x1, y1, ...] in normalised pitch units (roster order). */
+/**
+ * One physics frame in normalised pitch units (roster order).
+ * Layout "v6": [t, ballX, ballY, ballZ, x0, y0, x1, y1, ...].
+ * Layout "v7": [t, ballX, ballY, ballZ, x0, y0, facing0, act0, x1, y1, facing1, act1, ...]
+ * (facing in radians in pitch metres; act = action state code, see render/presentation.ts).
+ */
 export type InteractiveFrame = number[];
 export type InteractiveStep = { by: "HUMAN" | "AI" | "TIMEOUT" | "AI_TAKEOVER" | "AI_CONTROL"; type: InteractiveActionType; aim: { x: number; y: number }; power: number; carrier: string; outcome: string; detail: string; frames: InteractiveFrame[]; duration: number; starts_at: number; receiver: string | null;
-  shooter?: string | null; post?: boolean;
+  shooter?: string | null; post?: boolean; layout?: "v6" | "v7";
   /** Timed moments of the action (seconds from its start) for animation and sound: KICK, CONTROL, SAVE, POST, GOAL, TACKLE, HEADER, DIVE… */
   cues?: InteractiveCue[] };
 export type MatchKit = { id: string; shirt: string; shorts: string; socks: string; trim: string; number: string; pattern: "plain" | "stripes" | "hoops" | "sash"; generic: boolean };
-export type InteractiveCue = { t: number; kind: string; id: string | null; action?: InteractiveActionType; power?: number; hold?: boolean; dy?: number; past?: string };
+export type InteractiveCue = { t: number; kind: string; id: string | null; action?: InteractiveActionType; power?: number; hold?: boolean; dy?: number; past?: string; windup?: number; level?: "low" | "mid" | "high"; high?: boolean; touched?: boolean };
 export type InteractiveOpportunity = {
   id: string; kind: string; label: string; attacking: string; defending: string; minute: number; status: string; result: string | null;
   actions: number; max_actions: number; carrier: string; roster: { id: string; name: string; number: number; team: "A" | "D"; role: string }[];
   positions: [number, number][]; ball: [number, number]; last: InteractiveStep | null; replay: InteractiveStep[] | null; opened_at: number;
+  /** V7: [facing (rad, pitch metres), speed m/s] per athlete at the decision (frozen in motion). */
+  motion?: [number, number][];
   /** Real direction of the attacking club in this half (true = towards x = 1). Every coordinate is already on the real pitch. */
   right?: boolean;
 };
@@ -37,7 +44,10 @@ export type InteractiveView = {
   half?: 1 | 2; attacks_right?: Record<string, boolean>;
   /** Official kit selection of the match (chosen by the server, identical in 2D and 3D). */
   kits?: { home: MatchKit; away: MatchKit; home_gk: MatchKit; away_gk: MatchKit };
-  physics: { pass: [number, number]; loft: [number, number]; loft_range: [number, number]; shot: [number, number]; carry: [number, number]; decel: number; assist_angle?: number };
+  physics: { pass: [number, number]; loft?: [number, number]; loft_range: [number, number]; shot: [number, number]; carry: [number, number]; decel: number; assist_angle?: number;
+    /** V7 physics model: rolling resistance [constant m/s², drag 1/m] — the forecast integrates the same equation. */
+    model?: "v7"; roll?: [number, number]; loft_angle?: [number, number] };
+  engine?: "v6" | "v7"; difficulty?: "EASY" | "NORMAL" | "HARD";
   events: MatchEvent[]; stats: Record<string, Record<string, number>>;
 };
 export type InteractiveActionPayload = { action_id: string; opportunity_id: string; revision: number; type: InteractiveActionType; x: number; y: number; power: number };
@@ -299,7 +309,7 @@ export const api = {
   season: (roomId: string) => request<Envelope<SeasonView>>(`/rooms/${roomId}/season`),
   live: (roomId: string) => request<Envelope<LiveView>>(`/rooms/${roomId}/season/live`),
   interactive: (roomId: string, revision?: number) => request<Envelope<InteractiveView>>(`/rooms/${roomId}/season/interactive${revision !== undefined ? `?revision=${revision}` : ""}`),
-  labCreate: (body: { kind: string; mode: "ELEVEN_A_SIDE" | "FIVE_A_SIDE"; home?: string; away?: string; seed?: number; second_half?: boolean }) => request<Envelope<{ id: string; match: InteractiveView }>>("/lab/sessions", { method: "POST", body: JSON.stringify(body) }),
+  labCreate: (body: { kind: string; mode: "ELEVEN_A_SIDE" | "FIVE_A_SIDE"; home?: string; away?: string; seed?: number; second_half?: boolean; engine?: "v6" | "v7"; difficulty?: "EASY" | "NORMAL" | "HARD" }) => request<Envelope<{ id: string; match: InteractiveView }>>("/lab/sessions", { method: "POST", body: JSON.stringify(body) }),
   labState: (id: string, revision?: number) => request<Envelope<InteractiveView>>(`/lab/sessions/${id}${revision !== undefined ? `?revision=${revision}` : ""}`),
   labAction: (id: string, payload: InteractiveActionPayload) => request<Envelope<{ status: string; revision: number; match: InteractiveView }>>(`/lab/sessions/${id}/actions`, { method: "POST", body: JSON.stringify(payload) }),
   interactiveAction: (roomId: string, payload: InteractiveActionPayload) => request<Envelope<{ status: string; revision: number; match: InteractiveView }>>(`/rooms/${roomId}/season/interactive/actions`, { method: "POST", body: JSON.stringify(payload) }),

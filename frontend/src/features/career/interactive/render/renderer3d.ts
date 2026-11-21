@@ -762,7 +762,8 @@ export class Renderer3D {
         // team-mates and the goal ahead), the goal kept in frame when close to it.
         const k = Math.max(0.55, s);
         // Wide enough to read the play: ~35 m of pitch ahead, team-mates and markers in view.
-        const back = (portrait ? 22 : 18) * k, height = (portrait ? 21 : 15.5) * k;
+        // V7: steeper (~36°) — the pitch fills the screen instead of the stands (audit item 11).
+        const back = (portrait ? 16 : 11.5) * k, height = (portrait ? 19 : 13.5) * k;
         // Far from goal: look down the pitch. Close to it (crosses, byline, box): turn towards
         // the goal mouth so the goal never leaves the frame.
         const near = Math.max(0, Math.min(1, 1 - (toGoal - 12 * k) / (22 * k)));
@@ -770,7 +771,8 @@ export class Renderer3D {
         const gx = goalX - ball.x, gz = -ball.z, gl = Math.hypot(gx, gz) || 1;
         ax = ax * (1 - near) + (gx / gl) * near; az = (gz / gl) * near;
         const al = Math.hypot(ax, az) || 1; ax /= al; az /= al;
-        const lead = Math.min(14 * k, Math.max(5 * k, gl * 0.55));
+        // Short lead: the carrier sits in the lower-middle of the screen, above the action bar.
+        const lead = Math.min(6 * k, Math.max(1.5 * k, gl * 0.3));
         look.set(ball.x + ax * lead, 0, ball.z + az * lead);
         pos.set(ball.x - ax * back, height, ball.z - az * back);
       }
@@ -801,6 +803,14 @@ export class Renderer3D {
   settle(view: InteractiveView, scene: Scene | null, overlay: Overlay) {
     this.cinematic = null;
     for (let i = 0; i < 40; i += 1) this.updateCamera(view, scene, overlay, 0.5, 0);
+  }
+
+  /** Client (page) coordinates of a pitch point on the grass (playtest hook and overlays). */
+  clientOf(x: number, y: number): [number, number] | null {
+    const v = this.world(x, y, 0).project(this.camera);
+    if (v.z > 1) return null;
+    const rect = this.canvas.getBoundingClientRect();
+    return [rect.left + ((v.x + 1) / 2) * rect.width, rect.top + ((1 - v.y) / 2) * rect.height];
   }
 
   private project(x: number, y: number, h: number): [number, number] | null {
@@ -862,7 +872,7 @@ export function mountAthleteShowcase(host: HTMLElement, opts: { keeper?: boolean
   grass.rotation.x = -Math.PI / 2; grass.receiveShadow = true; scene.add(grass);
   const kit: Kit = { shirt: "#C8102E", shorts: "#111111", socks: "#C8102E", trim: "#111111", number: "#FFFFFF", pattern: "plain", gk: { shirt: "#F5B83D", shorts: "#1E1E24", socks: "#F5B83D", trim: "#1E1E24", number: "#111111" } };
   const player: ScenePlayer = { id: "showcase-10", name: "Atleta", number: 10, team: "A", role: opts.keeper ? "GK" : "MF", club: "LAB", x: 0, y: 0, vx: 0, vy: 0, speed: 0, facing: 0,
-    stride: 0, pose: "idle", poseK: 0, poseDir: 1, carrier: false, keeper: Boolean(opts.keeper) };
+    stride: 0, pose: "idle", poseK: 0, poseDir: 1, carrier: false, keeper: Boolean(opts.keeper), act: -1 };
   const rig = opts.style === "voxel" ? buildRig(player, kit, true) : buildHumanRig(player, kit, true, "high");
   rig.root.traverse((o) => { o.castShadow = true; });
   scene.add(rig.root);

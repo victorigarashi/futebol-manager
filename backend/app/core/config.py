@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     live_match_seconds: int = 60
     # Match presentation (line-ups on screen) between "all ready" and kick-off.
     live_intro_seconds: int = 5
+    # Modo Jogável engine for competitive matches. "v6" stays the default until the owner
+    # approves V7 (docs/v7); the Football Lab uses V7 and can switch for comparison.
+    gameplay_engine: str = "v6"
 
     request_limit_per_minute: int = 600
     auth_limit_per_minute: int = 120

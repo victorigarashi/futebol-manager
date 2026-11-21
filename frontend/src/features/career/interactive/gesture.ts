@@ -61,7 +61,7 @@ export function predictTarget(view: InteractiveView, from: [number, number], aim
   const s = L / 105;
   const p = view.physics;
   let metres: number;
-  if (aim.type === "PASS") { const v0 = p.pass[0] + p.pass[1] * aim.power; metres = (v0 * v0) / (2 * p.decel); }
+  if (aim.type === "PASS") { const v0 = p.pass[0] + p.pass[1] * aim.power; metres = p.model === "v7" && p.roll ? rollDistance(v0, p.roll) : (v0 * v0) / (2 * p.decel); }
   else if (aim.type === "LOFT") metres = (p.loft_range[0] + p.loft_range[1] * aim.power) * s;
   else if (aim.type === "CARRY") metres = (p.carry[0] + p.carry[1] * aim.power) * s;
   else {
@@ -74,6 +74,19 @@ export function predictTarget(view: InteractiveView, from: [number, number], aim
     return [(fx + aim.ux * metres) / L, (fy + aim.uy * metres) / W];
   }
   return [from[0] + (aim.ux * metres) / L, from[1] + (aim.uy * metres) / W];
+}
+
+/**
+ * Distance a ground pass rolls with the V7 physics: dv/dt = -(c0 + c1·v²), integrated with
+ * the server's own fixed step (backend/app/domain/football/world.py, ball_step).
+ */
+export function rollDistance(v0: number, roll: [number, number], dt = 0.025): number {
+  let v = v0, x = 0;
+  for (let i = 0; i < 4000 && v > 0.05; i += 1) {
+    v = Math.max(0, v - (roll[0] + roll[1] * v * v) * dt);
+    x += v * dt;
+  }
+  return x;
 }
 
 /** +1 when the attacking club attacks towards x = 1 in this half, -1 towards x = 0. */

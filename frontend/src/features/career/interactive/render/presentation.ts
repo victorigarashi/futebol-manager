@@ -5,8 +5,12 @@ import { VISUAL } from "./config";
  * Shared match presentation: turns the OFFICIAL server state (frames recorded by the
  * authoritative physics, already on the real pitch) into a scene that both renderers
  * draw — the 2D canvas and the 3D view. Nothing here decides anything: positions come
- * from the frames, poses come from the timed physics cues (kick, save, tackle…), so an
- * animation can never contradict the result.
+ * from the frames, poses come from the action state recorded per frame (V7) and from the
+ * timed physics cues (kick, save, tackle…), so an animation can never contradict the result.
+ *
+ * V7 frames carry, per athlete, the body orientation and an action state; players are
+ * interpolated with a Catmull-Rom spline (continuous velocity: no corners every 0.1 s),
+ * the ball linearly (it changes direction abruptly on a kick — that is physics).
  *
  * Coordinates: x along the pitch length (0..1, metres = x·L), y across (0..1), z = ball
  * height in metres.
@@ -21,6 +25,8 @@ export type ScenePlayer = {
   stride: number;
   pose: Pose; poseK: number; poseDir: number;
   carrier: boolean; keeper: boolean;
+  /** V7 action state (see ACT); -1 when unknown (V6 frames). */
+  act: number;
 };
 export type Scene = {
   players: ScenePlayer[];
@@ -33,10 +39,15 @@ export type Scene = {
   playing: boolean;
 };
 
+/** Action states of the V7 engine (backend/app/domain/football/world.py). */
+export const ACT = { NONE: 0, KICK: 1, RECEIVE: 2, TACKLE: 3, HEADER: 4, STUMBLE: 5, GK_SET: 6, GK_DIVE: 7, GK_HOLD: 8, GK_DOWN: 9, GK_RISE: 10, DRIBBLE: 11, GK_JUMP: 12, GK_STEP: 13 } as const;
+
 const firstSeen = new Map<string, number>();
 const strideCache = new WeakMap<InteractiveFrame[], number[][]>();
 
 function stepKey(step: InteractiveStep): string { return `${step.starts_at}:${step.carrier}:${step.type}`; }
+/** Values per athlete in a frame row. */
+export function strideOf(step: InteractiveStep | null): 2 | 4 { return step?.layout === "v7" ? 4 : 2; }
 
 /**
  * Local playback time of a step. Latency catch-up: the step starts when this client first
@@ -55,12 +66,13 @@ function localTime(step: InteractiveStep, now: number): number {
 export function currentStep(view: InteractiveView, now: number): { step: InteractiveStep; t: number } | null {
   const opp = view.opportunity;
   if (!opp) return null;
+  const gap = view.engine === "v7" ? 0.25 : 0.6;
   if (opp.replay && opp.replay.length && (view.state === "REPLAY" || view.state === "OUTCOME")) {
     let start = opp.replay[0].starts_at;
     for (const step of opp.replay) {
       const end = start + step.duration;
-      if (now < end + 0.6 || step === opp.replay[opp.replay.length - 1]) return { step, t: Math.max(0, now - start) };
-      start = end + 0.6;
+      if (now < end + gap || step === opp.replay[opp.replay.length - 1]) return { step, t: Math.max(0, now - start) };
+      start = end + gap;
     }
   }
   if (opp.last && (view.state === "EXECUTING" || view.state === "OUTCOME" || view.state === "DECISION")) {
@@ -72,6 +84,7 @@ export function currentStep(view: InteractiveView, now: number): { step: Interac
   return null;
 }
 
+/** Linear sample of every value (V6 frames). */
 export function sample(frames: InteractiveFrame[], t: number): InteractiveFrame {
   if (!frames.length) return [];
   if (t <= frames[0][0]) return frames[0];
@@ -85,7 +98,36 @@ export function sample(frames: InteractiveFrame[], t: number): InteractiveFrame 
   return frames[frames.length - 1];
 }
 
-function cumulative(frames: InteractiveFrame[], count: number, L: number, W: number): number[][] {
+function wrapAngle(a: number): number { return Math.atan2(Math.sin(a), Math.cos(a)); }
+
+/**
+ * V7 sample: ball linear; athletes on a Catmull-Rom spline through the 10 Hz official
+ * positions (it passes through every official point, with continuous velocity); facing on
+ * the shortest arc; the action state of the nearest frame.
+ */
+export function sampleV7(frames: InteractiveFrame[], t: number, count: number): InteractiveFrame {
+  if (!frames.length) return [];
+  const n = frames.length;
+  if (t <= frames[0][0]) return frames[0];
+  if (t >= frames[n - 1][0]) return frames[n - 1];
+  let i = 1;
+  while (i < n && frames[i][0] < t) i += 1;
+  const a = frames[i - 1], b = frames[i];
+  const p0 = frames[Math.max(0, i - 2)], p3 = frames[Math.min(n - 1, i + 1)];
+  const k = (t - a[0]) / Math.max(1e-6, b[0] - a[0]);
+  const k2 = k * k, k3 = k2 * k;
+  const cr = (v0: number, v1: number, v2: number, v3: number) =>
+    0.5 * (2 * v1 + (-v0 + v2) * k + (2 * v0 - 5 * v1 + 4 * v2 - v3) * k2 + (-v0 + 3 * v1 - 3 * v2 + v3) * k3);
+  const out: number[] = [t, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k, a[3] + (b[3] - a[3]) * k];
+  for (let j = 0; j < count; j += 1) {
+    const o = 4 + j * 4;
+    out.push(cr(p0[o], a[o], b[o], p3[o]), cr(p0[o + 1], a[o + 1], b[o + 1], p3[o + 1]),
+      a[o + 2] + wrapAngle(b[o + 2] - a[o + 2]) * k, k < 0.5 ? a[o + 3] : b[o + 3]);
+  }
+  return out;
+}
+
+function cumulative(frames: InteractiveFrame[], count: number, L: number, W: number, stride: number): number[][] {
   let cached = strideCache.get(frames);
   if (cached) return cached;
   cached = [];
@@ -98,7 +140,8 @@ function cumulative(frames: InteractiveFrame[], count: number, L: number, W: num
       // sprint ~2.4 m), so the legs move in step with the official displacement (no sliding).
       const dt = Math.max(0.05, b[0] - a[0]);
       for (let i = 0; i < count; i += 1) {
-        const d = Math.hypot((b[4 + i * 2] - a[4 + i * 2]) * L, (b[5 + i * 2] - a[5 + i * 2]) * W);
+        const o = 4 + i * stride;
+        const d = Math.hypot((b[o] - a[o]) * L, (b[o + 1] - a[o + 1]) * W);
         acc[i] += d / (1.3 + 0.13 * (d / dt));
       }
     }
@@ -123,20 +166,30 @@ export function buildScene(view: InteractiveView, now: number): Scene | null {
   const { length: L, width: W } = view.pitch;
   const playing = currentStep(view, now);
   const attackClub = opp.attacking, defendClub = opp.defending;
+  const count = opp.roster.length;
   let positions = opp.positions;
+  let facings: number[] | null = opp.motion ? opp.motion.map((m) => m[0]) : null;
+  const restSpeeds: number[] | null = opp.motion ? opp.motion.map((m) => m[1]) : null;
+  let acts: number[] | null = null;
   let ball: Scene["ball"] = { x: opp.ball[0], y: opp.ball[1], z: 0, roll: 0, visible: true, held: false };
   let prev: InteractiveFrame | null = null;
-  let strides: number[] = new Array(opp.roster.length + 1).fill(0);
+  let strides: number[] = new Array(count + 1).fill(0);
   const step = playing?.step ?? null;
   const t = playing?.t ?? 0;
+  const v7 = step?.layout === "v7";
+  const k = strideOf(step);
   if (step && step.frames.length) {
-    const frame = sample(step.frames, t);
-    prev = sample(step.frames, Math.max(0, t - 0.12));
-    positions = opp.roster.map((_, i) => [frame[4 + i * 2], frame[5 + i * 2]] as [number, number]);
-    const cum = cumulative(step.frames, opp.roster.length, L, W);
+    const frame = v7 ? sampleV7(step.frames, t, count) : sample(step.frames, t);
+    prev = v7 ? sampleV7(step.frames, Math.max(0, t - 0.06), count) : sample(step.frames, Math.max(0, t - 0.12));
+    positions = opp.roster.map((_, i) => [frame[4 + i * k], frame[5 + i * k]] as [number, number]);
+    if (v7) { facings = opp.roster.map((_, i) => frame[6 + i * 4]); acts = opp.roster.map((_, i) => Math.round(frame[7 + i * 4])); }
+    else facings = null;
+    const cum = cumulative(step.frames, count, L, W, k);
     const index = Math.min(cum.length - 1, Math.max(0, Math.floor(t / 0.1)));
-    strides = cum[index];
-    ball = { x: frame[1], y: frame[2], z: frame[3], roll: strides[opp.roster.length] ?? 0, visible: true, held: false };
+    const next = cum[Math.min(cum.length - 1, index + 1)];
+    const f = Math.max(0, Math.min(1, t / 0.1 - index));
+    strides = cum[index].map((v, j) => v + (next[j] - v) * f);
+    ball = { x: frame[1], y: frame[2], z: frame[3], roll: strides[count] ?? 0, visible: true, held: false };
   }
   const ballM = [ball.x * L, ball.y * W];
   const goalCue = step?.cues?.find((c) => c.kind === "GOAL") ?? null;
@@ -146,31 +199,45 @@ export function buildScene(view: InteractiveView, now: number): Scene | null {
     const [x, y] = positions[i];
     let vx = 0, vy = 0;
     if (prev && step) {
-      const dt = Math.max(0.04, Math.min(0.12, t));
-      vx = ((x - prev[4 + i * 2]) * L) / dt; vy = ((y - prev[5 + i * 2]) * W) / dt;
+      const dt = v7 ? Math.max(0.02, Math.min(0.06, t)) : Math.max(0.04, Math.min(0.12, t));
+      vx = ((x - prev[4 + i * k]) * L) / dt; vy = ((y - prev[5 + i * k]) * W) / dt;
     }
-    const speed = Math.hypot(vx, vy);
+    let speed = Math.hypot(vx, vy);
+    if (!step && restSpeeds) speed = restSpeeds[i];   // frozen at the decision: the body keeps its running pose
     const keeper = p.role === "GK";
     const toBall = Math.atan2(ballM[1] - y * W, ballM[0] - x * L);
-    let facing = speed > 0.6 ? Math.atan2(vy, vx) : toBall;
+    let facing = facings ? facings[i] : speed > 0.6 ? Math.atan2(vy, vx) : toBall;
+    const act = acts ? acts[i] : -1;
     let pose: Pose = speed > 0.6 ? "run" : keeper && step?.type === "SHOT" && p.team === "D" ? "ready" : "idle";
     let poseK = 0, poseDir = 0;
     if (step) {
-      const kick = cueAt(step.cues, ["KICK"], p.id, t, 0.08, VISUAL.kickPoseSeconds);
+      const lead = v7 ? 0.24 : 0.08;
+      const kick = cueAt(step.cues, ["KICK"], p.id, t, lead, VISUAL.kickPoseSeconds);
       const tackle = cueAt(step.cues, ["TACKLE", "INTERCEPT", "BLOCK"], p.id, t, 0.15, VISUAL.tacklePoseSeconds);
       const header = cueAt(step.cues, ["HEADER"], p.id, t, 0.25, VISUAL.headerPoseSeconds);
-      const save = cueAt(step.cues, ["SAVE", "DIVE"], p.id, t, 0.3, VISUAL.divePoseSeconds);
+      const save = cueAt(step.cues, ["SAVE", "DIVE"], p.id, t, v7 ? 0.05 : 0.3, VISUAL.divePoseSeconds);
       const claim = cueAt(step.cues, ["CLAIM"], p.id, t, 0.1, 9);
-      if (kick) { pose = "kick"; poseK = (t - kick.t + 0.08) / (VISUAL.kickPoseSeconds + 0.08); facing = toBallAtKick(step, i, kick.t, L, W) ?? facing; }
-      else if (tackle) { pose = "tackle"; poseK = (t - tackle.t + 0.15) / (VISUAL.tacklePoseSeconds + 0.15); }
-      else if (header) { pose = "header"; poseK = (t - header.t + 0.25) / (VISUAL.headerPoseSeconds + 0.25); }
-      else if (save) {
+      if (kick) {
+        // The swing starts before the contact (V7: the server records the wind-up) and the ball leaves AT the contact.
+        pose = "kick"; poseK = (t - kick.t + lead) / (VISUAL.kickPoseSeconds + lead);
+        if (!v7) facing = toBallAtKick(step, kick.t, L, W) ?? facing;
+      } else if (tackle || act === ACT.TACKLE) { pose = "tackle"; poseK = tackle ? (t - tackle.t + 0.15) / (VISUAL.tacklePoseSeconds + 0.15) : 0.5; }
+      else if (header || act === ACT.HEADER) { pose = "header"; poseK = header ? (t - header.t + 0.25) / (VISUAL.headerPoseSeconds + 0.25) : 0.5; }
+      else if (v7 && keeper && p.team === "D" && (act === ACT.GK_DIVE || act === ACT.GK_DOWN)) {
+        // The dive is the keeper's REAL displacement (server physics); the pose follows it.
+        pose = "dive";
+        const dive = cueAt(step.cues, ["DIVE", "SAVE"], p.id, t, 0, 9);
+        poseK = act === ACT.GK_DOWN ? 1 : dive ? Math.min(1, (t - dive.t) / 0.35) : 0.6;
+        poseDir = Math.sign(vy) || 1;
+      } else if (v7 && keeper && act === ACT.GK_JUMP) { pose = "save"; poseK = 0.8; poseDir = 1; }
+      else if (v7 && keeper && (act === ACT.GK_SET || act === ACT.GK_STEP || act === ACT.GK_RISE)) pose = act === ACT.GK_STEP && speed > 0.8 ? "run" : "ready";
+      else if (save && !v7) {
         pose = save.kind === "SAVE" && save.hold ? "save" : "dive";
         poseK = Math.min(1, (t - save.t + 0.3) / 0.45);
         poseDir = Math.sign(save.dy ?? 0) || 1;
-      } else if (claim && t >= claim.t) { pose = "hold"; }
-      if (keeper && p.team === "D" && step.outcome === "SAVED_HELD" && t >= step.duration - 0.05) pose = "hold";
-    }
+      } else if ((claim && t >= claim.t) || act === ACT.GK_HOLD) pose = "hold";
+      if (!v7 && keeper && p.team === "D" && step.outcome === "SAVED_HELD" && t >= step.duration - 0.05) pose = "hold";
+    } else if (keeper && p.team === "D" && view.state === "DECISION") pose = "ready";
     if (goalAge >= 0 && p.team === "A" && !keeper) {
       const near = Math.hypot((x - ball.x) * L, (y - ball.y) * W) < 30 || p.id === scorer;
       if (near) { pose = "celebrate"; poseK = goalAge; }
@@ -178,7 +245,7 @@ export function buildScene(view: InteractiveView, now: number): Scene | null {
     return {
       id: p.id, name: p.name, number: p.number, team: p.team, role: p.role, club: p.team === "A" ? attackClub : defendClub,
       x, y, vx, vy, speed, facing, stride: strides[i] ?? 0, pose, poseK: Math.max(0, Math.min(1, poseK)), poseDir,
-      carrier: p.id === opp.carrier && (!step || view.state === "DECISION"), keeper,
+      carrier: p.id === opp.carrier && (!step || view.state === "DECISION"), keeper, act,
     };
   });
   if (players.some((p) => p.pose === "hold")) ball.held = true;
@@ -187,12 +254,11 @@ export function buildScene(view: InteractiveView, now: number): Scene | null {
   return { players, ball, step, t, ripple, playing: Boolean(step) };
 }
 
-function toBallAtKick(step: InteractiveStep, i: number, at: number, L: number, W: number): number | null {
+function toBallAtKick(step: InteractiveStep, at: number, L: number, W: number): number | null {
   const a = sample(step.frames, at), b = sample(step.frames, at + 0.2);
   if (!a.length) return null;
   const dx = (b[1] - a[1]) * L, dy = (b[2] - a[2]) * W;
   if (Math.hypot(dx, dy) < 0.2) return null;
-  void i;
   return Math.atan2(dy, dx);
 }
 

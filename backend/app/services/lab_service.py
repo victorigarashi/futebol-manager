@@ -14,14 +14,15 @@ from dataclasses import dataclass
 
 from app.domain.bot_coach import choose_lineup
 from app.domain.catalog import PlayerCatalog
-from app.domain.highlights import KINDS, HighlightMatch
+from app.domain.football import DRILLS
+from app.domain.highlights import KINDS, HighlightMatch, build_timeline
 from app.domain.match_engine import PlayerInput, TeamInput
 from app.domain.squad import formation_slots
 from app.services.season_service import team_input_view
 
 MAX_SESSIONS = 40
 TTL_SECONDS = 30 * 60
-LAB_KINDS = tuple(k for k in KINDS if k != "CORNER")
+LAB_KINDS = tuple(k for k in KINDS if k != "CORNER") + tuple(k for k in DRILLS if k != "OVERLOAD") + ("MATCH",)
 
 
 @dataclass
@@ -58,7 +59,7 @@ class LabService:
             self.sessions.pop(oldest.id)
 
     def create(self, owner: str, catalog: PlayerCatalog, mode: str, kind: str, home: str, away: str, seed: int, ruleset: str = "TRADITIONAL",
-               second_half: bool = False) -> dict[str, object]:
+               second_half: bool = False, engine: str = "v7", difficulty: str = "NORMAL") -> dict[str, object]:
         if kind not in LAB_KINDS:
             raise ValueError("Cenário desconhecido.")
         clubs = sorted({p.club_code for p in catalog.players})
@@ -68,14 +69,27 @@ class LabService:
         home_team, away_team = _team(catalog, mode, home), _team(catalog, mode, away)
         now = self.clock()
         match = HighlightMatch.create(f"LAB-{uuid.uuid4().hex[:8]}", mode, home_team, away_team, team_input_view(home_team), team_input_view(away_team),
-                                      [home], seed, ruleset, 20, True, now - 4.0 * 0.25)
+                                      [home], seed, ruleset, 20, True, now - 4.0 * 0.25, engine=engine,
+                                      difficulty=difficulty)
+        if kind == "MATCH":
+            # A full friendly against the bot: the real timeline of opportunities, both halves.
+            match.timeline = build_timeline(home_team, away_team, seed, ruleset, match.engine)
+            session = LabSession(uuid.uuid4().hex, owner, match, now)
+            self.sessions[session.id] = session
+            return {"id": session.id, "match": match.view(home, now)}
+        if kind.startswith("DRILL_") and match.engine != "v7":
+            raise ValueError("Os treinos isolados usam o motor V7.")
         # One chosen chance for the coach, then one bot attack (replay) and the final whistle.
         match.timeline = [{"side": 0, "kind": kind, "minute": 1.0, "index": 0}, {"side": 1, "kind": "BUILDUP", "minute": 50.0, "index": 1}]
+        if kind.startswith("DRILL_"):
+            match.timeline = match.timeline[:1]   # a drill: just the exercise, then the whistle
         match.late_checked = True
         if second_half:
             # After the change of ends: the home side attacks to the LEFT.
             match.half_time_done, match.minute = True, 46.0
             match.timeline = [{"side": 0, "kind": kind, "minute": 46.5, "index": 0}, {"side": 1, "kind": "BUILDUP", "minute": 70.0, "index": 1}]
+            if kind.startswith("DRILL_"):
+                match.timeline = match.timeline[:1]
         session = LabSession(uuid.uuid4().hex, owner, match, now)
         self.sessions[session.id] = session
         return {"id": session.id, "match": match.view(home, now)}
