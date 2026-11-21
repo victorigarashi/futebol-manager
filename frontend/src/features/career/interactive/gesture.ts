@@ -9,25 +9,32 @@ import type { InteractiveActionType, InteractiveView } from "../../../lib/api";
  * up. Gestures are converted back to normalised units, so the same gesture produces the
  * same intent at any resolution or orientation.
  */
-/** `mx`/`my`: margin around the touchlines as a fraction of the length/width (room for goals). */
-export type Geometry = { width: number; height: number; portrait: boolean; pad: number; ratio?: number; mx?: number; my?: number };
+/**
+ * `mx`/`my`: margin around the touchlines as a fraction of the length/width (room for goals).
+ * `view`: the region of the pitch to frame (normalised; default the whole pitch + margins).
+ * A camera only changes this region — never the pitch or the physics.
+ */
+export type Region = { x0: number; x1: number; y0: number; y1: number };
+export type Geometry = { width: number; height: number; portrait: boolean; pad: number; ratio?: number; mx?: number; my?: number; view?: Region };
 export type Aim = { ux: number; uy: number; power: number; type: InteractiveActionType };
 
-/** Pitch rectangle on the canvas (px). The scale is isotropic: px per metre is the same both ways. */
+/** Pitch rectangle on the canvas (px): size of the whole pitch and where its origin lands. Isotropic. */
 export function frame(g: Geometry): { w: number; h: number; ox: number; oy: number } {
   const ratio = g.ratio ?? 105 / 68;
   const mx = g.mx ?? 0, my = g.my ?? 0;
-  const fullRatio = (ratio * (1 + 2 * mx)) / (1 + 2 * my);
+  const r = g.view ?? { x0: -mx, x1: 1 + mx, y0: -my, y1: 1 + my };
+  const along = (r.x1 - r.x0) * ratio, across = r.y1 - r.y0;     // in "pitch width" units
   const availW = g.width - g.pad * 2, availH = g.height - g.pad * 2;
+  const cx = (r.x0 + r.x1) / 2, cy = (r.y0 + r.y1) / 2;
   if (g.portrait) {
-    // Pitch length runs vertically.
-    const fullH = Math.min(availH, availW * fullRatio), fullW = fullH / fullRatio;
-    const h = fullH / (1 + 2 * mx), w = fullW / (1 + 2 * my);
-    return { w, h, ox: (g.width - w) / 2, oy: (g.height - h) / 2 };
+    // Pitch length runs vertically (attack towards the top when x grows).
+    const scale = Math.min(availW / across, availH / along);
+    const w = scale, h = scale * ratio;
+    return { w, h, ox: g.width / 2 - cy * w, oy: g.height / 2 - (1 - cx) * h };
   }
-  const fullW = Math.min(availW, availH * fullRatio), fullH = fullW / fullRatio;
-  const w = fullW / (1 + 2 * mx), h = fullH / (1 + 2 * my);
-  return { w, h, ox: (g.width - w) / 2, oy: (g.height - h) / 2 };
+  const scale = Math.min(availW / along, availH / across);
+  const w = scale * ratio, h = scale;
+  return { w, h, ox: g.width / 2 - cx * w, oy: g.height / 2 - cy * h };
 }
 
 /** Pixels per metre (pitch length `L` metres). */
@@ -75,7 +82,7 @@ export function attackDir(view: InteractiveView): 1 | -1 {
 }
 
 /** Automatic action type: a shot when the gesture points at the goal mouth from a shooting range. */
-export function inferType(view: InteractiveView, from: [number, number], ux: number, uy: number): InteractiveActionType {
+export function inferType(view: InteractiveView, from: [number, number], ux: number, uy: number, power = 0.5): InteractiveActionType {
   const { length: L, width: W, goal } = view.pitch;
   const dir = attackDir(view);
   const fx = from[0] * L, fy = from[1] * W;
@@ -88,7 +95,22 @@ export function inferType(view: InteractiveView, from: [number, number], ux: num
   }
   const wide = Math.min(fy, W - fy) < 14 * (W / 68) && toGoal < 25 * (L / 105);
   if (wide && Math.abs(uy) > 0.45) return "LOFT";
-  return "PASS";
+  // Towards a team-mate (the same angular window the server's assistance uses): a pass,
+  // lofted when he is far away.
+  const opp = view.opportunity;
+  const windowAngle = view.physics.assist_angle ?? 0.24;
+  const angle = Math.atan2(uy, ux);
+  let mate: number | null = null;
+  opp?.roster.forEach((p, i) => {
+    if (p.team !== "A" || p.role === "GK" || p.id === opp.carrier) return;
+    const dx = opp.positions[i][0] * L - fx, dy = opp.positions[i][1] * W - fy;
+    let diff = Math.atan2(dy, dx) - angle; diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+    const d = Math.hypot(dx, dy);
+    if (Math.abs(diff) <= windowAngle && d > 2.5 && (mate === null || d < mate)) mate = d;
+  });
+  if (mate !== null) return (mate as number) > 30 * (L / 105) ? "LOFT" : "PASS";
+  // Into open space: a short drag carries the ball, a long one is a pass into space.
+  return power < 0.3 ? "CARRY" : "PASS";
 }
 
 /** Drag (two points on the real pitch, normalised) -> intent. Identical for both renderers. */
@@ -98,6 +120,6 @@ export function aimFromDrag(view: InteractiveView, from: [number, number], start
   if (length < 1.2) return null;
   // Power = drag length relative to 40% of the pitch length.
   const power = Math.max(0.05, Math.min(1, length / (view.pitch.length * 0.4)));
-  const type = view.opportunity?.kind === "PENALTY" ? "SHOT" : mode === "AUTO" ? inferType(view, from, dx / length, dy / length) : mode;
+  const type = view.opportunity?.kind === "PENALTY" ? "SHOT" : mode === "AUTO" ? inferType(view, from, dx / length, dy / length, power) : mode;
   return { ux: dx / length, uy: dy / length, power, type };
 }

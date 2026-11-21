@@ -19,6 +19,7 @@ export type InteractiveStep = { by: "HUMAN" | "AI" | "TIMEOUT" | "AI_TAKEOVER" |
   shooter?: string | null; post?: boolean;
   /** Timed moments of the action (seconds from its start) for animation and sound: KICK, CONTROL, SAVE, POST, GOAL, TACKLE, HEADER, DIVE… */
   cues?: InteractiveCue[] };
+export type MatchKit = { id: string; shirt: string; shorts: string; socks: string; trim: string; number: string; pattern: "plain" | "stripes" | "hoops" | "sash"; generic: boolean };
 export type InteractiveCue = { t: number; kind: string; id: string | null; action?: InteractiveActionType; power?: number; hold?: boolean; dy?: number; past?: string };
 export type InteractiveOpportunity = {
   id: string; kind: string; label: string; attacking: string; defending: string; minute: number; status: string; result: string | null;
@@ -34,6 +35,8 @@ export type InteractiveView = {
   ai_control: string[]; humans: string[]; connected: Record<string, boolean>; opportunity: InteractiveOpportunity | null; ruleset: Ruleset;
   pitch: { length: number; width: number; goal: number; box: number; post?: number };
   half?: 1 | 2; attacks_right?: Record<string, boolean>;
+  /** Official kit selection of the match (chosen by the server, identical in 2D and 3D). */
+  kits?: { home: MatchKit; away: MatchKit; home_gk: MatchKit; away_gk: MatchKit };
   physics: { pass: [number, number]; loft: [number, number]; loft_range: [number, number]; shot: [number, number]; carry: [number, number]; decel: number; assist_angle?: number };
   events: MatchEvent[]; stats: Record<string, Record<string, number>>;
 };
@@ -296,7 +299,7 @@ export const api = {
   season: (roomId: string) => request<Envelope<SeasonView>>(`/rooms/${roomId}/season`),
   live: (roomId: string) => request<Envelope<LiveView>>(`/rooms/${roomId}/season/live`),
   interactive: (roomId: string, revision?: number) => request<Envelope<InteractiveView>>(`/rooms/${roomId}/season/interactive${revision !== undefined ? `?revision=${revision}` : ""}`),
-  labCreate: (body: { kind: string; mode: "ELEVEN_A_SIDE" | "FIVE_A_SIDE"; home?: string; away?: string; seed?: number }) => request<Envelope<{ id: string; match: InteractiveView }>>("/lab/sessions", { method: "POST", body: JSON.stringify(body) }),
+  labCreate: (body: { kind: string; mode: "ELEVEN_A_SIDE" | "FIVE_A_SIDE"; home?: string; away?: string; seed?: number; second_half?: boolean }) => request<Envelope<{ id: string; match: InteractiveView }>>("/lab/sessions", { method: "POST", body: JSON.stringify(body) }),
   labState: (id: string, revision?: number) => request<Envelope<InteractiveView>>(`/lab/sessions/${id}${revision !== undefined ? `?revision=${revision}` : ""}`),
   labAction: (id: string, payload: InteractiveActionPayload) => request<Envelope<{ status: string; revision: number; match: InteractiveView }>>(`/lab/sessions/${id}/actions`, { method: "POST", body: JSON.stringify(payload) }),
   interactiveAction: (roomId: string, payload: InteractiveActionPayload) => request<Envelope<{ status: string; revision: number; match: InteractiveView }>>(`/rooms/${roomId}/season/interactive/actions`, { method: "POST", body: JSON.stringify(payload) }),

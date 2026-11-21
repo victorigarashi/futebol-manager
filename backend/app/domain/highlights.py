@@ -26,7 +26,8 @@ import random
 import zlib
 from dataclasses import asdict, dataclass, field
 
-from app.domain.match_engine import PITCH, PlayerInput, TeamInput, derived_attributes
+from app.domain.kits import select_kits
+from app.domain.match_engine import PlayerInput, TeamInput, derived_attributes
 
 # ---------------------------------------------------------------- tunables (documented)
 # Every gameplay number lives here (docs/MODO_JOGAVEL.md §5 explains each one). These
@@ -49,10 +50,16 @@ LOFT_ERROR = 0.06
 SHOT_ERROR = 0.06
 HEADER_Z = (0.9, 2.6)         # a lofted ball between these heights can be headed
 HEADER_SPEED = (10.0, 7.0)    # v0 = a + b * physical/100
-# Goal (the interactive mode uses a wider mouth than the technical engine: easier to read
-# and more fun on a phone; the collision uses exactly the drawn mouth and posts)
-GOAL_WIDTH_SCALE = 1.3
-POST_RADIUS = 0.12
+# Pitch of the interactive mode, in metres (x along the length, y across, z up). Both
+# renderers draw exactly these numbers; the collisions use exactly the drawn mouth, posts
+# and crossbar. 5x5 is a game-design size (more room than futsal), 11x11 is regulation.
+HL_PITCH = {
+    "ELEVEN_A_SIDE": {"length": 105.0, "width": 68.0, "goal": 7.32, "goal_height": 2.44, "box": 16.5},
+    "FIVE_A_SIDE": {"length": 50.0, "width": 32.0, "goal": 4.0, "goal_height": 2.0, "box": 8.0},
+}
+POST_RADIUS = 0.06            # posts and crossbar (12 cm thick)
+GRAVITY = 9.81
+SHOT_LIFT = (0.5, 9.0)        # vertical speed of a shot (m/s) = a + b * max(0, power - 0.35) (+ error)
 # Players
 PLAYER_BASE_SPEED = 5.6       # top speed = base + pace/100 * PLAYER_PACE_SPEED (m/s)
 PLAYER_PACE_SPEED = 3.4
@@ -60,7 +67,7 @@ PLAYER_ACCEL = 7.5            # m/s²
 CARRY_SPEED = (0.93, 0.12)    # fraction of top speed while carrying = a + b * dribbling/100
 CARRY_ACCEL = 11.0            # m/s² with the ball (short bursts, sharp direction changes)
 CARRY_TOUCH = (0.95, 0.55)    # ball ahead of the foot = a - b * dribbling/100 (m): poor dribblers push it further
-CARRY_RANGE = (4.0, 11.0)     # requested carry distance = a + b * power (m)
+CARRY_RANGE = (6.0, 18.0)     # requested carry distance = a + b * power (m): one gesture crosses real ground
 # Duels and control
 CONTROL_RADIUS = 0.9
 TACKLE_RADIUS = 0.95
@@ -73,8 +80,8 @@ PASS_ASSIST = (0.35, 0.35)        # fraction of the angle corrected = a + b * pa
 DEFENCE_REACTION = (0.35, 0.2)    # s: a - b * defending/100 before an outfield defender reacts
 # Keeper
 KEEPER_REACTION = (0.42, 0.2)     # s: a - b * keeping/100 (+0.08 s when the view is blocked)
-KEEPER_LATERAL = (2.2, 2.2)       # m/s: a + b * keeping/100
-KEEPER_REACH = (0.95, 1.35)        # m: standing reach + dive bonus * keeping/100 once the dive had time
+KEEPER_LATERAL = (1.9, 1.9)       # m/s: a + b * keeping/100
+KEEPER_REACH = (0.75, 1.0)        # m: standing reach + dive bonus * keeping/100 once the dive had time
 # Clock and pacing (real time, not physics)
 CLOCK_MINUTES_PER_SECOND = 4.0  # fast simulation between opportunities: 90' in ~22 s
 HALF_TIME_SECONDS = 6.0
@@ -123,6 +130,7 @@ class Ball:
     vx: float = 0.0
     vy: float = 0.0
     z: float = 0.0
+    vz: float = 0.0          # vertical speed of a shot/rebound (lofted passes use air_left)
     air_left: float = 0.0   # seconds of flight remaining (lofted balls)
     air_total: float = 0.0
 
@@ -163,7 +171,7 @@ def build_timeline(home: TeamInput, away: TeamInput, seed: int, ruleset: str) ->
         att = strengths[side][0]
         dfn, gk = strengths[1 - side][1], strengths[1 - side][2]
         mentality = {"ATTACKING": 1.15, "VERY_ATTACKING": 1.25, "DEFENSIVE": 0.85, "VERY_DEFENSIVE": 0.75}.get(team.tactics.mentality, 1.0)
-        rate = 4.2 * math.exp((att - (dfn * 0.8 + gk * 0.2)) / 18) * mentality * (1 + 0.12 * team.cohesion)
+        rate = 5.0 * math.exp((att - (dfn * 0.8 + gk * 0.2)) / 18) * mentality * (1 + 0.12 * team.cohesion)
         count = 0
         # Poisson draw (Knuth), clamped to a playable range.
         limit, product = math.exp(-_clamp(rate, 1.2, 8.0)), rng.random()
@@ -206,7 +214,7 @@ def _forwardness(player: PlayerInput) -> float:
 def build_scenario(kind: str, attack: TeamInput, defence: TeamInput, mode: str, rng: random.Random) -> tuple[list[Body], Ball, str]:
     """Valid positions for an opportunity of this kind: attackers by formation pushed up,
     the defence in its block (displaced on counters), keepers in goal, nobody overlapping."""
-    cfg = PITCH[mode]
+    cfg = HL_PITCH[mode]
     L, W = cfg["length"], cfg["width"]
     s = L / 105.0  # scale everything for the five-a-side pitch
     attackers, defenders = _bodies(attack, "A"), _bodies(defence, "D")
@@ -217,7 +225,11 @@ def build_scenario(kind: str, attack: TeamInput, defence: TeamInput, mode: str, 
         else:
             push = {"COUNTER": 0.62, "ONE_ON_ONE": 0.6}.get(kind, 0.72)
             body.x = (30 + f * 62 * push / 0.72) * s
-            body.y = player.slot_x / 100 * W
+            # Occupy the width: wide slots hug the touchlines, the rest spread across.
+            lateral = player.slot_x / 100
+            if lateral < 0.22 or lateral > 0.78:
+                lateral = 0.07 if lateral < 0.5 else 0.93
+            body.y = lateral * W
     for body, player in zip(defenders, defence.starters, strict=True):
         f = _forwardness(player)
         if body.role == "GK":
@@ -307,14 +319,17 @@ def _wall(defenders: list[Body], carrier: Body, L: float, W: float, s: float) ->
 
 
 def _separate(bodies: list[Body], carrier: Body, L: float, W: float) -> None:
-    """Nobody inside anybody (1.3 m), everybody on the pitch; the carrier keeps its spot."""
-    for _ in range(6):
+    """Personal space: nobody inside anybody (1.3 m) and team-mates spread out (a team never
+    starts bunched); everybody on the pitch; the carrier keeps its spot."""
+    mates = max(1.3, 4.5 * L / 105)
+    for _ in range(8):
         for i, a in enumerate(bodies):
             for b in bodies[i + 1:]:
                 d = _dist(a.x, a.y, b.x, b.y)
-                if d < 1.3:
+                need = mates if a.team == b.team and "GK" not in (a.role, b.role) else 1.3
+                if d < need:
                     angle = (zlib.crc32(f"{a.id}|{b.id}".encode()) % 628) / 100 if d < 1e-6 else math.atan2(b.y - a.y, b.x - a.x)
-                    push = (1.3 - d) / 2 + 0.01
+                    push = (need - d) / 2 + 0.01
                     if a is not carrier:
                         a.x -= math.cos(angle) * push
                         a.y -= math.sin(angle) * push
@@ -354,9 +369,10 @@ class Pitch:
     the real pitch (each club attacks its own end, switching at half-time) exactly once."""
 
     def __init__(self, bodies: list[Body], ball: Ball, mode: str, rng: random.Random, pressure_boost: float = 0.0) -> None:
-        cfg = PITCH[mode]
+        cfg = HL_PITCH[mode]
         self.L, self.W = cfg["length"], cfg["width"]
-        self.goal = cfg["goal"] * GOAL_WIDTH_SCALE
+        self.goal = cfg["goal"]
+        self.goal_h = cfg["goal_height"]
         self.s = self.L / 105.0
         self.bodies, self.ball, self.rng = bodies, ball, rng
         self.boost = pressure_boost
@@ -367,6 +383,7 @@ class Pitch:
         self.shot_t0 = 0.0
         self.keeper_done = False
         self.ball0 = (ball.x, ball.y)
+        self.cover: str | None = None
         self.cues: list[dict[str, object]] = []
 
     def cue(self, t: float, kind: str, body: Body | None = None, **extra: object) -> None:
@@ -413,6 +430,15 @@ class Pitch:
         if decel:
             travel = min(travel, speed * speed / (2 * decel))
         return b.x + b.vx / speed * travel, b.y + b.vy / speed * travel
+
+    def _intercept(self, body: Body) -> tuple[float, float]:
+        """Earliest point of the ball's path this player can reach (pursuit, not chase)."""
+        for step in range(1, 31):
+            t = step * 0.1
+            bx, by = self._ball_at(t)
+            if _dist(body.x, body.y, bx, by) <= body.top_speed * max(0.0, t - 0.1) + 0.4:
+                return bx, by
+        return self._ball_at(3.0)
 
     def _spread(self, body: Body, tx: float, ty: float, radius: float) -> tuple[float, float]:
         """Keep the shape: no two team-mates on the same spot (no artificial clusters)."""
@@ -485,7 +511,7 @@ class Pitch:
                 continue
             if body.team == "A":
                 if body is intended:
-                    tx, ty = self._ball_at(0.45)   # meet the ball's path, not where it was
+                    tx, ty = self._intercept(body)   # run onto the ball's path (passes into space)
                     self._steer(body, tx, ty)
                 elif body.role == "GK":
                     self._steer(body, body.ax, body.ay, 0.4)
@@ -502,8 +528,15 @@ class Pitch:
             if t < reaction:
                 continue
             if body.id in chasers:
-                tx, ty = self._ball_at(0.3)
+                tx, ty = self._intercept(body)
                 self._steer(body, tx, ty)
+                continue
+            if body.id == self.cover:
+                # Cover: between the ball and the goal, behind the presser.
+                b, gx, gy = self.ball, self.L, self.W / 2
+                d = max(1.0, _dist(b.x, b.y, gx, gy))
+                gap = min(7.0 * self.s ** 0.5, d * 0.5)
+                self._steer(body, b.x + (gx - b.x) / d * gap, b.y + (gy - b.y) / d * gap, 0.95)
                 continue
             tx, ty, intensity = self._defend(body, marks.get(body.id))
             tx, ty = self._spread(body, tx, ty, 2.2 * self.s ** 0.5)
@@ -591,6 +624,9 @@ class Pitch:
         elif action == "SHOT":
             sd = SHOT_ERROR * (1.35 - carrier.shooting / 100) * (1 + pressure * 1.0) * (0.75 + max(0.0, power - 0.55) * 1.6)
             v0 = SHOT_SPEED[0] + SHOT_SPEED[1] * power
+            # Height: a placed shot stays low, a hard one rises (and can go over the bar).
+            b.vz = max(0.0, SHOT_LIFT[0] + SHOT_LIFT[1] * max(0.0, power - 0.35)
+                       + rng.gauss(0, 1.1 * (1.35 - carrier.shooting / 100) * (1 + pressure * 0.5)))
         else:  # CARRY
             return self._carry(carrier, aim, min(dist_aim, (CARRY_RANGE[0] + CARRY_RANGE[1] * power) * s), frames)
         angle = aim + rng.gauss(0, sd)
@@ -601,8 +637,9 @@ class Pitch:
             intended = min((a for a in self.attackers if a is not carrier and a.role != "GK"),
                            key=lambda a: _dist(a.x, a.y, tx, ty), default=None)
         marks = self.assignments()
-        chasers = {d.id for d in sorted((d for d in self.defenders if d.role != "GK"),
-                                        key=lambda d: self._time_to_ball(d))[:2]}
+        ranked = sorted((d for d in self.defenders if d.role != "GK"), key=lambda d: self._time_to_ball(d))
+        chasers = {d.id for d in ranked[:1]}           # one presses the ball...
+        self.cover = ranked[1].id if len(ranked) > 1 else None   # ...one covers; the rest keep their zones
         tried: set[str] = set()
         keeper_reacts = KEEPER_REACTION[0] - (self.keeper.keeping / 100 * KEEPER_REACTION[1] if self.keeper else 0) - self.boost * 0.3
         screened = shot and any(_dist(d.x, d.y, *self._project(carrier, angle, 6)) < 1.2 for d in self.defenders if d.role != "GK")
@@ -613,11 +650,11 @@ class Pitch:
         last_touch = "A"
         while t < MAX_ACTION_SECONDS:
             t += DT
-            px, py = b.x, b.y
+            px, py, pz = b.x, b.y, b.z
             self._ball_step(shot)
             self.move_players(t, None, intended, chasers, marks)
             if shot and self.keeper:
-                outcome = self._keeper_vs_shot(t - self.shot_t0, keeper_reacts, frames, t, px, py)
+                outcome = self._keeper_vs_shot(t - self.shot_t0, keeper_reacts, frames, t, px, py, pz)
                 if outcome:
                     self.shot_live = False
                     return self._shot_result(outcome, frames, t, xg, shooter, post)
@@ -626,8 +663,22 @@ class Pitch:
             if b.x >= L:
                 k = (L - px) / (b.x - px) if b.x != px else 1.0
                 cross_y = py + (b.y - py) * k
+                cross_z = pz + (b.z - pz) * k
                 off = abs(cross_y - W / 2)
-                low = shot or b.z < 2.44
+                low = cross_z <= self.goal_h - BALL_RADIUS
+                if off <= self.goal / 2 and abs(cross_z - self.goal_h) <= POST_RADIUS + BALL_RADIUS:
+                    # Crossbar: down and back into play.
+                    self.cue(t, "BAR", None)
+                    post = True
+                    speed = math.hypot(b.vx, b.vy)
+                    b.x, b.y, b.z = L - 0.3, cross_y, max(0.5, cross_z - 0.3)
+                    b.vx, b.vy = -abs(b.vx) * rng.uniform(0.25, 0.45), b.vy * 0.5 + rng.uniform(-2, 2)
+                    b.vz, b.air_left = -abs(b.vz) * 0.4 - 1.0, 0.0
+                    frames[-1] = self.frame(t)
+                    shot = self.shot_live = False
+                    intended = min((a for a in self.attackers if a.role != "GK"), key=lambda a: _dist(a.x, a.y, b.x, b.y))
+                    tried.clear()
+                    continue
                 if low and abs(off - self.goal / 2) <= POST_RADIUS + BALL_RADIUS:
                     inner = off < self.goal / 2
                     self.cue(t, "POST", None)
@@ -654,14 +705,16 @@ class Pitch:
                     tried.clear()
                     continue
                 if low and off <= self.goal / 2 - BALL_RADIUS:
-                    b.x, b.y, b.vx, b.vy = L + 0.6, cross_y, 0.0, 0.0
+                    b.x, b.y, b.vx, b.vy, b.z, b.vz = L + 0.6, cross_y, 0.0, 0.0, min(cross_z, self.goal_h - 0.3), 0.0
                     frames[-1] = self.frame(t)
                     self.cue(t, "GOAL", shooter)
                     return ActionResult("GOAL", frames, detail="Gol", shot=was_shot, on_target=True, xg=xg, shooter=shooter.id, post=post)
                 self.cue(t, "OUT", None)
                 if last_touch == "D":
                     return ActionResult("CORNER", frames, detail="Escanteio", shot=was_shot, xg=xg, shooter=shooter.id, post=post)
-                return ActionResult("OUT", frames, detail="Para fora" if was_shot else "Bola fora", shot=was_shot, xg=xg, shooter=shooter.id, post=post)
+                over = off <= self.goal / 2 + 1 and cross_z > self.goal_h
+                return ActionResult("OUT", frames, detail=("Por cima do gol" if over else "Para fora") if was_shot else "Bola pela linha de fundo",
+                                    shot=was_shot, xg=xg, shooter=shooter.id, post=post)
             if b.x <= 0 or b.y <= 0 or b.y >= W:
                 self.cue(t, "OUT", None)
                 return ActionResult("OUT", frames, detail="Para fora" if was_shot else "Bola fora", shot=was_shot, xg=xg, shooter=shooter.id, post=post)
@@ -748,7 +801,8 @@ class Pitch:
             if speed < 0.25 and b.air_left <= 0:
                 # Dead ball nobody controls yet: players race for it.
                 intended = min((a for a in self.attackers if a.role != "GK"), key=lambda a: _dist(a.x, a.y, b.x, b.y))
-                chasers = {min((d for d in self.defenders if d.role != "GK"), key=lambda d: _dist(d.x, d.y, b.x, b.y)).id}
+                nearest_d = min((d for d in self.defenders if d.role != "GK"), key=lambda d: _dist(d.x, d.y, b.x, b.y), default=None)
+                chasers = {nearest_d.id} if nearest_d else set()
         # Settled by proximity (the guard is deterministic and never fires mid-flight).
         nearest = min((body for body in self.bodies if body.role != "GK"), key=lambda body: _dist(body.x, body.y, b.x, b.y))
         if nearest.team == "A":
@@ -779,7 +833,8 @@ class Pitch:
             if winner.team == "A" and self.rng.random() > 0.85:
                 return None  # misjudged the flight
         self.cue(t, "HEADER", winner)
-        b.air_left, b.z = 0.0, 0.0
+        header_z = b.z
+        b.air_left, b.z, b.vz = 0.0, 0.0, 0.0
         if winner.team == "D":
             ang = math.pi + self.rng.uniform(-0.9, 0.9)
             sp = 8 + winner.physical / 100 * 6
@@ -800,6 +855,7 @@ class Pitch:
         angle = aim + self.rng.gauss(0, 0.09 * (1.4 - skill))
         sp = HEADER_SPEED[0] + HEADER_SPEED[1] * winner.physical / 100
         b.vx, b.vy = math.cos(angle) * sp, math.sin(angle) * sp
+        b.z, b.vz = header_z, -1.2 + self.rng.uniform(-0.6, 0.8)   # headed down towards goal
         frames[-1] = self.frame(t)
         return "SHOT", winner
 
@@ -828,15 +884,24 @@ class Pitch:
                 b.vx *= 0.5
                 b.vy *= 0.5
         else:
-            decel = SHOT_DECEL if shot else GROUND_DECEL
+            airborne = b.z > 0 or b.vz > 0
+            decel = 0.4 if airborne else SHOT_DECEL if shot else GROUND_DECEL
             if speed > 0:
                 factor = max(0.0, speed - decel * DT) / speed
                 b.vx *= factor
                 b.vy *= factor
+            if airborne:
+                b.vz -= GRAVITY * DT
+                b.z += b.vz * DT
+                if b.z <= 0:
+                    b.z = 0.0
+                    b.vz = -b.vz * 0.45 if b.vz < -1.5 else 0.0   # bounce
+                    b.vx *= 0.8
+                    b.vy *= 0.8
         b.x += b.vx * DT
         b.y += b.vy * DT
 
-    def _keeper_vs_shot(self, ts: float, reaction: float, frames: list[list[float]], t: float, px: float, py: float) -> str | None:
+    def _keeper_vs_shot(self, ts: float, reaction: float, frames: list[list[float]], t: float, px: float, py: float, pz: float = 0.0) -> str | None:
         """Physical keeper: reacts after `reaction` s to the real trajectory, moves with
         limited speed, dives with limited reach, and gets ONE chance when the ball crosses
         his plane. No knowledge of anything not yet executed."""
@@ -857,10 +922,13 @@ class Pitch:
         self.keeper_done = True
         k = (plane - px) / (b.x - px) if b.x != px else 1.0
         at_y = py + (b.y - py) * _clamp(k, 0.0, 1.0)
+        at_z = pz + (b.z - pz) * _clamp(k, 0.0, 1.0)
         dived = ts >= reaction + 0.2
         reach = (KEEPER_REACH[0] + (KEEPER_REACH[1] * gk.keeping / 100 if dived else 0.2)) * self.s ** 0.3
-        miss = abs(at_y - gk.y)
-        on_target = abs(at_y - gy) <= self.goal / 2
+        # Vertical reach: arms above the head (higher after a jump); a ball above it beats him.
+        top = (2.15 if dived else 1.95) + gk.keeping / 100 * 0.25
+        miss = math.hypot(abs(at_y - gk.y), max(0.0, at_z - top) * 1.6)
+        on_target = abs(at_y - gy) <= self.goal / 2 and at_z <= self.goal_h
         if miss > reach:
             if dived and miss < reach + 1.2:
                 self.cue(t, "DIVE", gk, dy=round((at_y - gk.y) / self.W, 3))
@@ -871,10 +939,10 @@ class Pitch:
             self.cue(t, "DIVE", gk, dy=round((at_y - gk.y) / self.W, 3))
             return None
         hold = speed < 23 and self.rng.random() < 0.25 + gk.keeping / 100 * 0.55
-        self.cue(t, "SAVE", gk, hold=hold, dy=round((at_y - gk.y) / self.W, 3))
+        self.cue(t, "SAVE", gk, hold=hold, dy=round((at_y - gk.y) / self.W, 3), high=at_z > 1.4)
         if hold:
-            b.vx = b.vy = 0.0
-            b.x, b.y = gk.x - 0.3, at_y
+            b.vx = b.vy = b.vz = 0.0
+            b.x, b.y, b.z = gk.x - 0.3, at_y, 0.0
             frames.append(self.frame(t))
             return "SAVED_HELD"
         # Parry: rebound back into play (or behind for a corner).
@@ -883,7 +951,7 @@ class Pitch:
             ang = self.rng.choice((-1, 1)) * self.rng.uniform(0.2, 0.9)  # pushed round the post
         sp = speed * self.rng.uniform(0.25, 0.45)
         b.vx, b.vy = math.cos(ang) * sp, math.sin(ang) * sp
-        b.x, b.y = gk.x - 0.4, at_y
+        b.x, b.y, b.z, b.vz = gk.x - 0.4, at_y, min(at_z, 1.2), 1.5 if at_z > 1.4 else 0.5
         frames.append(self.frame(t))
         return "PARRIED" if on_target else "PARRIED_WIDE"
 
@@ -987,8 +1055,8 @@ class Pitch:
 def ai_action(bodies: list[Body], ball: Ball, carrier_id: str, mode: str, actions_done: int, kind: str, rng: random.Random) -> dict[str, object]:
     """A sensible contextual action for the carrier: shoot when it is a chance, otherwise the
     most progressive safe pass (or a cross / carry). Same physics as a human gesture."""
-    cfg = PITCH[mode]
-    L, W, goal = cfg["length"], cfg["width"], cfg["goal"] * GOAL_WIDTH_SCALE
+    cfg = HL_PITCH[mode]
+    L, W, goal = cfg["length"], cfg["width"], cfg["goal"]
     s = L / 105
     carrier = next(b for b in bodies if b.id == carrier_id)
     defenders = [b for b in bodies if b.team == "D"]
@@ -996,11 +1064,11 @@ def ai_action(bodies: list[Body], ball: Ball, carrier_id: str, mode: str, action
     d_goal = _dist(carrier.x, carrier.y, L, W / 2)
     angle_ok = abs(carrier.y - W / 2) < (L - carrier.x) * 1.4 + 4 * s
     must_shoot = actions_done >= MAX_ACTIONS - 1 or kind == "PENALTY"
-    if kind == "PENALTY" or (d_goal < 21 * s and angle_ok) or (must_shoot and d_goal < 35 * s):
+    if kind == "PENALTY" or (d_goal < 25 * s and angle_ok) or (must_shoot and d_goal < 35 * s):
         side = 1 if (keeper is None or keeper.y <= W / 2) else -1
         if rng.random() < 0.3:
             side = -side
-        ty = W / 2 + side * (goal / 2) * rng.uniform(0.35, 0.85)
+        ty = W / 2 + side * (goal / 2) * rng.uniform(0.55, 0.92)
         return {"type": "SHOT", "x": L, "y": ty, "power": round(_clamp(0.62 + rng.uniform(0, 0.25), 0, 1), 3)}
 
     def lane_risk(a: Body) -> float:
@@ -1083,6 +1151,7 @@ class HighlightMatch:
     applied: dict[str, int] = field(default_factory=dict)  # action_id -> revision (idempotency)
     action_log: list[dict[str, object]] = field(default_factory=list)
     finished_at: float | None = None
+    kits: dict[str, dict[str, object]] = field(default_factory=dict)   # official kit selection (both renderers)
 
     # ------------------------------------------------------------ construction
     @classmethod
@@ -1091,6 +1160,7 @@ class HighlightMatch:
         match = cls(match_id, mode, [home.club_code, away.club_code], sorted(humans), seed, ruleset,
                     decision_seconds if decision_seconds in DECISION_CHOICES else 10, free_vs_bots, [home_view, away_view])
         match.timeline = build_timeline(home, away, seed, ruleset)
+        match.kits = select_kits(home.club_code, away.club_code)
         match.clock_since = now
         for club in match.clubs:
             match.stats[club] = dict.fromkeys(("shots", "shots_on_target", "passes", "passes_completed", "saves", "corners",
@@ -1385,7 +1455,7 @@ class HighlightMatch:
             raise ValueError("Direção ou potência inválida.") from error
         if not all(map(math.isfinite, (x, y, power))) or not (-0.1 <= x <= 1.1 and -0.1 <= y <= 1.1) or not 0.0 <= power <= 1.0:
             raise ValueError("Direção ou potência fora dos limites.")
-        cfg = PITCH[self.mode]
+        cfg = HL_PITCH[self.mode]
         bodies, _ = self._restore_bodies(opp)
         carrier = next(b for b in bodies if b.id == opp["carrier"])
         x, y = self.to_world(x, y, bool(opp.get("right", True)))   # the gesture is on the real pitch
@@ -1514,7 +1584,7 @@ class HighlightMatch:
         score = [sum(1 for e in shown if e["kind"] == "GOAL" and e["team"] == c) for c in self.clubs]
         opp = self.opportunity
         opp_view = None
-        L, W = PITCH[self.mode]["length"], PITCH[self.mode]["width"]
+        L, W = HL_PITCH[self.mode]["length"], HL_PITCH[self.mode]["width"]
         if opp is not None:
             right = bool(opp.get("right", True))
             last = opp.get("last")
@@ -1533,7 +1603,7 @@ class HighlightMatch:
         if opp is not None:
             attacking = str(opp["attacking"])
             controller = "HUMAN" if self._human_controls(attacking) else "AI"
-        cfg = PITCH[self.mode]
+        cfg = HL_PITCH[self.mode]
         return {"match_id": self.match_id, "home": self.clubs[0], "away": self.clubs[1], "state": self.state, "revision": self.revision,
                 "minute": round(self.clock_minute(now), 2), "clock_rate": CLOCK_MINUTES_PER_SECOND if self.state == "CLOCK" else 0,
                 "score": {"home": score[0], "away": score[1]}, "server_now": now, "deadline": self.deadline,
@@ -1542,9 +1612,10 @@ class HighlightMatch:
                 "controller": controller, "ai_control": list(self.ai_control), "humans": self.humans,
                 "connected": {c: self.connected(c, now) for c in self.humans},
                 "opportunity": opp_view, "ruleset": self.ruleset,
-                "pitch": {"length": cfg["length"], "width": cfg["width"], "goal": round(cfg["goal"] * GOAL_WIDTH_SCALE, 3), "box": cfg["box"],
+                "pitch": {"length": cfg["length"], "width": cfg["width"], "goal": cfg["goal"], "goal_height": cfg["goal_height"], "box": cfg["box"],
                           "post": POST_RADIUS},
                 "half": 2 if self.half_time_done else 1,
+                "kits": self.kits or select_kits(self.clubs[0], self.clubs[1]),
                 "attacks_right": {self.clubs[0]: self.attacks_right(0), self.clubs[1]: self.attacks_right(1)},
                 "physics": {"pass": PASS_SPEED, "loft": LOFT_SPEED, "loft_range": LOFT_RANGE, "shot": SHOT_SPEED, "carry": CARRY_RANGE, "decel": GROUND_DECEL,
                             "assist_angle": PASS_ASSIST_ANGLE},

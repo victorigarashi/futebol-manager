@@ -40,28 +40,36 @@ body.im-open { overflow: hidden; }
 .im-banner--you b { color: var(--im-you); }
 .im-banner--rival b { color: #7cc8ff; }
 .im-banner--warn { box-shadow: inset 0 0 0 2px var(--im-warn); }
-.im-banner--low { top: auto; bottom: 88px; border-radius: 12px; }
+.im-banner--low { top: auto; bottom: 124px; border-radius: 12px; }
 .im-timer { position: absolute; top: 62px; right: 12px; z-index: 4; display: grid; width: 52px; height: 52px; place-items: center; pointer-events: none; }
 .im-timer svg { position: absolute; inset: 0; transform: rotate(-90deg); }
 .im-timer circle { fill: rgb(8 12 18 / 80%); stroke: rgb(255 255 255 / 15%); stroke-width: 3; }
 .im-timer circle + circle { fill: none; stroke: var(--im-you); stroke-dasharray: 94.2; transition: stroke-dashoffset .3s linear; }
 .im-timer b { position: relative; font-size: 1.15rem; font-weight: 950; }
 .im-timer.is-low circle + circle { stroke: #ff5a5f; }
-.im-chip { position: absolute; bottom: 76px; left: 50%; z-index: 3; padding: 3px 10px; border-radius: 999px; background: rgb(8 12 18 / 60%); color: #d9e2ec; font-size: .7rem; font-weight: 700; transform: translateX(-50%); pointer-events: none; }
+.im-chip { position: absolute; bottom: 98px; left: 50%; z-index: 3; padding: 3px 10px; border-radius: 999px; background: rgb(8 12 18 / 60%); color: #d9e2ec; font-size: .7rem; font-weight: 700; transform: translateX(-50%); pointer-events: none; }
 .im-feedback { position: absolute; bottom: 130px; left: 50%; z-index: 6; max-width: 90%; padding: 7px 12px; border-radius: 10px; background: #3a1414; color: #ffb4b4; font-size: .78rem; transform: translateX(-50%); }
 .im-loading3d { position: absolute; inset: auto 0 50% 0; z-index: 5; color: #fff; font-weight: 800; text-align: center; text-shadow: 0 2px 8px #000; }
 
-/* Action bar: icons, selection, discreet shortcuts. */
-.im-actions { position: absolute; bottom: 14px; left: 50%; z-index: 5; display: flex; gap: 6px; padding: 6px; border-radius: 16px; background: rgb(8 12 18 / 62%); transform: translateX(-50%); backdrop-filter: blur(4px); }
-.im-actions button { position: relative; display: grid; justify-items: center; min-width: 60px; padding: 6px 8px 5px; border: 0; border-radius: 12px; color: #dfe6ee; background: transparent; font-weight: 800; cursor: pointer; transition: transform .08s, background .12s; }
-.im-actions button span { font-size: 1.15rem; line-height: 1; }
-.im-actions button em { font-size: .64rem; font-style: normal; }
-.im-actions button kbd { position: absolute; top: 2px; right: 4px; color: #7f8a97; font-size: .55rem; font-family: inherit; }
-.im-actions button:hover { background: rgb(255 255 255 / 8%); }
+/* Action bar: big, clear, touch-friendly; keyboard shortcuts shown discreetly. */
+.im-actions { position: absolute; bottom: 14px; left: 50%; z-index: 5; display: flex; gap: 8px; padding: 8px; border-radius: 20px; background: rgb(8 12 18 / 72%); box-shadow: 0 8px 24px rgb(0 0 0 / 35%); transform: translateX(-50%); backdrop-filter: blur(6px); }
+.im-actions button { position: relative; display: grid; justify-items: center; align-content: center; gap: 2px; min-width: 78px; min-height: 64px; padding: 8px 10px 6px; border: 2px solid rgb(255 255 255 / 10%); border-radius: 14px; color: #eef2f6; background: rgb(255 255 255 / 6%); font-weight: 900; cursor: pointer; transition: transform .08s, background .12s, border-color .12s; }
+.im-actions button span { font-size: 1.55rem; line-height: 1; }
+.im-actions button em { font-size: .74rem; font-style: normal; letter-spacing: .02em; }
+.im-actions button kbd { position: absolute; top: 4px; right: 6px; color: #8b97a5; font-size: .6rem; font-family: inherit; }
+.im-actions button:hover { background: rgb(255 255 255 / 12%); }
 .im-actions button:active { transform: scale(.94); }
-.im-actions button.is-active { color: #14200a; background: var(--im-you); }
-.im-actions button.is-auto:not(.is-active) { box-shadow: inset 0 0 0 2px var(--im-you); }
+.im-actions button:focus-visible { outline: 3px solid var(--im-you); outline-offset: 2px; }
+.im-actions button.is-active { border-color: var(--im-you); color: #14200a; background: var(--im-you); }
+.im-actions button.is-active kbd { color: #2f4a0a; }
+.im-actions button.is-auto:not(.is-active) { border-color: var(--im-you); color: var(--im-you); }
 .im-actions button:disabled { opacity: .35; }
+.im-toast { position: absolute; top: 74px; left: 50%; z-index: 6; padding: 6px 16px; border-radius: 999px; background: rgb(8 12 18 / 85%); font-size: 1rem; font-weight: 950; letter-spacing: .01em; transform: translateX(-50%); animation: im-toast .25s ease-out; pointer-events: none; }
+.im-toast--bad { color: #ff8a8a; box-shadow: inset 0 0 0 2px #ff5a5f; }
+.im-toast--save { color: #9fd8ff; box-shadow: inset 0 0 0 2px #4cb3ff; }
+.im-toast--wood { color: #ffe066; box-shadow: inset 0 0 0 2px #ffe066; }
+.im-toast--good { color: var(--im-you); box-shadow: inset 0 0 0 2px var(--im-you); }
+@keyframes im-toast { from { opacity: 0; transform: translate(-50%, -6px) scale(.9); } to { opacity: 1; transform: translate(-50%, 0) scale(1); } }
 
 /* Goal celebration: short and skippable. */
 .im-goal { position: absolute; inset: 0; z-index: 8; display: grid; place-content: center; justify-items: center; gap: 4px; border: 0; color: var(--im-goal); background: radial-gradient(circle, rgb(0 0 0 / 25%), transparent 60%); cursor: pointer; animation: im-pop .5s ease-out; }
@@ -89,7 +97,7 @@ body.im-open { overflow: hidden; }
   .im-bug__team { gap: 3px; }
   .im-tools { flex-direction: column; }
   .im-pop { top: 6px; right: 48px; }
-  .im-timer { top: auto; bottom: 92px; right: 8px; }
+  .im-timer { top: auto; bottom: 110px; right: 8px; }
   .im-bug__team { font-size: .72rem; }
   .im-bug__score { min-width: 50px; font-size: 1.2rem; }
   .im-tools { top: 6px; right: 6px; gap: 4px; }
@@ -97,8 +105,9 @@ body.im-open { overflow: hidden; }
   .im-tool { width: 34px; height: 34px; }
   .im-banner { top: 64px; max-width: 90%; }
   .im-timer { top: 48px; }
-  .im-actions { bottom: 8px; gap: 2px; }
-  .im-actions button { min-width: 52px; padding: 5px 4px; }
+  .im-actions { bottom: 8px; gap: 4px; padding: 6px; max-width: calc(100% - 12px); }
+  .im-actions button { min-width: 62px; min-height: 60px; padding: 6px 4px; }
   .im-actions button kbd { display: none; }
+  .im-chip { bottom: 84px; }
 }
 @media (prefers-reduced-motion: reduce) { .im-goal { animation: none; } .im-timer circle + circle, .im-panel { transition: none; } }

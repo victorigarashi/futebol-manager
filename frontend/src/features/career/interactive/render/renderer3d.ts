@@ -21,13 +21,13 @@ export type CameraMode = "auto" | "wide";
 const CROWD = { low: 500, medium: 1800, high: 3600 } as const;
 const SHADOW = { low: 0, medium: 1024, high: 2048 } as const;
 const TEXTURE = { low: 1024, medium: 2048, high: 4096 } as const;
-const BODY_SCALE = 1.12;          // stylised: players read big, like a mobile football game
-const BALL_RADIUS = 0.3;          // visual only (the physics ball is 0.11 m)
+const PLAYER_HEIGHT = 1.85;       // metres (the model is built at real scale)
+const BALL_RADIUS = 0.15;         // visual: 1.35x the physics ball (0.11 m) for legibility
 const CROSSBAR = 2.44;            // same height the physics uses for lofted balls
 
 type Limb = { upper: THREE.Group; lower: THREE.Group };
 type Rig = {
-  root: THREE.Group; body: THREE.Group; head: THREE.Group; torso: THREE.Mesh;
+  root: THREE.Group; body: THREE.Group; chest: THREE.Group; head: THREE.Group; torso: THREE.Mesh;
   armL: Limb; armR: Limb; legL: Limb; legR: Limb; ring: THREE.Mesh; key: string;
 };
 
@@ -57,22 +57,39 @@ function canvasTexture(width: number, height: number, paint: (ctx: CanvasRenderi
   return texture;
 }
 
-const numberTextures = new Map<string, THREE.MeshLambertMaterial>();
-function jerseyBack(shirt: string, number: number, trim: string): THREE.MeshLambertMaterial {
-  const key = `${shirt}|${number}|${trim}`;
-  let m = numberTextures.get(key);
+const jerseyTextures = new Map<string, THREE.MeshLambertMaterial>();
+function paintPattern(ctx: CanvasRenderingContext2D, trim: string, pattern: string | undefined) {
+  ctx.fillStyle = trim;
+  if (pattern === "hoops") for (let i = 0; i < 3; i += 1) ctx.fillRect(0, 20 + i * 38, 128, 16);
+  else if (pattern === "stripes") for (let i = 0; i < 4; i += 1) ctx.fillRect(10 + i * 32, 0, 14, 128);
+  else if (pattern === "sash") { ctx.beginPath(); ctx.moveTo(0, 10); ctx.lineTo(28, 0); ctx.lineTo(128, 100); ctx.lineTo(128, 128); ctx.lineTo(100, 128); ctx.closePath(); ctx.fill(); }
+  else ctx.fillRect(0, 0, 128, 12);
+}
+/** Shirt faces: the back carries the number; both carry the kit pattern. */
+function jerseyBack(shirt: string, number: number, trim: string, ink?: string, pattern?: string): THREE.MeshLambertMaterial {
+  const key = `B|${shirt}|${number}|${trim}|${ink}|${pattern}`;
+  let m = jerseyTextures.get(key);
   if (!m) {
     const tex = canvasTexture(128, 128, (ctx) => {
       ctx.fillStyle = shirt; ctx.fillRect(0, 0, 128, 128);
-      ctx.fillStyle = trim; ctx.fillRect(0, 0, 128, 14);
-      ctx.font = "900 78px 'Barlow Condensed', 'Arial Narrow', sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      const light = new THREE.Color(shirt).getHSL({ h: 0, s: 0, l: 0 }).l > 0.6;
-      ctx.lineWidth = 6; ctx.strokeStyle = light ? "rgba(255,255,255,0.8)" : "rgba(0,0,0,0.5)";
-      ctx.strokeText(String(number || ""), 64, 74);
-      ctx.fillStyle = light ? "#141414" : "#ffffff"; ctx.fillText(String(number || ""), 64, 74);
+      paintPattern(ctx, trim, pattern);
+      ctx.font = "900 76px 'Barlow Condensed', 'Arial Narrow', sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      const color = ink ?? (new THREE.Color(shirt).getHSL({ h: 0, s: 0, l: 0 }).l > 0.6 ? "#141414" : "#ffffff");
+      ctx.lineWidth = 7; ctx.strokeStyle = color === "#FFFFFF" || color === "#ffffff" ? "rgba(0,0,0,0.55)" : "rgba(255,255,255,0.7)";
+      ctx.strokeText(String(number || ""), 64, 72); ctx.fillStyle = color; ctx.fillText(String(number || ""), 64, 72);
     });
     m = new THREE.MeshLambertMaterial({ map: tex });
-    numberTextures.set(key, m);
+    jerseyTextures.set(key, m);
+  }
+  return m;
+}
+function jerseyFront(shirt: string, trim: string, pattern?: string): THREE.MeshLambertMaterial {
+  const key = `F|${shirt}|${trim}|${pattern}`;
+  let m = jerseyTextures.get(key);
+  if (!m) {
+    const tex = canvasTexture(128, 128, (ctx) => { ctx.fillStyle = shirt; ctx.fillRect(0, 0, 128, 128); paintPattern(ctx, trim, pattern); });
+    m = new THREE.MeshLambertMaterial({ map: tex });
+    jerseyTextures.set(key, m);
   }
   return m;
 }
@@ -95,106 +112,120 @@ function limb(parent: THREE.Object3D, x: number, y: number, upperColor: string, 
   return { upper, lower };
 }
 
+/**
+ * Character (metres, ~1.85 m tall): stylised low-poly — slightly big head, athletic body,
+ * jointed hips/knees/shoulders/elbows. The upper body is its own group so it can
+ * counter-rotate against the hips while running.
+ */
 function buildRig(p: ScenePlayer, kit: Kit, shadows: boolean): Rig {
   const look = hashOf(p.id);
   const skin = VISUAL.skin[look % VISUAL.skin.length];
   const hair = VISUAL.hair[(look >> 4) % VISUAL.hair.length];
   const boots = VISUAL.boots[(look >> 8) % VISUAL.boots.length];
   const style = (look >> 12) % 5;
-  const shirt = p.keeper ? VISUAL.keeperKits[p.team] : kit.shirt;
-  const shorts = p.keeper ? "#2a2a33" : kit.shorts;
-  const socks = p.keeper ? shirt : kit.socks;
+  const build = 0.94 + ((look >> 16) % 13) / 100;     // cosmetic body variation (never physics)
+  const wear = p.keeper ? (kit.gk ?? { shirt: VISUAL.keeperKits[p.team], shorts: "#2a2a33", socks: VISUAL.keeperKits[p.team], trim: "#ffffff" }) : kit;
+  const shirt = wear.shirt, shorts = wear.shorts, socks = wear.socks;
+  const gloves = p.keeper ? "#f2f2f2" : skin;
   const root = new THREE.Group();
   const body = new THREE.Group(); root.add(body);
-  body.scale.setScalar(BODY_SCALE);
-  const legL = limb(body, -0.15, 0.92, skin, socks, boots, 0.46, 0.44, 0.22, true, shadows);
-  const legR = limb(body, 0.15, 0.92, skin, socks, boots, 0.46, 0.44, 0.22, true, shadows);
-  part(body, shorts, 0.6, 0.27, 0.36, 0, 0.98, 0, shadows);
-  const front = mat(shirt);
-  const back = jerseyBack(shirt, p.number, p.keeper ? "#ffffff" : kit.trim);
+  body.scale.set(build, 1, build);
+  const legL = limb(body, -0.11, 0.9, skin, socks, boots, 0.44, 0.44, 0.15, true, shadows);
+  const legR = limb(body, 0.11, 0.9, skin, socks, boots, 0.44, 0.44, 0.15, true, shadows);
+  part(body, shorts, 0.42, 0.24, 0.27, 0, 0.94, 0, shadows);
+  const chest = new THREE.Group(); chest.position.set(0, 1.04, 0); body.add(chest);
+  const front = jerseyFront(shirt, wear.trim, wear.pattern);
+  const back = jerseyBack(shirt, p.number, wear.trim, wear.number, wear.pattern);
   // Box faces: +X, -X, +Y, -Y, +Z (front), -Z (back: the number).
-  const torso = part(body, [front, front, front, front, front, back] as unknown as THREE.Material, 0.64, 0.6, 0.36, 0, 1.4, 0, shadows);
-  part(body, p.keeper ? "#ffffff" : kit.trim, 0.66, 0.08, 0.38, 0, 1.68, 0, shadows);
-  const armL = limb(body, -0.42, 1.66, shirt, skin, p.keeper ? "#f2f2f2" : skin, 0.32, 0.32, 0.16, false, shadows);
-  const armR = limb(body, 0.42, 1.66, shirt, skin, p.keeper ? "#f2f2f2" : skin, 0.32, 0.32, 0.16, false, shadows);
-  const head = new THREE.Group(); head.position.set(0, 1.74, 0); body.add(head);
-  part(head, skin, 0.16, 0.1, 0.16, 0, 0.03, 0, shadows);
-  part(head, skin, 0.52, 0.52, 0.48, 0, 0.32, 0, shadows);
-  // Face (simple, original): eyes, brows, mouth.
-  for (const s of [-1, 1]) {
-    part(head, "#1b1b1b", 0.07, 0.09, 0.02, s * 0.12, 0.34, 0.245, false);
-    part(head, hair, 0.12, 0.03, 0.02, s * 0.12, 0.42, 0.245, false);
+  const torso = part(chest, [front, front, front, front, front, back] as unknown as THREE.Material, 0.46, 0.5, 0.26, 0, 0.26, 0, shadows);
+  part(chest, wear.trim, 0.47, 0.05, 0.27, 0, 0.5, 0, shadows);           // collar band
+  const armL = limb(chest, -0.3, 0.47, shirt, skin, gloves, 0.28, 0.27, 0.11, false, shadows);
+  const armR = limb(chest, 0.3, 0.47, shirt, skin, gloves, 0.28, 0.27, 0.11, false, shadows);
+  const head = new THREE.Group(); head.position.set(0, 0.52, 0); chest.add(head);
+  part(head, skin, 0.11, 0.08, 0.11, 0, 0.03, 0, shadows);                 // neck
+  part(head, skin, 0.33, 0.33, 0.31, 0, 0.23, 0, shadows);
+  for (const sx of [-1, 1]) {
+    part(head, "#1b1b1b", 0.05, 0.06, 0.015, sx * 0.075, 0.24, 0.158, false);   // eyes
+    part(head, hair, 0.08, 0.02, 0.015, sx * 0.075, 0.29, 0.158, false);        // brows
+    part(head, skin, 0.03, 0.06, 0.04, sx * 0.17, 0.22, 0, false);              // ears
   }
-  part(head, "#7a3b2e", 0.12, 0.03, 0.02, 0, 0.2, 0.245, false);
-  part(head, skin, 0.08, 0.1, 0.06, 0, 0.28, 0.26, false);
-  // Hair styles.
-  if (style === 0) { part(head, hair, 0.56, 0.12, 0.52, 0, 0.62, 0, shadows); part(head, hair, 0.56, 0.3, 0.06, 0, 0.47, -0.24, shadows); }
-  else if (style === 1) { part(head, hair, 0.56, 0.2, 0.52, 0, 0.64, -0.02, shadows); part(head, hair, 0.58, 0.46, 0.08, 0, 0.36, -0.24, shadows); for (const s of [-1, 1]) part(head, hair, 0.06, 0.3, 0.4, s * 0.28, 0.48, -0.04, shadows); }
-  else if (style === 2) { part(head, hair, 0.14, 0.22, 0.5, 0, 0.66, 0, shadows); part(head, hair, 0.56, 0.06, 0.52, 0, 0.58, 0, shadows); }
-  else if (style === 3) { for (let i = 0; i < 5; i += 1) part(head, hair, 0.12, 0.18, 0.12, -0.2 + i * 0.1, 0.65, ((i % 2) - 0.5) * 0.12, shadows); part(head, hair, 0.56, 0.08, 0.52, 0, 0.58, 0, shadows); }
-  else { part(head, hair, 0.58, 0.06, 0.54, 0, 0.58, 0, shadows); }
+  part(head, "#7a3b2e", 0.08, 0.02, 0.015, 0, 0.14, 0.158, false);
+  part(head, skin, 0.05, 0.07, 0.04, 0, 0.2, 0.17, false);                      // nose
+  if (style === 0) { part(head, hair, 0.35, 0.07, 0.33, 0, 0.42, 0, shadows); part(head, hair, 0.35, 0.18, 0.04, 0, 0.32, -0.16, shadows); }
+  else if (style === 1) { part(head, hair, 0.36, 0.12, 0.34, 0, 0.43, -0.01, shadows); part(head, hair, 0.37, 0.3, 0.05, 0, 0.26, -0.16, shadows); for (const sx of [-1, 1]) part(head, hair, 0.04, 0.2, 0.26, sx * 0.18, 0.32, -0.03, shadows); }
+  else if (style === 2) { part(head, hair, 0.09, 0.14, 0.32, 0, 0.45, 0, shadows); part(head, hair, 0.35, 0.03, 0.33, 0, 0.4, 0, shadows); }
+  else if (style === 3) { for (let i = 0; i < 5; i += 1) part(head, hair, 0.08, 0.12, 0.08, -0.13 + i * 0.065, 0.44, ((i % 2) - 0.5) * 0.08, shadows); part(head, hair, 0.35, 0.05, 0.33, 0, 0.4, 0, shadows); }
+  else { part(head, hair, 0.36, 0.035, 0.34, 0, 0.4, 0, shadows); }
   const ring = new THREE.Mesh(geo.ring, new THREE.MeshBasicMaterial({ color: 0xc6f24e, transparent: true, opacity: 0.9, depthWrite: false }));
-  ring.position.y = 0.03; ring.visible = false; root.add(ring);
-  return { root, body, head, torso, armL, armR, legL, legR, ring, key: `${p.id}|${shirt}|${kit.shorts}` };
+  ring.position.y = 0.03; ring.scale.setScalar(0.85); ring.visible = false; root.add(ring);
+  return { root, body, chest, head, torso, armL, armR, legL, legR, ring, key: `${p.id}|${shirt}|${kit.shorts}|${kit.pattern ?? ""}` };
 }
 
 function poseRig(rig: Rig, p: ScenePlayer, now: number) {
   const look = hashOf(p.id);
   const run = Math.min(1, p.speed / 7.5);
   const phase = (p.stride / VISUAL.strideMetres) * Math.PI * 2;
-  const swing = p.pose === "run" ? Math.sin(phase) * (0.35 + run * 0.75) : 0;
-  const b = rig.body;
-  b.position.set(0, 0, 0); b.rotation.set(0, 0, 0);
+  const moving = p.pose === "run";
+  const swing = moving ? Math.sin(phase) * (0.3 + run * 0.7) : 0;
+  const b = rig.body, c = rig.chest;
+  b.position.set(0, 0, 0); b.rotation.set(0, 0, 0); c.rotation.set(0, 0, 0);
   rig.head.rotation.set(0, 0, 0);
   const set = (l: Limb, ux: number, lx: number, uz = 0) => { l.upper.rotation.set(ux, 0, uz); l.lower.rotation.set(lx, 0, 0); };
-  set(rig.legL, -swing, Math.max(0, swing) * 1.1);
-  set(rig.legR, swing, Math.max(0, -swing) * 1.1);
-  set(rig.armL, swing * 0.9, -0.3 - run * 0.5, 0.12);
-  set(rig.armR, -swing * 0.9, -0.3 - run * 0.5, -0.12);
-  b.rotation.x = run * 0.18;
-  b.position.y = p.pose === "run" ? Math.abs(Math.sin(phase)) * 0.08 * run : Math.sin(now * 2 + look) * 0.01;
+  // Legs: thigh swing; the knee folds when the leg recovers behind the body.
+  const knee = (thigh: number) => Math.max(0, thigh) * 1.5 + (moving ? 0.2 + run * 0.35 : 0.05);
+  set(rig.legL, -swing, knee(swing));
+  set(rig.legR, swing, knee(-swing));
+  // Arms opposite to the legs, elbows bent more at speed.
+  set(rig.armL, swing * 0.85, -0.35 - run * 0.9, 0.1);
+  set(rig.armR, -swing * 0.85, -0.35 - run * 0.9, -0.1);
+  // Lean into the run, hips sway, shoulders counter-rotate, a bob per stride; idle breathing.
+  b.rotation.x = run * 0.22;
+  b.rotation.y = swing * 0.12;
+  c.rotation.y = -swing * 0.22;
+  b.position.y = moving ? Math.abs(Math.sin(phase)) * 0.07 * run - 0.03 * run : Math.sin(now * 2 + look) * 0.008;
+  if (!moving && p.pose === "idle") { set(rig.legL, -0.05, 0.12, 0.04); set(rig.legR, 0.05, 0.12, -0.04); set(rig.armL, 0.05, -0.25, 0.12); set(rig.armR, -0.05, -0.25, -0.12); }
   const k = p.poseK;
   switch (p.pose) {
     case "kick": {
       const back = k < 0.35 ? k / 0.35 : 1 - Math.min(1, (k - 0.35) / 0.25);
       const fwd = k < 0.35 ? 0 : Math.min(1, (k - 0.35) / 0.3);
-      set(rig.legR, 0.9 * back - 1.25 * fwd, 0.9 * back);
-      set(rig.legL, 0.1, 0.15);
-      set(rig.armL, -0.3, -0.2, 0.9); set(rig.armR, 0.4, -0.2, -0.9);
-      b.rotation.x = -0.1 + 0.25 * fwd;
+      set(rig.legR, 0.9 * back - 1.3 * fwd, 1.2 * back + 0.1);
+      set(rig.legL, 0.15, 0.3);
+      set(rig.armL, -0.3, -0.4, 1.0); set(rig.armR, 0.5, -0.4, -0.8);
+      b.rotation.x = -0.12 + 0.3 * fwd; c.rotation.y = 0.35 * (back - fwd);
       break;
     }
     case "tackle": {
-      const s = Math.min(1, k * 2.5);
-      b.rotation.x = -1.05 * s; b.position.y = 0.25 * s; b.position.z = 0.6 * k;
-      set(rig.legR, -1.3 * s, 0.1); set(rig.legL, -0.4 * s, 1.2 * s);
-      set(rig.armL, -0.8, -0.2, 0.9); set(rig.armR, -0.8, -0.2, -0.9);
+      const s2 = Math.min(1, k * 2.5);
+      b.rotation.x = -1.1 * s2; b.position.y = 0.22 * s2; b.position.z = 0.6 * k;
+      set(rig.legR, -1.35 * s2, 0.1); set(rig.legL, -0.4 * s2, 1.3 * s2);
+      set(rig.armL, -0.9, -0.3, 0.9); set(rig.armR, -0.9, -0.3, -0.9);
       break;
     }
     case "header": {
       const j = Math.sin(Math.min(1, k) * Math.PI);
-      b.position.y = 0.55 * j; b.rotation.x = 0.35 * j; rig.head.rotation.x = 0.4 * j;
-      set(rig.legL, 0.3, 0.9); set(rig.legR, -0.2, 0.6);
-      set(rig.armL, -0.3, -0.2, 1.1); set(rig.armR, -0.3, -0.2, -1.1);
+      b.position.y = 0.5 * j; c.rotation.x = 0.4 * j; rig.head.rotation.x = 0.5 * j;
+      set(rig.legL, 0.3, 1.1); set(rig.legR, -0.2, 0.8);
+      set(rig.armL, -0.4, -0.5, 1.2); set(rig.armR, -0.4, -0.5, -1.2);
       break;
     }
     case "dive": case "save": {
       // poseDir: +1/-1 along the pitch width; converted to the keeper's own side.
-      const s = Math.min(1, k * 1.6);
+      const s2 = Math.min(1, k * 1.6);
       const ry = rig.root.rotation.y;
       const side = Math.sign(-Math.sin(ry) * p.poseDir) || 1;   // local +X in world is (cos ry, 0, -sin ry)
-      b.rotation.z = -side * 1.35 * s; b.position.x = side * 0.9 * s; b.position.y = 0.6 * Math.sin(Math.min(1, k) * Math.PI) + 0.2 * s;
+      b.rotation.z = -side * 1.35 * s2; b.position.x = side * 0.9 * s2; b.position.y = 0.55 * Math.sin(Math.min(1, k) * Math.PI) + 0.2 * s2;
       set(rig.armL, 0, 0, side < 0 ? 2.9 : 2.6); set(rig.armR, 0, 0, side < 0 ? -2.6 : -2.9);
-      set(rig.legL, 0.2, 0.4, 0.2 * side); set(rig.legR, -0.2, 0.3, 0.2 * side);
+      set(rig.legL, 0.2, 0.5, 0.2 * side); set(rig.legR, -0.2, 0.4, 0.2 * side);
       break;
     }
-    case "hold": set(rig.armL, -1.4, -0.6, 0.2); set(rig.armR, -1.4, -0.6, -0.2); break;
-    case "ready": set(rig.legL, -0.35, 0.7, 0.15); set(rig.legR, -0.35, 0.7, -0.15); b.position.y = -0.1; set(rig.armL, -0.5, -0.4, 0.7); set(rig.armR, -0.5, -0.4, -0.7); break;
+    case "hold": set(rig.armL, -1.4, -0.7, 0.2); set(rig.armR, -1.4, -0.7, -0.2); c.rotation.x = 0.15; break;
+    case "ready": set(rig.legL, -0.4, 0.8, 0.15); set(rig.legR, -0.4, 0.8, -0.15); b.position.y = -0.1; c.rotation.x = 0.25; set(rig.armL, -0.6, -0.5, 0.7); set(rig.armR, -0.6, -0.5, -0.7); break;
     case "celebrate": {
       const j = Math.abs(Math.sin(now * 8 + look));
-      b.position.y = 0.35 * j;
+      b.position.y = 0.3 * j;
       set(rig.armL, 0, -0.2, 2.7); set(rig.armR, 0, -0.2, -2.7);
-      set(rig.legL, -0.3 * j, 0.6 * j); set(rig.legR, 0.2 * j, 0.4 * j);
+      set(rig.legL, -0.3 * j, 0.7 * j); set(rig.legR, 0.2 * j, 0.5 * j);
       break;
     }
     default: break;
@@ -216,7 +247,7 @@ export class Renderer3D {
   private pitchKey = "";
   private pitchGroup = new THREE.Group();
   private nets: { lines: THREE.LineSegments; base: Float32Array; end: 0 | 1 }[] = [];
-  private crowd: THREE.InstancedMesh | null = null;
+  private crowd: THREE.Group | null = null;
   private aimGroup = new THREE.Group();
   private arrow: THREE.Mesh;
   private trajectory: THREE.Line;
@@ -231,6 +262,7 @@ export class Renderer3D {
   private L = 105; private W = 68;
   private cinematic: { until: number; kind: "intro" | "goal"; from: THREE.Vector3 } | null = null;
   private lastOpp = "";
+  private framedOpp = "";
   private lastGoal = "";
   quality: Quality;
   cameraMode: CameraMode = "auto";
@@ -313,7 +345,7 @@ export class Renderer3D {
     this.overlay.width = Math.round(width * dpr); this.overlay.height = Math.round(height * dpr);
     this.overlay.style.width = `${width}px`; this.overlay.style.height = `${height}px`;
     this.camera.aspect = width / Math.max(1, height);
-    this.camera.fov = this.camera.aspect < 0.8 ? 58 : this.camera.aspect < 1.2 ? 50 : 42;
+    this.camera.fov = this.camera.aspect < 0.8 ? 62 : this.camera.aspect < 1.2 ? 52 : 45;
     this.camera.updateProjectionMatrix();
   }
 
@@ -354,17 +386,19 @@ export class Renderer3D {
     const pxm = res / fullL;
     const tex = canvasTexture(res, Math.round(fullW * pxm), (ctx) => {
       const X = (m: number) => (m + margin) * pxm, Y = (m: number) => (m + margin) * pxm;
-      ctx.fillStyle = "#55b441"; ctx.fillRect(0, 0, res, fullW * pxm);
+      ctx.fillStyle = "#56b046"; ctx.fillRect(0, 0, res, fullW * pxm);
       // Diagonal checkerboard mowing (two greens), like a freshly cut stadium lawn.
       const cell = 6 * (L / 105) * pxm;
       ctx.save(); ctx.translate(X(L / 2), Y(W / 2)); ctx.rotate(Math.PI / 4);
       const span = Math.hypot(fullL, fullW) * pxm;
       const n = Math.ceil(span / cell);
       for (let i = -n; i < n; i += 1) for (let j = -n; j < n; j += 1) {
-        ctx.fillStyle = Math.abs(i + j) % 2 === 0 ? "#6cc94f" : "#4fa83c";
+        ctx.fillStyle = Math.abs(i + j) % 2 === 0 ? "#5cb84a" : "#52ab42";
         ctx.fillRect(i * cell, j * cell, cell + 0.5, cell + 0.5);
       }
       ctx.restore();
+      // Soft mowing stripes along the length over the checker, then fine grass grain.
+      for (let i = 0; i < 16; i += 1) { ctx.fillStyle = i % 2 ? "rgba(255,255,255,0.035)" : "rgba(0,0,0,0.03)"; ctx.fillRect(X((L / 16) * i), 0, (L / 16) * pxm, fullW * pxm); }
       let seed = 11; const rand = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
       for (let i = 0; i < res * 6; i += 1) { ctx.fillStyle = rand() < 0.5 ? "rgba(255,255,255,0.035)" : "rgba(0,0,0,0.05)"; ctx.fillRect(rand() * res, rand() * fullW * pxm, 2, 3); }
       // Surround (darker) outside the touchlines.
@@ -424,73 +458,89 @@ export class Renderer3D {
   }
 
   private buildStadium(fullL: number, fullW: number, shadows: boolean) {
-    // Ad boards (fictional sponsors only) around the pitch.
-    const brands = ["RESENHA FC", "BRASILEIRÃO MANAGER", "VAI PRA CIMA", "CRAQUE DA RODADA", "BOLA NA REDE", "ARQUIBANCADA"];
-    const colors = [["#0f4fa8", "#ffd31a"], ["#e8352e", "#ffffff"], ["#14975a", "#ffffff"], ["#ffd31a", "#111111"], ["#7a2bd1", "#ffffff"], ["#ff7a00", "#111111"]];
-    const boardTex = canvasTexture(2048, 64, (ctx) => {
-      for (let i = 0; i < 6; i += 1) {
-        const [bg, fg] = colors[i]; ctx.fillStyle = bg; ctx.fillRect(i * 341, 0, 342, 64);
-        ctx.fillStyle = fg; ctx.font = "900 34px 'Barlow Condensed', Inter, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(brands[i], i * 341 + 170, 34);
-      }
-    });
-    tex2Repeat(boardTex, 2);
-    const boardMat = new THREE.MeshLambertMaterial({ map: boardTex, emissive: 0x222222 });
-    const boards: [number, number, number, number][] = [[0, -fullW / 2 - 0.5, fullL, 0], [0, fullW / 2 + 0.5, fullL, Math.PI], [-fullL / 2 - 0.5, 0, fullW, Math.PI / 2], [fullL / 2 + 0.5, 0, fullW, -Math.PI / 2]];
-    for (const [x, z, len, ry] of boards) {
-      const board = new THREE.Mesh(new THREE.BoxGeometry(len, 1.0, 0.2), boardMat);
-      board.position.set(x, 0.5, z); board.rotation.y = ry; board.castShadow = shadows; this.pitchGroup.add(board);
-    }
-    // Stands: stepped tiers on the four sides, crowd instanced (one draw call).
-    const tiers = this.quality === "low" ? 6 : 10;
-    const standMat = mat("#c9ccd2"), seatMat = mat("#2a5fb0");
-    const crowdCount = CROSSWALK(CROWD[this.quality]);
-    const crowdGeo = new THREE.BoxGeometry(0.55, 0.9, 0.45);
-    const crowd = new THREE.InstancedMesh(crowdGeo, new THREE.MeshLambertMaterial(), crowdCount);
-    const dummy = new THREE.Object3D();
-    const palette = ["#e8352e", "#ffd31a", "#ffffff", "#0f4fa8", "#14975a", "#111111", "#ff7a00", "#7a2bd1"].map((c) => new THREE.Color(c));
-    let placed = 0;
     let seed = 5; const rand = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
-    const sides: { cx: number; cz: number; len: number; ry: number; out: [number, number] }[] = [
-      { cx: 0, cz: -fullW / 2 - 4, len: fullL + 10, ry: 0, out: [0, -1] }, { cx: 0, cz: fullW / 2 + 4, len: fullL + 10, ry: Math.PI, out: [0, 1] },
-      { cx: -fullL / 2 - 4, cz: 0, len: fullW + 10, ry: Math.PI / 2, out: [-1, 0] }, { cx: fullL / 2 + 4, cz: 0, len: fullW + 10, ry: -Math.PI / 2, out: [1, 0] },
+    // Ad boards (fictional sponsors only), each side starting at a different board.
+    const brands: [string, string, string][] = [["RESENHA FC", "#0f4fa8", "#ffd31a"], ["BRASILEIRÃO MANAGER", "#e8352e", "#ffffff"], ["VAI PRA CIMA", "#14975a", "#ffffff"],
+      ["CRAQUE DA RODADA", "#ffd31a", "#111111"], ["BOLA NA REDE", "#7a2bd1", "#ffffff"], ["ARQUIBANCADA", "#ff7a00", "#111111"], ["GOLAÇO", "#111827", "#c6f24e"],
+      ["TABELINHA", "#0ea5e9", "#ffffff"], ["CHAPÉU", "#be123c", "#ffffff"], ["PANENKA", "#f8fafc", "#0f172a"]];
+    const boardTex = canvasTexture(4096, 64, (ctx) => {
+      const w = 4096 / brands.length;
+      brands.forEach(([text, bg, fg], i) => { ctx.fillStyle = bg; ctx.fillRect(i * w, 0, w + 1, 64); ctx.fillStyle = fg; ctx.font = "900 34px 'Barlow Condensed', Inter, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(text, i * w + w / 2, 34); });
+    });
+    boardTex.wrapS = THREE.RepeatWrapping;
+    const boards: [number, number, number, number][] = [[0, -fullW / 2 - 0.5, fullL, 0], [0, fullW / 2 + 0.5, fullL, Math.PI], [-fullL / 2 - 0.5, 0, fullW, Math.PI / 2], [fullL / 2 + 0.5, 0, fullW, -Math.PI / 2]];
+    boards.forEach(([x, z, len, ry], i) => {
+      const tex = boardTex.clone(); tex.needsUpdate = true; tex.repeat.set(len / 60, 1); tex.offset.x = i * 0.27;
+      const board = new THREE.Mesh(new THREE.BoxGeometry(len, 0.9, 0.15), new THREE.MeshLambertMaterial({ map: tex, emissive: 0x1a1a1a }));
+      board.position.set(x, 0.45, z); board.rotation.y = ry; board.castShadow = shadows; this.pitchGroup.add(board);
+    });
+    // Stands: a front wall, stepped tiers (alternating seat colours) and a roof canopy.
+    const tiers = this.quality === "low" ? 7 : 12;
+    const rise = 0.75, depth = 1.1, front = 4.5;
+    const seatColors = ["#1e4fa8", "#d6dbe3", "#1e4fa8", "#f2c230"].map((c) => mat(c));
+    const sides = [
+      { cx: 0, cz: -fullW / 2 - front, len: fullL + 14, ry: 0, out: [0, -1] }, { cx: 0, cz: fullW / 2 + front, len: fullL + 14, ry: Math.PI, out: [0, 1] },
+      { cx: -fullL / 2 - front, cz: 0, len: fullW + 14, ry: Math.PI / 2, out: [-1, 0] }, { cx: fullL / 2 + front, cz: 0, len: fullW + 14, ry: -Math.PI / 2, out: [1, 0] },
     ];
     for (const side of sides) {
+      const wall = new THREE.Mesh(new THREE.BoxGeometry(side.len, 1.6, 0.4), mat("#2b3340"));
+      wall.position.set(side.cx - side.out[0] * 0.4, 0.8, side.cz - side.out[1] * 0.4); wall.rotation.y = side.ry; this.pitchGroup.add(wall);
       for (let t = 0; t < tiers; t += 1) {
-        const stepMesh = new THREE.Mesh(new THREE.BoxGeometry(side.len + t * 3, 1.2 + t * 1.2, 1.6), t % 3 === 0 ? seatMat : standMat);
-        stepMesh.position.set(side.cx + side.out[0] * t * 1.6, (1.2 + t * 1.2) / 2, side.cz + side.out[1] * t * 1.6); stepMesh.rotation.y = side.ry;
-        stepMesh.receiveShadow = shadows; this.pitchGroup.add(stepMesh);
+        const step = new THREE.Mesh(new THREE.BoxGeometry(side.len + t * 2 * depth, 1.6 + t * rise, depth), seatColors[Math.floor(t / 3) % seatColors.length]);
+        step.position.set(side.cx + side.out[0] * t * depth, (1.6 + t * rise) / 2, side.cz + side.out[1] * t * depth); step.rotation.y = side.ry;
+        step.receiveShadow = shadows; this.pitchGroup.add(step);
+      }
+      if (this.quality !== "low") {
+        const roof = new THREE.Mesh(new THREE.BoxGeometry(side.len + tiers * 2 * depth, 0.4, tiers * depth * 0.7), mat("#e5e7eb"));
+        roof.position.set(side.cx + side.out[0] * tiers * depth * 0.6, 1.6 + tiers * rise + 4, side.cz + side.out[1] * tiers * depth * 0.6); roof.rotation.y = side.ry; this.pitchGroup.add(roof);
       }
     }
-    while (placed < crowdCount) {
-      const side = sides[placed % 4];
+    // Crowd: people silhouettes (shirt body, skin head, some arms raised), one draw call each part.
+    const count = CROWD_COUNT(CROWD[this.quality]);
+    const bodyMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.46, 0.62, 0.3), new THREE.MeshLambertMaterial(), count);
+    const headMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.26, 0.28, 0.26), new THREE.MeshLambertMaterial(), count);
+    const armMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.1, 0.5, 0.1), new THREE.MeshLambertMaterial(), count);
+    const shirts = ["#e8352e", "#ffd31a", "#ffffff", "#0f4fa8", "#14975a", "#111111", "#ff7a00", "#7a2bd1", "#c6f24e", "#0ea5e9"].map((c) => new THREE.Color(c));
+    const skins = VISUAL.skin.map((c) => new THREE.Color(c));
+    const dummy = new THREE.Object3D();
+    let arms = 0;
+    for (let i = 0; i < count; i += 1) {
+      const side = sides[i % 4];
       const t = Math.floor(rand() * tiers);
-      const along = (rand() - 0.5) * (side.len + t * 3 - 2);
-      const x = side.cx + side.out[0] * t * 1.6 + (side.out[1] !== 0 ? along : 0);
-      const z = side.cz + side.out[1] * t * 1.6 + (side.out[0] !== 0 ? along : 0);
-      dummy.position.set(x, 1.2 + t * 1.2 + 0.45, z); dummy.rotation.y = side.ry; dummy.scale.set(1, 0.85 + rand() * 0.35, 1); dummy.updateMatrix();
-      crowd.setMatrixAt(placed, dummy.matrix); crowd.setColorAt(placed, palette[Math.floor(rand() * palette.length)]);
-      placed += 1;
+      const along = (rand() - 0.5) * (side.len + t * 2 * depth - 2);
+      const x = side.cx + side.out[0] * t * depth + (side.out[1] !== 0 ? along : 0);
+      const z = side.cz + side.out[1] * t * depth + (side.out[0] !== 0 ? along : 0);
+      const standing = rand() < 0.35;
+      const baseY = 1.6 + t * rise + (standing ? 0.42 : 0.28);
+      const shirt = shirts[Math.floor(rand() * shirts.length)];
+      dummy.position.set(x, baseY, z); dummy.rotation.set(0, side.ry + (rand() - 0.5) * 0.4, 0); dummy.scale.set(1, standing ? 1.15 : 0.9, 1); dummy.updateMatrix();
+      bodyMesh.setMatrixAt(i, dummy.matrix); bodyMesh.setColorAt(i, shirt);
+      dummy.position.y = baseY + (standing ? 0.52 : 0.45); dummy.scale.set(1, 1, 1); dummy.updateMatrix();
+      headMesh.setMatrixAt(i, dummy.matrix); headMesh.setColorAt(i, skins[Math.floor(rand() * skins.length)]);
+      if (standing && rand() < 0.5 && arms < count) {
+        dummy.position.set(x + Math.cos(side.ry) * 0.2, baseY + 0.55, z - Math.sin(side.ry) * 0.2); dummy.rotation.z = 0.25; dummy.updateMatrix();
+        armMesh.setMatrixAt(arms, dummy.matrix); armMesh.setColorAt(arms, shirt); arms += 1;
+        dummy.rotation.z = 0;
+      }
     }
-    crowd.instanceMatrix.needsUpdate = true;
+    armMesh.count = arms;
+    for (const m of [bodyMesh, headMesh, armMesh]) { m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; }
+    const crowd = new THREE.Group(); crowd.add(bodyMesh, headMesh, armMesh);
     this.crowd = crowd;
     this.pitchGroup.add(crowd);
-    // Heads on the crowd (a second instanced mesh, same transforms raised).
-    const heads = new THREE.InstancedMesh(new THREE.BoxGeometry(0.4, 0.4, 0.4), new THREE.MeshLambertMaterial(), crowdCount);
-    const m = new THREE.Matrix4(), lift = new THREE.Matrix4().makeTranslation(0, 0.68, 0);
-    const skins = VISUAL.skin.map((c) => new THREE.Color(c));
-    for (let i = 0; i < crowdCount; i += 1) { crowd.getMatrixAt(i, m); heads.setMatrixAt(i, m.multiply(lift)); heads.setColorAt(i, skins[i % skins.length]); }
-    heads.instanceMatrix.needsUpdate = true;
-    crowd.add(heads);
-    // Floodlights, benches and tunnels (discreet).
-    for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) {
-      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.7, 36, 8), mat("#9aa1ab")); pole.position.set(x * (fullL / 2 + 16), 18, z * (fullW / 2 + 16)); this.pitchGroup.add(pole);
-      const lamp = new THREE.Mesh(new THREE.BoxGeometry(7, 4, 1), new THREE.MeshBasicMaterial({ color: 0xfffbe6 })); lamp.position.set(x * (fullL / 2 + 16), 37, z * (fullW / 2 + 16)); lamp.lookAt(0, 0, 0); this.pitchGroup.add(lamp);
+    // Flags at the corners, floodlights, benches and tunnel (discreet).
+    const flagColors = ["#e8352e", "#ffd31a", "#0f4fa8", "#14975a"];
+    [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([x, z], i) => {
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.6, 6), mat("#f8fafc")); pole.position.set(x * (fullL / 2 - 0.2), 0.8, z * (fullW / 2 - 0.2)); this.pitchGroup.add(pole);
+      const flag = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.35, 0.02), mat(flagColors[i])); flag.position.set(x * (fullL / 2 - 0.2) + 0.25, 1.4, z * (fullW / 2 - 0.2)); this.pitchGroup.add(flag);
+      const tower = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.7, 38, 8), mat("#9aa1ab")); tower.position.set(x * (fullL / 2 + 20), 19, z * (fullW / 2 + 20)); this.pitchGroup.add(tower);
+      const lamp = new THREE.Mesh(new THREE.BoxGeometry(8, 4, 1), new THREE.MeshBasicMaterial({ color: 0xfffbe6 })); lamp.position.set(x * (fullL / 2 + 20), 39, z * (fullW / 2 + 20)); lamp.lookAt(0, 0, 0); this.pitchGroup.add(lamp);
+    });
+    for (const sgn of [-1, 1]) {
+      const bench = new THREE.Mesh(new THREE.BoxGeometry(7, 1.4, 1.4), new THREE.MeshLambertMaterial({ color: 0x1b2a44, transparent: true, opacity: 0.85 }));
+      bench.position.set(sgn * 10, 0.7, fullW / 2 + 2.2); this.pitchGroup.add(bench);
     }
-    for (const s of [-1, 1]) {
-      const bench = new THREE.Mesh(new THREE.BoxGeometry(8, 1.6, 1.6), new THREE.MeshLambertMaterial({ color: 0x1b2a44, transparent: true, opacity: 0.85 }));
-      bench.position.set(s * 12, 0.8, fullW / 2 + 2); this.pitchGroup.add(bench);
-    }
-    const tunnel = new THREE.Mesh(new THREE.BoxGeometry(6, 3, 4), mat("#30343b")); tunnel.position.set(0, 1.5, fullW / 2 + 5); this.pitchGroup.add(tunnel);
+    const tunnel = new THREE.Mesh(new THREE.BoxGeometry(5, 2.6, 2), mat("#30343b")); tunnel.position.set(0, 1.3, fullW / 2 + 3.4); this.pitchGroup.add(tunnel);
   }
 
   // -------------------------------------------------------------------------- frame
@@ -505,7 +555,7 @@ export class Renderer3D {
     if (scene) {
       for (const p of scene.players) {
         const kit = p.team === "A" ? kits.attack : kits.defend;
-        const key = `${p.id}|${p.keeper ? VISUAL.keeperKits[p.team] : kit.shirt}|${kit.shorts}`;
+        const key = `${p.id}|${p.keeper ? kit.gk?.shirt ?? VISUAL.keeperKits[p.team] : kit.shirt}|${kit.shorts}|${kit.pattern ?? ""}`;
         let rig = this.rigs.get(p.id);
         if (!rig || rig.key !== key) {
           if (rig) this.scene.remove(rig.root);
@@ -646,16 +696,18 @@ export class Renderer3D {
         // Behind the taker, ball low in the frame, wall/keeper/goal ahead.
         const ahead = new THREE.Vector3(goalX - ball.x, 0, -ball.z).normalize();
         const k = Math.max(0.6, s);
-        pos.set(ball.x - ahead.x * 11 * k, 10 * k, ball.z - ahead.z * 11 * k);
+        pos.set(ball.x - ahead.x * 9 * k, 6.5 * k, ball.z - ahead.z * 9 * k);
         look.set(goalX - dir * 3 * k, 1.0, ball.z * 0.3);
       } else if (this.cameraMode === "wide") {
-        look.set(ball.x + dir * 12 * s, 0, ball.z * 0.5);
-        pos.set(look.x - dir * 30 * Math.max(0.6, s), 30 * Math.max(0.6, s) + 4, look.z);
+        // Manual wide view: the whole pitch, tactical tilt.
+        look.set(dir * this.L * 0.06, 0, 0);
+        pos.set(-dir * this.L * 0.5, this.L * (portrait ? 0.95 : 0.62), 0);
       } else {
         // Build-up/finishing: elevated and tilted behind the ball carrier (ball in the lower third,
         // team-mates and the goal ahead), the goal kept in frame when close to it.
-        const k = Math.max(0.6, s);
-        const back = (portrait ? 17 : 15) * k, height = (portrait ? 17 : 14) * k;
+        const k = Math.max(0.55, s);
+        // Wide enough to read the play: ~35 m of pitch ahead, team-mates and markers in view.
+        const back = (portrait ? 22 : 18) * k, height = (portrait ? 21 : 15.5) * k;
         // Far from goal: look down the pitch. Close to it (crosses, byline, box): turn towards
         // the goal mouth so the goal never leaves the frame.
         const near = Math.max(0, Math.min(1, 1 - (toGoal - 12 * k) / (22 * k)));
@@ -663,7 +715,7 @@ export class Renderer3D {
         const gx = goalX - ball.x, gz = -ball.z, gl = Math.hypot(gx, gz) || 1;
         ax = ax * (1 - near) + (gx / gl) * near; az = (gz / gl) * near;
         const al = Math.hypot(ax, az) || 1; ax /= al; az /= al;
-        const lead = Math.min(9 * k, Math.max(4 * k, gl * 0.5));
+        const lead = Math.min(14 * k, Math.max(5 * k, gl * 0.55));
         look.set(ball.x + ax * lead, 0, ball.z + az * lead);
         pos.set(ball.x - ax * back, height, ball.z - az * back);
       }
@@ -679,7 +731,10 @@ export class Renderer3D {
         this.camPos.copy(pos); this.camLook.copy(look);
       } else this.cinematic = null;
     }
-    const smooth = 1 - Math.exp(-dt * 3.2);
+    // A new opportunity (or the first frame) cuts straight to its framing; then it follows smoothly.
+    const cut = Boolean(opp && opp.id !== this.framedOpp);
+    if (opp) this.framedOpp = opp.id;
+    const smooth = cut ? 1 : 1 - Math.exp(-dt * 3.2);
     this.camPos.lerp(pos, this.cinematic ? 1 : smooth);
     this.camLook.lerp(look, this.cinematic ? 1 : smooth);
     this.camera.position.copy(this.camPos);
@@ -724,7 +779,7 @@ export class Renderer3D {
     }
     if (overlay.label && overlay.carrierIndex >= 0) {
       const c = scene.players[overlay.carrierIndex];
-      const s = this.project(c.x, c.y, 3.6 * BODY_SCALE * 0.75);
+      const s = this.project(c.x, c.y, PLAYER_HEIGHT + 0.45);
       if (s) {
         const text = `${c.number || ""} ${c.name.split(" ").slice(-1)[0]}`.trim();
         ctx.font = `800 ${Math.round(13 * dpr)}px Inter, system-ui, sans-serif`;
@@ -736,8 +791,7 @@ export class Renderer3D {
   }
 }
 
-function tex2Repeat(tex: THREE.Texture, n: number) { tex.wrapS = THREE.RepeatWrapping; tex.repeat.set(n, 1); }
-function CROSSWALK(n: number) { return Math.max(100, n); }
+function CROWD_COUNT(n: number) { return Math.max(100, n); }
 
 export function webglAvailable(): boolean {
   try {

@@ -10,7 +10,6 @@ import pytest
 from app.domain import highlights as H
 from app.domain.highlights import Ball, Body, HighlightMatch, Pitch
 from app.domain.market import InitialMarket
-from app.domain.match_engine import PITCH
 from app.services.season_service import SeasonService, team_input_view
 from app.tests.fixtures.market_catalog import complete_test_market, synthetic_catalog
 
@@ -151,38 +150,58 @@ def _pitch(bodies, ball, seed=1):
     return Pitch(bodies, ball, "ELEVEN_A_SIDE", random.Random(seed))
 
 
-def test_the_physical_mouth_is_the_wider_drawn_mouth():
-    L, W = 105.0, 68.0
-    old_half = PITCH["ELEVEN_A_SIDE"]["goal"] / 2
-    new_half = old_half * H.GOAL_WIDTH_SCALE
-    target_y = W / 2 + (old_half + new_half) / 2      # outside the old mouth, inside the new one
-    goals = 0
-    for seed in range(12):
-        shooter = _body("s", "A", "ST", L - 12, W / 2, shooting=99)
-        keeper = _body("k", "D", "GK", L - 1, 2.0, keeping=1)    # nowhere near
-        pitch = _pitch([shooter, keeper], Ball(shooter.x + 0.4, shooter.y), seed)
-        result = pitch.execute(shooter, "SHOT", L, target_y, 0.5, None)
-        goals += result.outcome == "GOAL"
-    assert goals >= 9
+GOAL = H.HL_PITCH["ELEVEN_A_SIDE"]["goal"]
+BAR = H.HL_PITCH["ELEVEN_A_SIDE"]["goal_height"]
+
+
+def test_regulation_dimensions_are_the_drawn_dimensions():
     view = _match().view(None, 0.0)
-    assert view["pitch"]["goal"] == pytest.approx(PITCH["ELEVEN_A_SIDE"]["goal"] * H.GOAL_WIDTH_SCALE, abs=1e-3)
+    assert view["pitch"]["length"] == 105 and view["pitch"]["width"] == 68
+    assert view["pitch"]["goal"] == 7.32 and view["pitch"]["goal_height"] == 2.44
+    five = _match(mode="FIVE_A_SIDE").view(None, 0.0)
+    assert (five["pitch"]["length"], five["pitch"]["width"], five["pitch"]["goal"], five["pitch"]["goal_height"]) == (50, 32, 4.0, 2.0)
+
+
+def _shot(target_y: float, power: float, seed: int, shooting: float = 99, keeper_y: float = 2.0, distance: float = 12):
+    L, W = 105.0, 68.0
+    shooter = _body("s", "A", "ST", L - distance, W / 2, shooting=shooting)
+    keeper = _body("k", "D", "GK", L - 1, keeper_y, keeping=1)
+    pitch = _pitch([shooter, keeper], Ball(shooter.x + 0.4, shooter.y), seed)
+    return pitch.execute(shooter, "SHOT", L, target_y, power, None)
+
+
+def test_a_low_shot_inside_the_mouth_scores_and_outside_misses():
+    W = 68.0
+    inside = sum(_shot(W / 2 + GOAL / 2 - 0.9, 0.4, seed).outcome == "GOAL" for seed in range(12))
+    outside = sum(_shot(W / 2 + GOAL / 2 + 1.5, 0.4, seed).outcome == "GOAL" for seed in range(12))
+    assert inside >= 9 and outside == 0
+
+
+def test_hard_shots_can_go_over_the_bar_or_hit_it():
+    results = [_shot(68 / 2, 1.0, seed, shooting=40, distance=24) for seed in range(40)]
+    over = sum(r.detail == "Por cima do gol" for r in results)
+    bar = sum(any(c["kind"] == "BAR" for c in r.cues) for r in results)
+    assert over + bar >= 3
+    # A goal is never given for a ball that crossed the line above the bar.
+    for r in results:
+        if r.outcome == "GOAL":
+            assert r.frames[-1][3] <= BAR
 
 
 def test_the_post_sends_the_ball_back_into_play():
     L, W = 105.0, 68.0
-    post_y = W / 2 + PITCH["ELEVEN_A_SIDE"]["goal"] * H.GOAL_WIDTH_SCALE / 2 + 0.15
+    post_y = W / 2 + GOAL / 2 + 0.05
     hits = 0
     for seed in range(20):
         shooter = _body("s", "A", "ST", L - 6, post_y, shooting=99)
         mate = _body("m", "A", "MF", L - 14, W / 2 - 4)
         keeper = _body("k", "D", "GK", L - 1, 4.0, keeping=1)
         pitch = _pitch([shooter, mate, keeper], Ball(shooter.x + 0.4, shooter.y), seed)
-        result = pitch.execute(shooter, "SHOT", L, post_y, 0.4, None)
+        result = pitch.execute(shooter, "SHOT", L, post_y, 0.3, None)
         if result.post:
             hits += 1
-            assert any(c["kind"] == "POST" for c in result.cues)
-            assert result.outcome in ("GOAL", "CONTROLLED", "LOST", "OUT", "CORNER")
-    assert hits >= 5
+            assert any(c["kind"] in ("POST", "BAR") for c in result.cues)
+    assert hits >= 3
 
 
 def test_the_keeper_is_physical_and_saves_a_central_shot():
@@ -317,7 +336,9 @@ def test_view_coordinates_are_on_the_real_pitch():
     i = next(i for i, p in enumerate(opp["roster"]) if p["role"] == "GK" and p["team"] == "D")
     keeper_x = opp["positions"][i][0]
     assert (keeper_x > 0.5) == opp["right"], "the defending keeper is in the goal being attacked"
-    assert math.isclose(view["pitch"]["goal"], PITCH["ELEVEN_A_SIDE"]["goal"] * H.GOAL_WIDTH_SCALE, abs_tol=1e-3)
+    assert math.isclose(view["pitch"]["goal"], 7.32, abs_tol=1e-3)
+    kits = view["kits"]
+    assert {"home", "away", "home_gk", "away_gk"} <= set(kits)
 
 
 # ------------------------------------------------------------------ 6. gameplay lab (isolated scenarios)
@@ -345,3 +366,62 @@ def test_lab_scenarios_reach_a_decision_and_play_on_the_same_engine(kind):
     assert result["status"] == "ACCEPTED"
     with pytest.raises(KeyError):
         lab.view("someone-else", sid, None)
+
+
+# ------------------------------------------------------------------ 7. kits (official selection, shared by 2D and 3D)
+from app.domain import kits as K  # noqa: E402
+
+
+@pytest.mark.parametrize("home,away", [("COR", "SAN"), ("FLA", "CAP"), ("CRU", "REM"), ("PAL", "CFC"), ("PAL", "CHA"),
+                                       ("BOT", "VAS"), ("SAO", "RBB"), ("INT", "VIT"), ("XXX", "YYY"), ("FLA", "FLA")])
+def test_kits_never_clash(home, away):
+    chosen = K.select_kits(home, away)
+    h, a = K.Kit(**chosen["home"]), K.Kit(**chosen["away"])
+    assert not K.clash(h, a)
+    assert K.delta_e(h.shirt, a.shirt) >= K.SHIRT_MIN
+    shirts = [h.shirt, a.shirt]
+    for gk in ("home_gk", "away_gk"):
+        assert min(K.delta_e(chosen[gk]["shirt"], x) for x in shirts) >= K.KEEPER_MIN - 3
+    assert K.delta_e(chosen["home_gk"]["shirt"], chosen["away_gk"]["shirt"]) >= 15
+
+
+def test_every_club_pair_gets_distinguishable_kits():
+    clubs = list(K.CLUB_COLORS)
+    for h in clubs:
+        for a in clubs:
+            if h != a:
+                chosen = K.select_kits(h, a)
+                assert not K.clash(K.Kit(**chosen["home"]), K.Kit(**chosen["away"])), (h, a)
+
+
+def test_alternative_kits_are_labelled_generic_and_white_vs_white_changes():
+    chosen = K.select_kits("COR", "SAN")      # both white home shirts
+    assert chosen["away"]["id"] != "HOME" and chosen["away"]["generic"] is True
+    assert K.delta_e("#FFFFFF", "#F4F4F4") < 5    # sanity: perceptual distance, not hex
+
+
+def test_the_match_carries_one_official_kit_selection():
+    match = _match()
+    restored = HighlightMatch.from_dict(match.to_dict())
+    assert match.view(None, 0.0)["kits"] == restored.view(None, 0.0)["kits"] == K.select_kits(*match.clubs)
+
+
+def test_lab_second_half_flips_the_direction_and_kits_follow_the_clubs():
+    from app.domain.demo_catalog import create_demo_catalog
+    from app.services.lab_service import LabService
+
+    clock = [1000.0]
+    lab = LabService(clock=lambda: clock[0])
+    catalog = create_demo_catalog()
+    clubs = sorted({p.club_code for p in catalog.players})
+    created = lab.create("u1", catalog, "FIVE_A_SIDE", "BUILDUP", clubs[0], clubs[1], 3, second_half=True)
+    view = lab.view("u1", created["id"], None)
+    for _ in range(40):
+        if view["state"] == "DECISION":
+            break
+        clock[0] += 0.25
+        view = lab.view("u1", created["id"], None)
+    assert view["state"] == "DECISION" and view["half"] == 2
+    assert view["opportunity"]["right"] is False                  # home attacks to the left after the break
+    assert view["kits"] == K.select_kits(clubs[0], clubs[1])
+    assert view["pitch"]["length"] == 50

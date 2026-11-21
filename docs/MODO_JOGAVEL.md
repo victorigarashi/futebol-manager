@@ -327,3 +327,157 @@ HighlightMatch (servidor, autoritativo) → view/frames/cues (campo real)
 
 - Toda a arte é original: personagens procedurais, estádio com patrocinadores fictícios e uniformes parametrizados.
 - Nada foi copiado de World Soccer Champs ou de Mini Soccer Star.
+
+## 10. Gameplay Overhaul V4 (21/11/2026) — escala, uniformes, IA, câmeras
+
+**Branch:** `feature/gameplay-v4`, a partir de `541da1b`.
+
+**Documentos citados e ausentes.** `AGENTS.md`, `REPOSITORY_RESEARCH.md` e `REFERENCE_LIBRARY.md` não existem em nenhum worktree ou branch. O trabalho seguiu diretamente a especificação.
+
+### 10.1 Auditoria: as três causas eram reais ao mesmo tempo
+
+| Medida | Antes | Depois |
+|---|---|---|
+| Altura do atleta 3D | 2,64 m (modelo de 2,36 m × 1,12) | 1,85 m (modelo em escala real) |
+| Bola 3D (raio visual) | 0,30 m (2,7× a real) | 0,15 m (1,35× a real, para leitura) |
+| Campo 5×5 | 40 × 22 m, gol de 3,9 m | 50 × 32 m, gol de 4 × 2 m |
+| Gol 11×11 | 9,52 m (7,32 × 1,3), sem altura física | 7,32 × 2,44 m, com trave, travessão e "por cima" |
+| Câmera 3D de construção | 15 m atrás, 14 m de altura, FOV 42° | 18 m atrás, 15,5 m de altura, FOV 45°; visão ampla manual do campo inteiro |
+| Câmera 2D | campo inteiro, cerca de 12 px/m | "Jogada" (padrão): cerca de 70 m de comprimento, cerca de 19 px/m; "Campo inteiro" a um toque |
+| Uniformes | escolhidos no navegador, por luminância e comparação de HEX | escolhidos pelo servidor, por CIEDE2000; zero conflitos nos 380 pares |
+
+### 10.2 Sistema de unidades (compartilhado)
+
+- **Eixos e origem.**
+  - O motor trabalha em metros.
+  - x vai ao longo do comprimento, de 0 a L; y atravessa o campo, de 0 a W; z é a altura.
+  - Origem no canto em (0, 0).
+- **Campo por modo.** O motor usa `HL_PITCH[modo]`. A API entrega posições normalizadas no campo real: x / L e y / W.
+- **Renderizadores.** Os dois usam exatamente `view.pitch`, que traz comprimento, largura, gol, altura do gol e área.
+- **Câmeras.** A câmera do 2D muda só a região enquadrada (`Geometry.view`). A do 3D muda só posição, alvo e FOV. Nenhuma das duas altera coordenadas físicas.
+- **Raios físicos.**
+  - domínio: 0,9 m;
+  - desarme: 0,95 m;
+  - espaço pessoal: 1,3 m;
+  - distância mínima entre companheiros na abertura: 4,5 m (escala com L);
+  - bola: 0,11 m;
+  - traves: 0,06 m.
+
+### 10.3 Bola com altura física
+
+Os chutes têm velocidade vertical:
+
+`0,5 + 9·max(0, força − 0,35)`
+
+Somam-se a isso o erro do atributo e a pressão. A gravidade (9,81 m/s²) age sobre a bola, que quica.
+
+**Na linha do gol, a altura de cruzamento é interpolada:**
+
+- abaixo do travessão é gol (ou trave);
+- na faixa do travessão, a bola bate e volta;
+- acima, sai "Por cima do gol".
+
+O goleiro tem alcance vertical:
+
+`1,95 m em pé / 2,15 m após o salto + goleiro/100·0,25`
+
+**Cabeceios** saem da altura do contato, cabeceados para baixo.
+
+### 10.4 Uniformes (`app/domain/kits.py`)
+
+**Dados.**
+
+- A paleta de cada clube continua sendo o par primária/secundária que o app já usava.
+- O segundo, o terceiro e os alternativos são marcados como genéricos (`generic: true`). Nenhum uniforme oficial é inventado.
+
+**Comparação.**
+
+- O ΔE (CIEDE2000) é ponderado pela área visível: camisa 65%, calção 25%, meias 10%.
+- Há conflito quando:
+  - a camisa tem ΔE < 32;
+  - ou a camisa tem ΔE < 51 com luminosidade parecida (diferença menor que 18 L*) e o mesmo padrão. Essa regra existe para daltonismo: os uniformes nunca dependem só do matiz.
+
+**Seleção.**
+
+1. O mandante usa o uniforme principal.
+2. O visitante usa o primeiro, em ordem, que não conflite: principal, alternativo, terceiro, genéricos.
+3. Cada goleiro recebe a cor de goleiro mais distante das camisas e do outro goleiro.
+
+A seleção é gravada na partida (`HighlightMatch.kits`, que vai no snapshot) e entregue em `view.kits`. O 2D e o 3D desenham a mesma seleção, incluindo os padrões listrado horizontal, faixa diagonal e listras.
+
+### 10.5 IA e espaço
+
+**Abertura.**
+
+- Os jogadores das pontas ficam junto às laterais (7% e 93% da largura).
+- Os companheiros começam a pelo menos cerca de 4,5 m uns dos outros.
+
+**Durante a ação.**
+
+- Quem vai receber corre para o primeiro ponto alcançável da trajetória (`_intercept`). Por isso o passe em profundidade funciona.
+- Na defesa:
+  - um defensor pressiona a bola;
+  - outro faz a cobertura entre a bola e o gol;
+  - os demais seguem a marcação e a zona, com separação entre si.
+
+**Automático.**
+
+- Gesto para o gol, a menos de 32 m: chute.
+- Gesto para um companheiro dentro da janela de assistência: passe, ou lançamento se ele estiver a mais de 30 m.
+- Gesto curto para o espaço vazio: condução.
+- Gesto longo para o espaço vazio: passe em profundidade.
+
+**Condução.** A distância pedida vai de 6 a 24 m num único gesto.
+
+**Abertura das oportunidades.** A taxa base subiu de 4,2 para 5,0 por time. Com isso há mais lances decisivos.
+
+**Calibragem** (40 jogos de IA contra IA por formato):
+
+| Formato | Gols por jogo | Chutes por jogo | Defesas por jogo |
+|---|---|---|---|
+| 11×11 | 2,10 | 9,1 | 4,3 |
+| 5×5 | 2,62 | 6,3 | 1,9 |
+
+### 10.6 Apresentação
+
+**3D.**
+
+- Personagens reconstruídos, com cabeça estilizada menor, braços e pernas mais longos, joelhos e cotovelos.
+- O quadril balança e os ombros giram em sentido contrário na corrida.
+- Inclinação na corrida e postura de goleiro.
+- Gramado com xadrez suave e faixas de corte.
+- Estádio:
+  - arquibancadas em degraus com cores de assento e cobertura;
+  - torcida em silhuetas (corpo, cabeça, braços erguidos, sentados e em pé), em 3 InstancedMesh;
+  - 10 patrocinadores fictícios variados por lado;
+  - bandeirinhas, refletores, bancos e túnel.
+
+**2D.**
+
+- O gramado é pintado uma única vez numa textura em metros. Por isso, a câmera move sem custo.
+- Placas fictícias nas laterais.
+- O sprite mede cerca de 4 m de campo (o estilo exige figuras maiores que a escala real).
+- Padrões de uniforme e cor do número oficiais.
+- Câmera "Jogada" ou "Campo inteiro", congelada durante o gesto.
+
+**Interface.**
+
+- Botões de ação com 64 px de altura e ícones grandes.
+- Mensagens curtas com o motivo de cada desfecho: "Interceptado!", "Defesa do goleiro!", "Na trave!", "No travessão!", "Desarme!" e "Cabeçada!".
+
+**Lab** (`#lab`):
+
+- escolha de mandante e visitante, para testar conflitos de uniforme;
+- 2º tempo, para ver o mandante atacando para a esquerda;
+- 5×5 e 11×11;
+- 9 cenários.
+
+### 10.7 Não feito
+
+- Teste multiplayer com dois navegadores reais (2D contra 3D). O servidor é um só e os dois renderizadores leem a mesma `view`, mas isso não foi verificado ao vivo.
+- Medição de FPS e memória num celular real. A captura foi feita com SwiftShader, que é renderização por software, e não serve como medida de desempenho.
+- Animações de goleiro além de mergulho, encaixe e espalmada: reposição e defesa baixa específica.
+- Barreira com apresentação própria na falta.
+- Chute com efeito.
+- Parâmetros experimentais no Lab (dimensões e velocidade). A física competitiva continua fixa.
+- Notas internas 8/10: não foram dadas, porque dependem de playtest humano e não quero inventar avaliações.

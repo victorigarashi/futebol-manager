@@ -261,3 +261,4 @@ class LabCreate(BaseModel):
     home: str = Field(default="", max_length=8)
     away: str = Field(default="", max_length=8)
     seed: int = Field(default=7, ge=0, le=1_000_000)
+    second_half: bool = False

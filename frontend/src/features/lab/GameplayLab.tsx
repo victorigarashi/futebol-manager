@@ -12,8 +12,8 @@ import { ExperiencePicker } from "../career/interactive/ExperiencePicker";
  * renderers can be compared on identical situations (switch with the 2D/3D button).
  */
 const SCENARIOS: [string, string][] = [
-  ["BUILDUP", "Passe curto / ataque trabalhado"], ["THROUGH", "Passe longo / infiltração"], ["WING", "Ataque pela ponta"], ["CROSS", "Cruzamento"],
-  ["COUNTER", "Contra-ataque"], ["ONE_ON_ONE", "Cara a cara"], ["REBOUND", "Sobra na entrada da área"], ["FREE_KICK", "Falta"], ["PENALTY", "Pênalti"],
+  ["BUILDUP", "Construção pelo meio"], ["COUNTER", "Contra-ataque / condução longa"], ["WING", "Ataque pela ponta"], ["THROUGH", "Passe em profundidade"],
+  ["CROSS", "Cruzamento"], ["REBOUND", "Chute de fora / rebote"], ["ONE_ON_ONE", "Cara a cara / defesa do goleiro"], ["FREE_KICK", "Falta"], ["PENALTY", "Pênalti"],
 ];
 
 export function GameplayLab() {
@@ -21,6 +21,9 @@ export function GameplayLab() {
   const [kind, setKind] = useState("BUILDUP");
   const [mode, setMode] = useState<"ELEVEN_A_SIDE" | "FIVE_A_SIDE">("ELEVEN_A_SIDE");
   const [seed, setSeed] = useState(7);
+  const [home, setHome] = useState("");
+  const [away, setAway] = useState("");
+  const [secondHalf, setSecondHalf] = useState(false);
   const [session, setSession] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const source = useMemo<MatchSource | undefined>(() => session ? {
@@ -30,7 +33,7 @@ export function GameplayLab() {
   } : undefined, [session]);
   const start = async () => {
     setError(null);
-    try { setSession((await api.labCreate({ kind, mode, seed })).data.id); }
+    try { setSession((await api.labCreate({ kind, mode, seed, home, away, second_half: secondHalf })).data.id); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Não foi possível criar o cenário."); }
   };
   if (session && source) return <InteractiveMatch roomId={`lab-${session}`} clubCode="" clubs={clubs.data ?? []} source={source} onExit={() => setSession(null)} />;
@@ -43,6 +46,9 @@ export function GameplayLab() {
       </div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem", alignItems: "center" }}>
         <label>Formato <select value={mode} onChange={(e) => setMode(e.target.value as typeof mode)}><option value="ELEVEN_A_SIDE">11 × 11</option><option value="FIVE_A_SIDE">5 × 5</option></select></label>
+        <label>Mandante <select value={home} onChange={(e) => setHome(e.target.value)}><option value="">Automático</option>{(clubs.data ?? []).map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}</select></label>
+        <label>Visitante <select value={away} onChange={(e) => setAway(e.target.value)}><option value="">Automático</option>{(clubs.data ?? []).map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}</select></label>
+        <label><input type="checkbox" checked={secondHalf} onChange={(e) => setSecondHalf(e.target.checked)} /> 2º tempo (mandante ataca para a esquerda)</label>
         <label>Semente <input type="number" min={0} max={999999} value={seed} onChange={(e) => setSeed(Number(e.target.value) || 0)} style={{ width: "7rem" }} /></label>
         <button type="button" className="button-primary" onClick={() => void start()}>Jogar cenário →</button>
         <a href="#" onClick={() => { window.location.hash = ""; }}>Voltar ao jogo</a>

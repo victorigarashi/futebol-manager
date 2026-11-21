@@ -1,5 +1,5 @@
 import type { InteractiveView } from "../../../../lib/api";
-import { frame, predictTarget, pxPerMetre, toScreen, type Aim, type Geometry } from "../gesture";
+import { frame, predictTarget, pxPerMetre, toScreen, type Aim, type Geometry, type Region } from "../gesture";
 import { VISUAL, hashOf, shade } from "./config";
 import type { Scene, ScenePlayer } from "./presentation";
 
@@ -7,18 +7,40 @@ import type { Scene, ScenePlayer } from "./presentation";
  * 2D Arcade renderer (top-down, chunky stylised players, original art). Draws the shared
  * Scene only — it never computes a result.
  */
-export type Kit = { shirt: string; shorts: string; socks: string; trim: string };
+export type Kit = { shirt: string; shorts: string; socks: string; trim: string; number?: string; pattern?: string; gk?: Kit };
 export type Overlay = {
   aim: Aim | null; aimValid: boolean; carrierIndex: number; receivers: Set<string>; yourTurn: boolean; pending: Aim | null; now: number;
   label: boolean; quality: "low" | "medium" | "high";
 };
 
-let pitchCache: { key: string; canvas: HTMLCanvasElement } | null = null;
+let pitchCache: { key: string; canvas: HTMLCanvasElement; k: number } | null = null;
 
-export function geometryFor(width: number, height: number, view: InteractiveView): Geometry {
+export function geometryFor(width: number, height: number, view: InteractiveView, region?: Region): Geometry {
   const portrait = height > width * 1.1;
   const { length: L, width: W } = view.pitch;
-  return { width, height, portrait, pad: 6, ratio: L / W, mx: VISUAL.marginMetres / L, my: VISUAL.marginMetres / W };
+  return { width, height, portrait, pad: 6, ratio: L / W, mx: VISUAL.marginMetres / L, my: VISUAL.marginMetres / W, view: region };
+}
+
+/**
+ * 2D "Jogada" camera (optional, the full pitch stays one tap away): frames the attack —
+ * the ball and the goal it attacks, with the whole width — so players read bigger. Purely
+ * visual; it never moves during a gesture.
+ */
+export function playRegion(view: InteractiveView, ballX: number, ballY: number, width: number, height: number): Region {
+  const { length: L, width: W } = view.pitch;
+  const m = VISUAL.marginMetres;
+  const portrait = height > width * 1.1;
+  const dir = view.opportunity?.right === false ? -1 : 1;
+  // Metres of pitch length on screen (more of the pitch on small pitches), then the
+  // across-span that matches the screen's proportions.
+  const along = Math.min(L + 2 * m, L <= 60 ? L * 0.85 : 70);
+  const aspect = portrait ? height / Math.max(1, width) : width / Math.max(1, height);
+  const across = Math.min(W + 2 * m, along / aspect);
+  const cx = ballX * L + dir * along * 0.2;                  // look ahead, towards the goal
+  const cy = ballY * W * 0.55 + (W / 2) * 0.45;               // follow the ball, biased to the middle
+  const x0 = Math.max(-m, Math.min(L + m - along, cx - along / 2));
+  const y0 = Math.max(-m, Math.min(W + m - across, cy - across / 2));
+  return { x0: x0 / L, x1: (x0 + along) / L, y0: y0 / W, y1: (y0 + across) / W };
 }
 
 export function drawScene2D(ctx: CanvasRenderingContext2D, g: Geometry, dpr: number, view: InteractiveView, scene: Scene | null,
@@ -27,7 +49,8 @@ export function drawScene2D(ctx: CanvasRenderingContext2D, g: Geometry, dpr: num
   drawGoals(ctx, g, view, scene, overlay.now);
   if (!scene) return;
   const ppm = pxPerMetre(g, view.pitch.length);
-  const height = Math.max(VISUAL.playerHeight.min, Math.min(VISUAL.playerHeight.max, (g.portrait ? frame(g).w : frame(g).h) * VISUAL.playerHeight.perPitchWidth * 1.15));
+  // Stylised scale (a mobile-football look): about 2.2x a 1.8 m athlete, from px per metre.
+  const height = Math.max(VISUAL.playerHeight.min, Math.min(VISUAL.playerHeight.max, ppm * VISUAL.playerHeight.metres));
   const players = scene.players.map((p, i) => ({ p, i, s: toScreen(g, p.x, p.y) }));
   // Rings under the feet (control + possible receivers) go below everybody.
   for (const { p, s } of players) {
@@ -42,6 +65,7 @@ export function drawScene2D(ctx: CanvasRenderingContext2D, g: Geometry, dpr: num
   const order = [...players].sort((a, b) => a.s[1] - b.s[1]);
   let ballDrawn = false;
   const ballR = Math.max(VISUAL.ballRadius.min, height * VISUAL.ballRadius.perPlayerHeight);
+  void dpr;
   for (const { p, s } of order) {
     if (!ballDrawn && ballS[1] < s[1]) { drawBall(ctx, ballS[0], ballS[1], scene.ball.z, ballR, scene.ball.roll, ppm); ballDrawn = true; }
     drawPlayer(ctx, s[0], s[1], height, p, p.team === "A" ? kits.attack : kits.defend, g, ppm, overlay.now);
@@ -56,53 +80,76 @@ export function drawScene2D(ctx: CanvasRenderingContext2D, g: Geometry, dpr: num
 }
 
 // ---------------------------------------------------------------------------- pitch
+/**
+ * The lawn, lines and boards are painted ONCE into a texture in metres (pitch space), then
+ * drawn with the current camera transform — the camera can move every frame for free.
+ */
 function drawPitch(ctx: CanvasRenderingContext2D, g: Geometry, dpr: number, view: InteractiveView) {
-  const key = `${g.width}x${g.height}:${g.portrait}:${dpr}:${view.pitch.length}`;
+  const { length: L, width: W } = view.pitch;
+  const m = VISUAL.marginMetres;
+  const k = Math.min(32, 4096 / (L + 2 * m));          // texture px per metre
+  const key = `${L}x${W}:${view.pitch.goal}:${k}`;
   if (!pitchCache || pitchCache.key !== key) {
     const canvas = document.createElement("canvas");
-    canvas.width = Math.round(g.width * dpr); canvas.height = Math.round(g.height * dpr);
+    canvas.width = Math.round((L + 2 * m) * k); canvas.height = Math.round((W + 2 * m) * k);
     const c = canvas.getContext("2d");
-    if (c) { c.setTransform(dpr, 0, 0, dpr, 0, 0); paintPitch(c, g, view); }
-    pitchCache = { key, canvas };
+    if (c) { c.scale(k, k); c.translate(m, m); paintPitch(c, view, k); }
+    pitchCache = { key, canvas, k };
   }
-  ctx.drawImage(pitchCache.canvas, 0, 0, g.width, g.height);
+  const f = frame(g);
+  const ppm = pxPerMetre(g, L);
+  ctx.fillStyle = "#1d4a2a"; ctx.fillRect(0, 0, g.width, g.height);
+  ctx.save();
+  if (g.portrait) { ctx.translate(f.ox, f.oy + f.h); ctx.rotate(-Math.PI / 2); }
+  else ctx.translate(f.ox, f.oy);
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(pitchCache.canvas, -m * ppm, -m * ppm, (L + 2 * m) * ppm, (W + 2 * m) * ppm);
+  ctx.restore();
+  void dpr;
 }
 
-function paintPitch(ctx: CanvasRenderingContext2D, g: Geometry, view: InteractiveView) {
+/** Paint in metres: origin at the corner flag (0, 0), x along the length. */
+function paintPitch(ctx: CanvasRenderingContext2D, view: InteractiveView, k: number) {
   const { length: L, width: W, box } = view.pitch;
+  const m = VISUAL.marginMetres;
   const grass = VISUAL.grass;
-  ctx.fillStyle = grass.outside;
-  ctx.fillRect(0, 0, g.width, g.height);
-  const f = frame(g);
-  // Mowing stripes across the length (beyond the lines too, like a real lawn).
-  const stripes = grass.stripes;
-  for (let i = -1; i <= stripes; i += 1) {
-    const a = toScreen(g, i / stripes, -0.2), b = toScreen(g, (i + 1) / stripes, 1.2);
-    ctx.fillStyle = i % 2 ? grass.light : grass.base;
-    ctx.fillRect(Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1]));
-  }
-  // Fine grass texture (deterministic specks) and soft lighting.
+  ctx.fillStyle = grass.outside; ctx.fillRect(-m, -m, L + 2 * m, W + 2 * m);
+  // Mowing stripes across the length (also beyond the lines, like a real lawn).
+  const stripes = grass.stripes, sw = L / stripes;
+  for (let i = -1; i <= stripes; i += 1) { ctx.fillStyle = i % 2 ? grass.light : grass.base; ctx.fillRect(i * sw, -m + 1.2, sw, W + 2 * m - 2.4); }
+  // Grass grain (deterministic), then soft light.
   let seed = 7;
   const rand = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
-  const specks = Math.min(9000, Math.round((g.width * g.height) / 45));
+  const specks = Math.round((L * W) * 3.2);
   for (let i = 0; i < specks; i += 1) {
-    ctx.fillStyle = rand() < 0.5 ? "rgba(255,255,255,0.035)" : "rgba(0,0,0,0.045)";
-    ctx.fillRect(rand() * g.width, rand() * g.height, 1 + rand() * 1.5, 1 + rand() * 2.5);
+    ctx.fillStyle = rand() < 0.5 ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.05)";
+    ctx.fillRect(rand() * L, rand() * W, (1 + rand()) / k, (1.5 + rand() * 2) / k);
   }
-  const light = ctx.createRadialGradient(g.width / 2, g.height * 0.35, 10, g.width / 2, g.height / 2, Math.max(g.width, g.height) * 0.75);
-  light.addColorStop(0, "rgba(255,255,230,0.07)"); light.addColorStop(1, "rgba(0,0,0,0.22)");
-  ctx.fillStyle = light; ctx.fillRect(0, 0, g.width, g.height);
-  // Lines (metres -> screen).
-  const ppm = pxPerMetre(g, L);
-  ctx.strokeStyle = VISUAL.line; ctx.lineWidth = Math.max(1.5, ppm * 0.14); ctx.lineCap = "round"; ctx.lineJoin = "round";
-  const P = (xm: number, ym: number) => toScreen(g, xm / L, ym / W);
-  const poly = (pts: [number, number][], close = false) => { ctx.beginPath(); pts.forEach(([x, y], i) => { const [sx, sy] = P(x, y); if (i) ctx.lineTo(sx, sy); else ctx.moveTo(sx, sy); }); if (close) ctx.closePath(); ctx.stroke(); };
-  const arc = (cx: number, cy: number, r: number, a0: number, a1: number) => { const pts: [number, number][] = []; for (let i = 0; i <= 48; i += 1) { const a = a0 + ((a1 - a0) * i) / 48; pts.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]); } poly(pts); };
-  const dot = (x: number, y: number) => { const [sx, sy] = P(x, y); ctx.beginPath(); ctx.fillStyle = VISUAL.line; ctx.arc(sx, sy, Math.max(2, ppm * 0.22), 0, Math.PI * 2); ctx.fill(); };
+  const light = ctx.createRadialGradient(L / 2, W * 0.35, 1, L / 2, W / 2, L * 0.7);
+  light.addColorStop(0, "rgba(255,255,230,0.06)"); light.addColorStop(1, "rgba(0,0,0,0.16)");
+  ctx.fillStyle = light; ctx.fillRect(-m, -m, L + 2 * m, W + 2 * m);
+  // Ad boards (fictional) along the touchlines, outside the field of play.
+  const brands: [string, string, string][] = [["RESENHA FC", "#0f4fa8", "#ffd31a"], ["BRASILEIRÃO MANAGER", "#e8352e", "#ffffff"], ["VAI PRA CIMA", "#14975a", "#ffffff"],
+    ["GOLAÇO", "#111827", "#c6f24e"], ["TABELINHA", "#0ea5e9", "#ffffff"], ["BOLA NA REDE", "#7a2bd1", "#ffffff"], ["CRAQUE DA RODADA", "#ffd31a", "#111111"]];
+  const bw = Math.max(8, L / 7), bh = Math.min(1.0, m * 0.32);
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  for (const [y, flip] of [[-m + 0.15, 0], [W + m - 0.15 - bh, 1]] as const) {
+    for (let x = 0, i = flip * 3; x < L; x += bw, i += 1) {
+      const [text, bg, fg] = brands[i % brands.length];
+      ctx.fillStyle = bg; ctx.fillRect(x, y, Math.min(bw, L - x) - 0.15, bh);
+      ctx.fillStyle = fg; ctx.font = `900 ${bh * 0.62}px "Barlow Condensed", Inter, sans-serif`;
+      ctx.fillText(text, x + Math.min(bw, L - x) / 2, y + bh / 2 + 0.02, Math.min(bw, L - x) * 0.9);
+    }
+  }
+  // Lines.
+  ctx.strokeStyle = VISUAL.line; ctx.lineWidth = 0.12 * Math.max(1, 105 / L) ** 0.5; ctx.lineCap = "round"; ctx.lineJoin = "round";
+  const poly = (pts: [number, number][], close = false) => { ctx.beginPath(); pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); if (close) ctx.closePath(); ctx.stroke(); };
+  const arc = (cx: number, cy: number, r: number, a0: number, a1: number) => { ctx.beginPath(); ctx.arc(cx, cy, r, a0, a1); ctx.stroke(); };
+  const dot = (x: number, y: number) => { ctx.beginPath(); ctx.fillStyle = VISUAL.line; ctx.arc(x, y, 0.22, 0, Math.PI * 2); ctx.fill(); };
   const s = L / 105;
   poly([[0, 0], [L, 0], [L, W], [0, W]], true);
   poly([[L / 2, 0], [L / 2, W]]);
-  arc(L / 2, W / 2, 9.15 * s, 0, Math.PI * 2);
+  arc(L / 2, W / 2, Math.max(3, 9.15 * s), 0, Math.PI * 2);
   dot(L / 2, W / 2);
   const halfBox = Math.min(W * 0.46, box * (20.16 / 16.5));
   const six = box / 3, halfSix = Math.min(W * 0.3, box * (9.16 / 16.5));
@@ -114,9 +161,9 @@ function paintPitch(ctx: CanvasRenderingContext2D, g: Geometry, view: Interactiv
     dot(x + d * spot, W / 2);
     const lim = Math.acos(Math.min(1, (box - spot) / arcR));
     if (end) arc(x + d * spot, W / 2, arcR, Math.PI - lim, Math.PI + lim); else arc(x + d * spot, W / 2, arcR, -lim, lim);
-    for (const y of [0, W]) arc(x, y, 1 * s, end ? (y ? Math.PI : Math.PI / 2) : (y ? -Math.PI / 2 : 0), end ? (y ? Math.PI * 1.5 : Math.PI) : (y ? 0 : Math.PI / 2));
+    arc(x, 0, 1, end ? Math.PI / 2 : 0, end ? Math.PI : Math.PI / 2);
+    arc(x, W, 1, end ? Math.PI : -Math.PI / 2, end ? Math.PI * 1.5 : 0);
   }
-  void f;
 }
 
 // ---------------------------------------------------------------------------- goals (dynamic: the net ripples)
@@ -193,9 +240,8 @@ export function drawPlayer(ctx: CanvasRenderingContext2D, x: number, y: number, 
   const hair = VISUAL.hair[(look >> 4) % VISUAL.hair.length];
   const boots = VISUAL.boots[(look >> 8) % VISUAL.boots.length];
   const hairStyle = (look >> 12) % 4;
-  const shirt = p.keeper ? VISUAL.keeperKits[p.team] : kit.shirt;
-  const shorts = p.keeper ? shade(VISUAL.keeperKits[p.team], -0.45) : kit.shorts;
-  const socks = p.keeper ? shade(VISUAL.keeperKits[p.team], -0.2) : kit.socks;
+  const wear = p.keeper ? (kit.gk ?? { shirt: VISUAL.keeperKits[p.team], shorts: shade(VISUAL.keeperKits[p.team], -0.45), socks: VISUAL.keeperKits[p.team], trim: "#ffffff" }) : kit;
+  const shirt = wear.shirt, shorts = wear.shorts, socks = wear.socks;
   const [fx, fy] = screenDir(g, p.facing);
   const side = fx >= 0 ? 1 : -1;               // sprite mirrored left/right
   const back = fy < -0.45;                       // running up the screen: we see the back (number)
@@ -257,10 +303,16 @@ export function drawPlayer(ctx: CanvasRenderingContext2D, x: number, y: number, 
   if (back) { arm(-1); arm(1); }
   // Torso (jersey with a trim band) and number.
   ctx.fillStyle = shirt; roundRect(ctx, -u * 1.75, shoulder, u * 3.5, u * 3.0, u * 0.8); ctx.fill();
-  ctx.fillStyle = kit.trim; ctx.globalAlpha = 0.9; ctx.fillRect(-u * 1.75, shoulder + u * 0.15, u * 3.5, u * 0.35); ctx.globalAlpha = 1;
+  ctx.save(); roundRect(ctx, -u * 1.75, shoulder, u * 3.5, u * 3.0, u * 0.8); ctx.clip();
+  ctx.fillStyle = wear.trim;
+  if (wear.pattern === "hoops") for (let i = 0; i < 3; i += 1) ctx.fillRect(-u * 1.75, shoulder + u * (0.5 + i * 0.95), u * 3.5, u * 0.42);
+  else if (wear.pattern === "stripes") for (let i = 0; i < 4; i += 1) ctx.fillRect(-u * 1.55 + i * u * 0.95, shoulder, u * 0.42, u * 3.0);
+  else if (wear.pattern === "sash") { ctx.beginPath(); ctx.moveTo(-u * 1.75, shoulder + u * 0.2); ctx.lineTo(-u * 1.0, shoulder); ctx.lineTo(u * 1.75, shoulder + u * 2.4); ctx.lineTo(u * 1.75, shoulder + u * 3.0); ctx.lineTo(u * 1.1, shoulder + u * 3.0); ctx.closePath(); ctx.fill(); }
+  else ctx.fillRect(-u * 1.75, shoulder + u * 0.15, u * 3.5, u * 0.35);
+  ctx.restore();
   ctx.strokeStyle = "rgba(0,0,0,0.28)"; ctx.lineWidth = 1; roundRect(ctx, -u * 1.75, shoulder, u * 3.5, u * 3.0, u * 0.8); ctx.stroke();
   if (p.number && h >= 26) {
-    ctx.fillStyle = contrast(shirt); ctx.font = `900 ${Math.round(u * (back ? 1.9 : 1.15))}px "Barlow Condensed", "Arial Narrow", sans-serif`;
+    ctx.fillStyle = wear.number ?? contrast(shirt); ctx.font = `900 ${Math.round(u * (back ? 1.9 : 1.15))}px "Barlow Condensed", "Arial Narrow", sans-serif`;
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText(String(p.number), back ? 0 : side * u * 0.75, shoulder + u * (back ? 1.65 : 1.1));
   }

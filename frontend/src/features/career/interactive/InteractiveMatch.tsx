@@ -6,7 +6,9 @@ import { clubColors, matchKits } from "../clubColors";
 import { aimFromDrag, attackDir, fromScreen, predictTarget, type Aim, type Geometry } from "./gesture";
 import { roomSource, type MatchSource } from "./source";
 import { buildScene, crossedCues, type Scene } from "./render/presentation";
-import { drawScene2D, geometryFor, type Kit, type Overlay } from "./render/renderer2d";
+import { drawScene2D, geometryFor, playRegion, type Kit, type Overlay } from "./render/renderer2d";
+import type { Region } from "./gesture";
+import { readLocal, writeLocal } from "../../../lib/storage";
 import type { Renderer3D } from "./render/renderer3d";
 import { autoQuality, readExperience, readQuality, writeExperience, writeQuality, type Experience, type QualityChoice } from "./render/preference";
 import { matchSound } from "./sound";
@@ -22,6 +24,10 @@ import "./interactive.css";
 const POLL_MS = 350;
 const TYPE_LABEL: Record<InteractiveActionType, string> = { PASS: "Passe", LOFT: "Lançamento / cruzamento", CARRY: "Conduzir", SHOT: "Chute" };
 const TYPE_ICON: Record<InteractiveActionType | "AUTO", string> = { AUTO: "✦", PASS: "➜", LOFT: "⤴", CARRY: "⇢", SHOT: "◎" };
+const CUE_LABEL: Record<string, [string, string]> = {
+  INTERCEPT: ["Interceptado!", "bad"], TACKLE: ["Desarme!", "bad"], BLOCK: ["Bloqueado!", "bad"], SAVE: ["Defesa do goleiro!", "save"],
+  POST: ["Na trave!", "wood"], BAR: ["No travessão!", "wood"], HEADER: ["Cabeçada!", "good"], CLAIM: ["O goleiro sai e fica com ela", "save"],
+};
 const TYPE_KEYS: Record<string, InteractiveActionType | "AUTO"> = { "1": "AUTO", "2": "PASS", "3": "LOFT", "4": "CARRY", "5": "SHOT" };
 const NO_OVERLAY: Overlay = { aim: null, aimValid: true, carrierIndex: -1, receivers: new Set(), yourTurn: true, pending: null, now: 0, label: false, quality: "high" };
 
@@ -59,10 +65,16 @@ function useInteractive(source: MatchSource) {
   return { view, error, offset, offline, refresh: () => poll(true), replace };
 }
 
-function kitFor(code: string, shirt: string): Kit {
-  const c = clubColors(code);
-  const second = shirt.toLowerCase() === c.primary.toLowerCase() ? c.secondary : c.primary;
-  return { shirt, shorts: second, socks: shirt, trim: second };
+/** The match's official kits (server selection); a local fallback only for an old server. */
+function teamKits(view: InteractiveView): { home: Kit; away: Kit } {
+  const k = view.kits;
+  if (k) {
+    const kit = (m: typeof k.home): Kit => ({ shirt: m.shirt, shorts: m.shorts, socks: m.socks, trim: m.trim, number: m.number, pattern: m.pattern });
+    return { home: { ...kit(k.home), gk: kit(k.home_gk) }, away: { ...kit(k.away), gk: kit(k.away_gk) } };
+  }
+  const local = matchKits(view.home, view.away);
+  const one = (code: string, shirt: string): Kit => { const c = clubColors(code); const second = shirt.toLowerCase() === c.primary.toLowerCase() ? c.secondary : c.primary; return { shirt, shorts: second, socks: shirt, trim: second }; };
+  return { home: one(view.home, local.home), away: one(view.away, local.away) };
 }
 
 export function InteractiveMatch({ roomId, clubCode, clubs, source: given, onExit }: { roomId: string; clubCode: string; clubs: Club[]; source?: MatchSource; onExit?: () => void }) {
@@ -85,6 +97,10 @@ export function InteractiveMatch({ roomId, clubCode, clubs, source: given, onExi
   const [soundOpen, setSoundOpen] = useState(false);
   const [sound, setSound] = useState(matchSound.settings);
   const [wide, setWide] = useState(false);
+  const [cam2d, setCam2d] = useState<"play" | "full">(() => (readLocal("bm_cam2d") === "full" ? "full" : "play"));
+  const cam2dRef = useRef(cam2d); cam2dRef.current = cam2d;
+  const regionRef = useRef<Region | null>(null);
+  const [toast, setToast] = useState<{ text: string; tone: string; id: number } | null>(null);
   const [celebration, setCelebration] = useState<{ name: string; club: string; until: number } | null>(null);
   const drag = useRef<{ id: number; start: [number, number] } | null>(null);
   const viewRef = useRef(view); viewRef.current = view;
@@ -95,7 +111,8 @@ export function InteractiveMatch({ roomId, clubCode, clubs, source: given, onExi
   const sceneRef = useRef<Scene | null>(null);
   const sentKick = useRef(false);
   const club = useCallback((code: string): Club => clubs.find((c) => c.code === code) ?? { code, name: code, sort_order: 0 }, [clubs]);
-  const kits = useMemo(() => (view ? matchKits(view.home, view.away) : { home: "#ffffff", away: "#111111" }), [view?.home, view?.away]); // eslint-disable-line react-hooks/exhaustive-deps
+  const kitsKey = view ? `${view.home}|${view.away}|${JSON.stringify(view.kits ?? null)}` : "";
+  const kits = useMemo(() => (viewRef.current ? teamKits(viewRef.current) : null), [kitsKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const opp = view?.opportunity ?? null;
   const yourTurn = Boolean(view?.your_turn && view.state === "DECISION" && !pending);
   const yourTurnRef = useRef(yourTurn); yourTurnRef.current = yourTurn;
@@ -149,8 +166,9 @@ export function InteractiveMatch({ roomId, clubCode, clubs, source: given, onExi
       const o = current.opportunity;
       const carrierIndex = o ? o.roster.findIndex((p) => p.id === o.carrier) : -1;
       const attackHome = o ? o.attacking === current.home : true;
-      const kitA = kitFor(attackHome ? current.home : current.away, attackHome ? kits.home : kits.away);
-      const kitD = kitFor(attackHome ? current.away : current.home, attackHome ? kits.away : kits.home);
+      const both = kits ?? teamKits(current);
+      const kitA = attackHome ? both.home : both.away;
+      const kitD = attackHome ? both.away : both.home;
       const a = aimRef.current;
       const overlay: Overlay = {
         aim: a, aimValid: Boolean(a && aimValid(current, a)), carrierIndex, receivers: receiversRef.current,
@@ -163,10 +181,12 @@ export function InteractiveMatch({ roomId, clubCode, clubs, source: given, onExi
         const from = key === lastStep ? lastT : -0.01;
         for (const cue of crossedCues(step, from, scene.t)) {
           if (cue.kind === "KICK") { if (sentKick.current && step.by === "HUMAN") sentKick.current = false; else if (cue.action === "PASS") matchSound.pass(); else matchSound.kick(cue.power ?? 0.6); }
-          else if (cue.kind === "POST") matchSound.post();
+          else if (cue.kind === "POST" || cue.kind === "BAR") matchSound.post();
           else if (cue.kind === "SAVE") matchSound.save();
           else if (cue.kind === "TACKLE" || cue.kind === "INTERCEPT" || cue.kind === "BLOCK") matchSound.tackle();
           else if (cue.kind === "HEADER") matchSound.pass();
+          const label = CUE_LABEL[cue.kind];
+          if (label) setToast({ text: label[0], tone: label[1], id: Date.now() });
           else if (cue.kind === "GOAL") {
             matchSound.goal();
             const shooter = o?.roster.find((p) => p.id === (step.shooter ?? cue.id));
@@ -210,7 +230,17 @@ export function InteractiveMatch({ roomId, clubCode, clubs, source: given, onExi
         element.width = Math.round(width * dpr); element.height = Math.round(height * dpr);
         element.style.width = `${width}px`; element.style.height = `${height}px`;
       }
-      const g = geometryFor(width, height, current);
+      // 2D camera: smooth follow of the attack, frozen while a gesture is being drawn.
+      let region: Region | undefined;
+      if (cam2dRef.current === "play" && scene) {
+        const want = playRegion(current, scene.ball.x, scene.ball.y, width, height);
+        const prev = regionRef.current;
+        if (drag.current && prev) region = prev;
+        else if (!prev || Math.abs(prev.x1 - prev.x0 - (want.x1 - want.x0)) > 1e-6 || Math.abs(prev.y1 - prev.y0 - (want.y1 - want.y0)) > 1e-6) region = want;
+        else { const k = 0.08; region = { x0: prev.x0 + (want.x0 - prev.x0) * k, x1: prev.x1 + (want.x1 - prev.x1) * k, y0: prev.y0 + (want.y0 - prev.y0) * k, y1: prev.y1 + (want.y1 - prev.y1) * k }; }
+        regionRef.current = region;
+      } else regionRef.current = null;
+      const g = geometryFor(width, height, current, region);
       geometry.current = g;
       const ctx = element.getContext("2d");
       if (!ctx) return;
@@ -304,6 +334,7 @@ export function InteractiveMatch({ roomId, clubCode, clubs, source: given, onExi
     return () => window.removeEventListener("keydown", onKey);
   }, []);
   useEffect(() => { if (!drag.current) { setAim(null); receiversRef.current = new Set(); } }, [view?.revision]);
+  useEffect(() => { if (!toast) return; const id = window.setTimeout(() => setToast(null), 1300); return () => window.clearTimeout(id); }, [toast]);
   useEffect(() => { if (!feedback) return; const id = window.setTimeout(() => setFeedback(null), 4000); return () => window.clearTimeout(id); }, [feedback]);
   useEffect(() => { if (!celebration) return; const id = window.setTimeout(() => setCelebration(null), 2400); return () => window.clearTimeout(id); }, [celebration]);
   useEffect(() => { if (!notice) return; const id = window.setTimeout(() => setNotice(null), 7000); return () => window.clearTimeout(id); }, [notice]);
@@ -346,7 +377,8 @@ export function InteractiveMatch({ roomId, clubCode, clubs, source: given, onExi
 
       <div className="im-tools">
         <button type="button" className="im-tool im-tool--exp" onClick={() => setExperience(experience === "3D" ? "2D" : "3D")} title="Trocar a visualização (a jogada e o tempo continuam)">{experience === "3D" ? "2D" : "3D"}</button>
-        {experience === "3D" && <button type="button" className={`im-tool ${wide ? "is-on" : ""}`} onClick={() => setWide(!wide)} title="Câmera ampla" aria-pressed={wide}>⛶</button>}
+        {experience === "3D" ? <button type="button" className={`im-tool ${wide ? "is-on" : ""}`} onClick={() => setWide(!wide)} title="Câmera ampla (campo inteiro)" aria-pressed={wide}>⛶</button>
+          : <button type="button" className={`im-tool ${cam2d === "full" ? "is-on" : ""}`} onClick={() => { const next = cam2d === "full" ? "play" : "full"; setCam2d(next); writeLocal("bm_cam2d", next); }} title={cam2d === "full" ? "Câmera da jogada" : "Campo inteiro"} aria-pressed={cam2d === "full"}>⛶</button>}
         <button type="button" className={`im-tool ${sound.muted ? "" : "is-on"}`} onClick={() => { matchSound.unlock(); setSoundOpen(!soundOpen); }} title="Som e gráficos" aria-expanded={soundOpen}>{sound.muted ? "🔇" : "🔊"}</button>
         <button type="button" className={`im-tool ${panel ? "is-on" : ""}`} onClick={() => setPanel(!panel)} title="Lances e estatísticas" aria-expanded={panel}>☰</button>
         <button type="button" className="im-tool" onClick={toggleFullscreen} title="Tela cheia">⤢</button>
@@ -363,6 +395,7 @@ export function InteractiveMatch({ roomId, clubCode, clubs, source: given, onExi
       {(offline || rivalAway) && <div className="im-banner im-banner--warn im-banner--low" role="status">{offline ? "Conexão perdida — reconectando… (sua jogada fica congelada por até 30 s)" : `O técnico do ${club(rival!).name} caiu. Aguardando até 30 s; depois a IA assume os ataques dele.`}</div>}
       {notice && <div className="im-banner im-banner--warn im-banner--low" role="status">{notice}</div>}
       {feedback && <div className="im-feedback" role="alert">{feedback}</div>}
+      {toast && <div key={toast.id} className={`im-toast im-toast--${toast.tone}`} role="status">{toast.text}</div>}
       {r3dStatus === "loading" && <div className="im-loading3d" role="status">Preparando o estádio 3D…</div>}
       {celebration && <button type="button" className="im-goal" onClick={() => setCelebration(null)} aria-label="Pular comemoração"><b>GOL!</b><span>{celebration.name} · {club(celebration.club).name}</span><small>toque para pular</small></button>}
 

@@ -6,8 +6,8 @@ export const VISUAL = {
   /** Canvas margin around the touchlines, in metres (room for the goals and nets). */
   marginMetres: 3.2,
   goalDepthMetres: 2.0,
-  /** Player sprite height relative to the pitch width on screen (clamped in px). */
-  playerHeight: { perPitchWidth: 1 / 14, min: 30, max: 50 },
+  /** Sprite height in pitch metres (stylised ~2.2x a 1.8 m athlete), clamped in px. */
+  playerHeight: { metres: 4.0, min: 26, max: 78 },
   ballRadius: { perPlayerHeight: 0.15, min: 3.2 },
   /** One stride every this many metres run (leg cycle). */
   strideMetres: 1.9,
