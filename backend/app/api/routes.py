@@ -22,6 +22,7 @@ from app.api.schemas import (
     InstructionsUpdate,
     InteractiveAction,
     JoinByCodeRequest,
+    LabCreate,
     LineupUpdate,
     LiveCommand,
     MarketOfferCreate,
@@ -60,6 +61,7 @@ from app.services.auth import (
     issue_guest_token,
 )
 from app.services.draft_service import draft_service, validate_configuration
+from app.services.lab_service import lab_service
 from app.services.market_service import MarketSession, market_service
 from app.services.pack_service import pack_service
 from app.services.realtime import hub
@@ -1171,6 +1173,41 @@ async def interactive_action(room_id: str, payload: InteractiveAction, identity:
         raise HTTPException(status_code=409, detail=str(error)) from error
     await hub.broadcast(room_id, {"type": "season.interactive", "revision": result["revision"]})
     return envelope(result)
+
+
+def _lab_catalog():
+    settings = get_settings()
+    return create_demo_catalog() if settings.enable_demo_catalog else load_catalog(settings.player_catalog_path)
+
+
+@router.post("/lab/sessions")
+async def lab_create(payload: LabCreate, identity: GuestIdentity = Depends(current_identity)) -> dict[str, object]:
+    """Gameplay Lab: a reproducible scenario on the real engine, outside any league or career."""
+    catalog = _lab_catalog()
+    if not catalog:
+        raise HTTPException(status_code=503, detail="Catálogo indisponível.")
+    try:
+        return envelope(lab_service.create(identity.id, catalog, payload.mode, payload.kind, payload.home, payload.away, payload.seed))
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+
+@router.get("/lab/sessions/{session_id}")
+async def lab_state(session_id: str, revision: int | None = None, identity: GuestIdentity = Depends(current_identity)) -> dict[str, object]:
+    try:
+        return envelope(lab_service.view(identity.id, session_id, revision))
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error.args[0])) from error
+
+
+@router.post("/lab/sessions/{session_id}/actions")
+async def lab_action(session_id: str, payload: InteractiveAction, identity: GuestIdentity = Depends(current_identity)) -> dict[str, object]:
+    try:
+        return envelope(lab_service.act(identity.id, session_id, payload.model_dump()))
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error.args[0])) from error
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
 
 
 @router.get("/rooms/{room_id}/season/preview")

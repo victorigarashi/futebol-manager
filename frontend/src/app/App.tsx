@@ -7,12 +7,15 @@ import { LobbyPage } from "../features/rooms/LobbyPage";
 import { ProfileDialog } from "../components/ProfileDialog";
 import { LoadingState, ErrorState } from "../components/ui/AsyncState";
 import { ServerStatusBanner } from "../components/ServerStatusBanner";
+import { GameplayLab } from "../features/lab/GameplayLab";
 
 export function App() {
   const queryClient = useQueryClient();
   const catalog = useQuery({ queryKey: ["catalog-status"], queryFn: () => api.catalogStatus().then((result) => result.data) });
   const setUser = useSession((state) => state.setUser);
   const [editingProfile, setEditingProfile] = useState(false);
+  const [hash, setHash] = useState(() => window.location.hash);
+  useEffect(() => { const sync = () => setHash(window.location.hash); window.addEventListener("hashchange", sync); return () => window.removeEventListener("hashchange", sync); }, []);
   const identity = useQuery({
     queryKey: ["identity"], staleTime: Infinity,
     queryFn: async () => {
@@ -32,6 +35,7 @@ export function App() {
     queryClient.setQueryData(["identity"], data);
     setEditingProfile(false);
   };
+  if (hash === "#lab") return <GameplayLab />;
   const displayName = identity.data.display_name;
   const needsProfile = !displayName || displayName.startsWith("Técnico ");
   return <><ServerStatusBanner />{catalog.data?.demo && <div className="demo-banner" role="status">MODO DEMONSTRAÇÃO — atletas e valores sintéticos, exclusivo para testes.</div>}<LobbyPage needsProfile={needsProfile} onSaveProfile={saveProfile} onEditProfile={() => setEditingProfile(true)} />{editingProfile && !needsProfile && <ProfileDialog currentName={displayName} onClose={() => setEditingProfile(false)} onSave={saveProfile} />}</>;

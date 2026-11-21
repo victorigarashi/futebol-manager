@@ -545,8 +545,11 @@ class RoomManager:
             room = self._room(room_id)
             if room.host_user_id != user_id:
                 raise HTTPException(status_code=403, detail="Apenas o anfitrião pode iniciar as rodadas.")
+            if room.phase in ("SEASON_PREPARATION", "TRANSFER_WINDOW"):
+                # Idempotent: a double click (or another tab) already opened the season.
+                return self._state(room)
             if room.phase != "SQUAD_MANAGEMENT":
-                raise HTTPException(status_code=409, detail="A gestão de elenco ainda não está disponível.")
+                raise HTTPException(status_code=409, detail="As rodadas só podem ser abertas depois da gestão de elenco.")
             draft = copy.deepcopy(room)
             draft.phase = "SEASON_PREPARATION"
             draft.revision += 1

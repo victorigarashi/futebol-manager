@@ -23,34 +23,70 @@ from __future__ import annotations
 
 import math
 import random
+import zlib
 from dataclasses import asdict, dataclass, field
 
 from app.domain.match_engine import PITCH, PlayerInput, TeamInput, derived_attributes
 
 # ---------------------------------------------------------------- tunables (documented)
-DT = 0.1                      # physics step (s); frames are recorded every step (10 Hz)
+# Every gameplay number lives here (docs/MODO_JOGAVEL.md §5 explains each one). These
+# are *physics/rules*; the look of the screen has its own config in the frontend
+# (features/career/interactive/render/config.ts) and can never change a result.
+DT = 0.1                      # physics step (s); frames are recorded every step (10 Hz). Results never depend on the client's FPS.
 MAX_ACTION_SECONDS = 7.0      # an action that has not resolved by then is settled by proximity
 MAX_ACTIONS = 8               # anti-infinite-attack guard: after 8 actions the next control ends it
+# Ball
 GROUND_DECEL = 5.0            # m/s² rolling friction for passes and carries
 SHOT_DECEL = 1.5
+BALL_RADIUS = 0.11
 PASS_SPEED = (7.0, 19.0)      # v0 = a + b * power
 LOFT_SPEED = (11.0, 15.0)
 SHOT_SPEED = (16.0, 18.0)
 LOFT_RANGE = (12.0, 46.0)     # flight distance = a + b * power
-CARRY_RANGE = (3.0, 9.0)
+# Execution error: standard deviation of the angle (rad) = base * (skill_offset - skill/100) * (1 + pressure factor) ...
+PASS_ERROR = 0.075
+LOFT_ERROR = 0.06
+SHOT_ERROR = 0.06
+HEADER_Z = (0.9, 2.6)         # a lofted ball between these heights can be headed
+HEADER_SPEED = (10.0, 7.0)    # v0 = a + b * physical/100
+# Goal (the interactive mode uses a wider mouth than the technical engine: easier to read
+# and more fun on a phone; the collision uses exactly the drawn mouth and posts)
+GOAL_WIDTH_SCALE = 1.3
+POST_RADIUS = 0.12
+# Players
+PLAYER_BASE_SPEED = 5.6       # top speed = base + pace/100 * PLAYER_PACE_SPEED (m/s)
+PLAYER_PACE_SPEED = 3.4
+PLAYER_ACCEL = 7.5            # m/s²
+CARRY_SPEED = (0.93, 0.12)    # fraction of top speed while carrying = a + b * dribbling/100
+CARRY_ACCEL = 11.0            # m/s² with the ball (short bursts, sharp direction changes)
+CARRY_TOUCH = (0.95, 0.55)    # ball ahead of the foot = a - b * dribbling/100 (m): poor dribblers push it further
+CARRY_RANGE = (4.0, 11.0)     # requested carry distance = a + b * power (m)
+# Duels and control
 CONTROL_RADIUS = 0.9
 TACKLE_RADIUS = 0.95
 KEEPER_CLAIM_RADIUS = 1.5
+INTERCEPT = (0.16, 0.42, 0.015)   # chance = a + b*defending/100 - c*ball speed
+TACKLE = (0.30, 160.0, 400.0)     # chance = a + (def - dribbling)/b + (phys - phys)/c
+PRESSURE_RADIUS = 4.5             # pressure = 1 - nearest marker distance / radius
+PASS_ASSIST_ANGLE = 0.24          # rad: a team-mate this close to the drawn line is the intended receiver
+PASS_ASSIST = (0.35, 0.35)        # fraction of the angle corrected = a + b * passing/100 (moderate, never a lock-on)
+DEFENCE_REACTION = (0.35, 0.2)    # s: a - b * defending/100 before an outfield defender reacts
+# Keeper
+KEEPER_REACTION = (0.42, 0.2)     # s: a - b * keeping/100 (+0.08 s when the view is blocked)
+KEEPER_LATERAL = (2.2, 2.2)       # m/s: a + b * keeping/100
+KEEPER_REACH = (0.95, 1.35)        # m: standing reach + dive bonus * keeping/100 once the dive had time
+# Clock and pacing (real time, not physics)
 CLOCK_MINUTES_PER_SECOND = 4.0  # fast simulation between opportunities: 90' in ~22 s
 HALF_TIME_SECONDS = 6.0
-OUTCOME_PAUSE_SECONDS = 2.2   # banner after an opportunity ends
+OUTCOME_PAUSE_SECONDS = 1.8   # banner after an opportunity ends (celebrations are skippable on the client)
+EXECUTE_TAIL_SECONDS = 0.2    # after the last frame of an action, before the next decision opens
 CONNECTED_WINDOW = 6.0        # a client polling within this window counts as connected
 RECONNECT_GRACE = 30.0        # approved tolerance (validation 47)
 DECISION_CHOICES = (5, 10, 15, 20)
 ACTION_TYPES = ("PASS", "LOFT", "CARRY", "SHOT")
-KINDS = ("BUILDUP", "COUNTER", "WING", "CROSS", "THROUGH", "ONE_ON_ONE", "FREE_KICK", "PENALTY", "CORNER")
+KINDS = ("BUILDUP", "COUNTER", "WING", "CROSS", "THROUGH", "ONE_ON_ONE", "REBOUND", "FREE_KICK", "PENALTY", "CORNER")
 KIND_LABEL = {"BUILDUP": "Ataque trabalhado", "COUNTER": "Contra-ataque", "WING": "Jogada pela ponta",
-              "CROSS": "Chegada à linha de fundo", "THROUGH": "Infiltração", "ONE_ON_ONE": "Cara a cara",
+              "CROSS": "Chegada à linha de fundo", "THROUGH": "Infiltração", "ONE_ON_ONE": "Cara a cara", "REBOUND": "Sobra na entrada da área",
               "FREE_KICK": "Falta perigosa", "PENALTY": "Pênalti", "CORNER": "Escanteio"}
 
 
@@ -77,7 +113,7 @@ class Body:
 
     @property
     def top_speed(self) -> float:
-        return 5.6 + self.pace / 100 * 3.4
+        return PLAYER_BASE_SPEED + self.pace / 100 * PLAYER_PACE_SPEED
 
 
 @dataclass
@@ -136,7 +172,7 @@ def build_timeline(home: TeamInput, away: TeamInput, seed: int, ruleset: str) ->
             product *= rng.random()
         count = int(_clamp(count, 1, 9))
         style = team.tactics.style
-        weights = {"BUILDUP": 3.0, "COUNTER": 2.0, "WING": 2.0, "CROSS": 1.5, "THROUGH": 1.8, "ONE_ON_ONE": 0.5}
+        weights = {"BUILDUP": 3.0, "COUNTER": 2.0, "WING": 2.0, "CROSS": 1.5, "THROUGH": 1.8, "ONE_ON_ONE": 0.5, "REBOUND": 0.9}
         weights[{"POSSESSION": "BUILDUP", "SHORT_BUILDUP": "BUILDUP", "COUNTER": "COUNTER", "WIDE": "WING", "DIRECT": "THROUGH"}.get(style, "BUILDUP")] += 2.5
         if style == "WIDE":
             weights["CROSS"] += 1.5
@@ -192,11 +228,23 @@ def build_scenario(kind: str, attack: TeamInput, defence: TeamInput, mode: str, 
                 depth += 14 * s * (1 - f)        # caught upfield
             body.x = L - depth
             body.y = W / 2 + (player.slot_x / 100 * W - W / 2) * 0.78  # compact block
+    # The whole move happens on one side or the other: no two openings look the same.
+    if kind not in ("PENALTY", "FREE_KICK", "CORNER"):
+        shift = rng.uniform(-7, 7) * s * (W / 68 / s)
+        for body in attackers + defenders:
+            if body.role != "GK":
+                body.y = _clamp(body.y + shift * (1.0 if body.team == "A" else 0.6), 1.5 * s, W - 1.5 * s)
     outfield = [b for b in attackers if b.role != "GK"]
     by_role = lambda *roles: [b for b in outfield if b.role in roles] or outfield  # noqa: E731
     if kind in ("BUILDUP",):
         carrier = rng.choice(by_role("MF"))
-        carrier.x = min(carrier.x, (58 + rng.uniform(-4, 6)) * s)
+        carrier.x = min(carrier.x, (52 + rng.uniform(-4, 12)) * s)
+    elif kind == "REBOUND":
+        # A cleared ball drops to an attacker at the edge of the box, with defenders closing.
+        carrier = rng.choice(by_role("MF", "ST"))
+        carrier.x, carrier.y = L - (19 + rng.uniform(0, 7)) * s, W / 2 + rng.uniform(-11, 11) * s
+        for body in sorted((b for b in defenders if b.role != "GK"), key=lambda b: _dist(b.x, b.y, carrier.x, carrier.y))[:2]:
+            body.x, body.y = carrier.x + rng.uniform(1.6, 3.5) * s, carrier.y + rng.uniform(-3, 3) * s
     elif kind == "COUNTER":
         carrier = max(by_role("MF", "ST"), key=lambda b: b.pace + rng.uniform(0, 8))
         carrier.x, carrier.y = (52 + rng.uniform(0, 8)) * s, W / 2 + rng.uniform(-10, 10) * s
@@ -265,7 +313,7 @@ def _separate(bodies: list[Body], carrier: Body, L: float, W: float) -> None:
             for b in bodies[i + 1:]:
                 d = _dist(a.x, a.y, b.x, b.y)
                 if d < 1.3:
-                    angle = (hash((a.id, b.id)) % 628) / 100 if d < 1e-6 else math.atan2(b.y - a.y, b.x - a.x)
+                    angle = (zlib.crc32(f"{a.id}|{b.id}".encode()) % 628) / 100 if d < 1e-6 else math.atan2(b.y - a.y, b.x - a.x)
                     push = (1.3 - d) / 2 + 0.01
                     if a is not carrier:
                         a.x -= math.cos(angle) * push
@@ -290,49 +338,68 @@ class ActionResult:
     keeper: str | None = None
     lost_to: str | None = None
     completed_pass: bool = False
+    shooter: str | None = None      # who finished (a header is not finished by the crosser)
+    post: bool = False
+    cues: list[dict[str, object]] = field(default_factory=list)  # timed moments for animation and sound
+
+
+def _wrap(angle: float) -> float:
+    return (angle + math.pi) % (2 * math.pi) - math.pi
 
 
 class Pitch:
-    """Physics + AI movement of one action. Bodies and ball are mutated in place."""
+    """Physics + AI movement of one action. Bodies and ball are mutated in place.
+
+    Local frame: the attacking side attacks towards x = L. ``HighlightMatch`` turns it into
+    the real pitch (each club attacks its own end, switching at half-time) exactly once."""
 
     def __init__(self, bodies: list[Body], ball: Ball, mode: str, rng: random.Random, pressure_boost: float = 0.0) -> None:
         cfg = PITCH[mode]
-        self.L, self.W, self.goal = cfg["length"], cfg["width"], cfg["goal"]
+        self.L, self.W = cfg["length"], cfg["width"]
+        self.goal = cfg["goal"] * GOAL_WIDTH_SCALE
+        self.s = self.L / 105.0
         self.bodies, self.ball, self.rng = bodies, ball, rng
         self.boost = pressure_boost
         self.attackers = [b for b in bodies if b.team == "A"]
         self.defenders = [b for b in bodies if b.team == "D"]
         self.keeper = next((b for b in self.defenders if b.role == "GK"), None)
         self.shot_live = False
+        self.shot_t0 = 0.0
+        self.keeper_done = False
+        self.ball0 = (ball.x, ball.y)
+        self.cues: list[dict[str, object]] = []
+
+    def cue(self, t: float, kind: str, body: Body | None = None, **extra: object) -> None:
+        self.cues.append({"t": round(t, 2), "kind": kind, "id": body.id if body else None, **extra})
 
     def frame(self, t: float) -> list[float]:
         b = self.ball
-        row = [round(t, 2), round(b.x / self.L, 3), round(b.y / self.W, 3), round(b.z, 1)]
+        row = [round(t, 2), round(b.x / self.L, 4), round(b.y / self.W, 4), round(b.z, 2)]
         for body in self.bodies:
-            row += [round(body.x / self.L, 3), round(body.y / self.W, 3)]
+            row += [round(body.x / self.L, 4), round(body.y / self.W, 4)]
         return row
 
     def pressure_on(self, body: Body) -> float:
         nearest = min((_dist(body.x, body.y, d.x, d.y) for d in self.defenders if d.role != "GK"), default=20.0)
-        return _clamp(1 - nearest / 4.5, 0.0, 1.0)
+        return _clamp(1 - nearest / PRESSURE_RADIUS, 0.0, 1.0)
 
     def xg(self, x: float, y: float) -> float:
         d = _dist(x, y, self.L, self.W / 2)
         angle = abs(math.atan2(self.goal * (self.L - x), (self.L - x) ** 2 + (y - self.W / 2) ** 2 - (self.goal / 2) ** 2))
         scale = 105 / self.L
-        return round(_clamp(0.9 * angle * math.exp(-d * scale / 22), 0.01, 0.8), 3)
+        return round(_clamp(0.9 * angle * math.exp(-d * scale / 22), 0.01, 0.85), 3)
 
     # ------------------------------------------------------------ movement AI
-    def _steer(self, body: Body, tx: float, ty: float, intensity: float = 1.0) -> None:
+    def _steer(self, body: Body, tx: float, ty: float, intensity: float = 1.0, accel: float = PLAYER_ACCEL) -> None:
         tx, ty = _clamp(tx, 0.3, self.L - 0.2), _clamp(ty, 0.3, self.W - 0.3)
         dx, dy = tx - body.x, ty - body.y
         d = math.hypot(dx, dy)
         top = body.top_speed * intensity
         desired = min(top, d * 2.2)
         dvx, dvy = (dx / d * desired, dy / d * desired) if d > 1e-6 else (0.0, 0.0)
-        accel = 7.5 * DT
-        body.vx += _clamp(dvx - body.vx, -accel, accel)
-        body.vy += _clamp(dvy - body.vy, -accel, accel)
+        step = accel * DT
+        body.vx += _clamp(dvx - body.vx, -step, step)
+        body.vy += _clamp(dvy - body.vy, -step, step)
         body.x += body.vx * DT
         body.y += body.vy * DT
 
@@ -347,52 +414,106 @@ class Pitch:
             travel = min(travel, speed * speed / (2 * decel))
         return b.x + b.vx / speed * travel, b.y + b.vy / speed * travel
 
+    def _spread(self, body: Body, tx: float, ty: float, radius: float) -> tuple[float, float]:
+        """Keep the shape: no two team-mates on the same spot (no artificial clusters)."""
+        for mate in self.bodies:
+            if mate is body or mate.team != body.team or mate.role == "GK":
+                continue
+            d = _dist(mate.x, mate.y, tx, ty)
+            if d < radius:
+                if d < 1e-6:
+                    tx, ty = tx, ty + (radius if body.y < self.W / 2 else -radius) * 0.5
+                    continue
+                push = (radius - d) * 0.6
+                tx += (tx - mate.x) / d * push
+                ty += (ty - mate.y) / d * push
+        return tx, ty
+
+    def _openness(self, x: float, y: float) -> float:
+        return min((_dist(x, y, d.x, d.y) for d in self.defenders if d.role != "GK"), default=12.0)
+
+    def _support(self, body: Body, t: float) -> tuple[float, float, float]:
+        """Off-the-ball runs of the attack: the striker on the last defender's shoulder and
+        attacking depth, wingers holding width, midfielders showing for the ball in a free lane."""
+        b, s, L, W = self.ball, self.s, self.L, self.W
+        line = max((d.x for d in self.defenders if d.role != "GK"), default=L - 12 * s)
+        progress = b.x - self.ball0[0]
+        wide = min(body.ay, W - body.ay) < W * 0.2
+        if body.role == "ST":
+            depth = min(1.0, t / 2.0)
+            tx = _clamp(max(body.ax + progress * 0.5, line - 1.5 * s + 2.5 * s * depth), body.ax, L - 5 * s)
+            base_y = body.ay + (b.y - body.ay) * 0.15
+            ty = max((base_y + k * 4 * s for k in (-1, 0, 1)), key=lambda y: self._openness(tx, y) - abs(y - base_y) * 0.1)
+            return tx, ty, 0.95
+        if wide:
+            tx = _clamp(max(body.ax, b.x + 3 * s), body.ax, L - 7 * s)
+            ty = body.ay + (2 * s if body.ay > W / 2 else -2 * s) * 0.3
+            return tx, ty, 0.85
+        near = _dist(body.x, body.y, b.x, b.y) < 22 * s
+        tx = body.ax + max(0.0, progress) * 0.75
+        ty = body.ay + (b.y - body.ay) * 0.2
+        if near:
+            # Show for the ball: a short, open angle (a passing line), never on top of the carrier.
+            side = 1 if body.ay >= b.y else -1
+            candidates = [(b.x + dx * s, b.y + side * dy * s) for dx in (-6, -2, 3) for dy in (7, 11)]
+            candidates.append((tx, ty))
+            tx, ty = max(candidates, key=lambda c: self._openness(*c) - _dist(c[0], c[1], body.x, body.y) * 0.12)
+        return tx, ty, 0.8
+
+    def _defend(self, body: Body, mark: Body | None) -> tuple[float, float, float]:
+        """Defensive positioning: goal-side of the mark, the block sliding to the ball and
+        dropping to protect the box when the ball gets close."""
+        b, s, L, W = self.ball, self.s, self.L, self.W
+        gx, gy = L, W / 2
+        if mark is not None:
+            d = max(1.0, _dist(mark.x, mark.y, gx, gy))
+            tx = mark.x + (gx - mark.x) / d * 1.8 + (b.x - mark.x) * 0.1
+            ty = mark.y + (gy - mark.y) / d * 1.8 + (b.y - mark.y) * 0.12
+            intensity = 0.92
+        else:
+            tx = body.ax + (b.x - body.ax) * 0.3
+            ty = body.ay + (b.y - body.ay) * 0.4
+            intensity = 0.75
+        if body.role == "DF" and L - b.x < 30 * s:
+            tx = max(tx, L - 15 * s)              # protect the box
+            ty = gy + (ty - gy) * 0.8
+        return tx, ty, intensity
+
     def move_players(self, t: float, carrier: Body | None, intended: Body | None, chasers: set[str], marks: dict[str, Body]) -> None:
-        b = self.ball
         for body in self.bodies:
             if body is carrier:
                 continue
             if body.team == "A":
                 if body is intended:
-                    # Attack the ball's path (meet the pass, not where it was).
-                    tx, ty = self._ball_at(0.45)
+                    tx, ty = self._ball_at(0.45)   # meet the ball's path, not where it was
                     self._steer(body, tx, ty)
                 elif body.role == "GK":
                     self._steer(body, body.ax, body.ay, 0.4)
                 else:
-                    # Support/desmarque: runs into depth up to the last line, spreading out.
-                    line = max((d.x for d in self.defenders if d.role != "GK"), default=self.L - 10)
-                    run = min(body.ax + 2.2 * t, line + (1.5 if body.role == "ST" else -1.0))
-                    spread = body.ay + (body.ay - b.y) * 0.08
-                    self._steer(body, max(body.ax, run), spread, 0.8)
-            else:
-                if body.role == "GK":
-                    if not self.shot_live:
-                        self._keeper_position(body)
-                    continue
-                reaction = 0.35 - body.defending / 100 * 0.2 - self.boost
-                if t < reaction:
-                    continue
-                if body.id in chasers:
-                    tx, ty = self._ball_at(0.3)
-                    self._steer(body, tx, ty)
-                else:
-                    mark = marks.get(body.id)
-                    if mark is not None:
-                        # Goal-side of the mark, a little towards the ball: cover + marking.
-                        gx, gy = self.L, self.W / 2
-                        d = max(1.0, _dist(mark.x, mark.y, gx, gy))
-                        tx = mark.x + (gx - mark.x) / d * 1.8 + (b.x - mark.x) * 0.12
-                        ty = mark.y + (gy - mark.y) / d * 1.8 + (b.y - mark.y) * 0.12
-                        self._steer(body, tx, ty, 0.9)
-                    else:
-                        self._steer(body, body.ax + (b.x - body.ax) * 0.25, body.ay + (b.y - body.ay) * 0.3, 0.7)
+                    tx, ty, intensity = self._support(body, t)
+                    tx, ty = self._spread(body, tx, ty, 6.0 * self.s)
+                    self._steer(body, tx, ty, intensity)
+                continue
+            if body.role == "GK":
+                if not self.shot_live:
+                    self._keeper_position(body)
+                continue
+            reaction = DEFENCE_REACTION[0] - body.defending / 100 * DEFENCE_REACTION[1] - self.boost
+            if t < reaction:
+                continue
+            if body.id in chasers:
+                tx, ty = self._ball_at(0.3)
+                self._steer(body, tx, ty)
+                continue
+            tx, ty, intensity = self._defend(body, marks.get(body.id))
+            tx, ty = self._spread(body, tx, ty, 2.2 * self.s ** 0.5)
+            self._steer(body, tx, ty, intensity)
 
     def _keeper_position(self, gk: Body) -> None:
         b = self.ball
         gx, gy = self.L, self.W / 2
         d = _dist(b.x, b.y, gx, gy)
-        off = _clamp(d * 0.12, 0.6, 5.5) * (0.7 + gk.keeping / 100 * 0.3)
+        off = _clamp(d * 0.12, 0.6, 5.5) * (0.7 + gk.keeping / 100 * 0.3) * self.s ** 0.5
         tx = gx - (gx - b.x) / max(d, 1e-6) * off
         ty = gy + (b.y - gy) / max(d, 1e-6) * off
         ty = _clamp(ty, gy - self.goal / 2 - 0.5, gy + self.goal / 2 + 0.5)
@@ -406,79 +527,168 @@ class Pitch:
             if not free:
                 break
             target = min(free, key=lambda a: _dist(a.x, a.y, defender.x, defender.y) - (a.x - self.L * 0.6) * 0.1)
-            if _dist(target.x, target.y, defender.x, defender.y) < 18:
+            if _dist(target.x, target.y, defender.x, defender.y) < 18 * self.s ** 0.5:
                 marks[defender.id] = target
                 free.remove(target)
         return marks
 
     # ------------------------------------------------------------ resolve an action
     def execute(self, carrier: Body, action: str, tx: float, ty: float, power: float, passer_last: str | None) -> ActionResult:
+        result = self._execute(carrier, action, tx, ty, power)
+        result.cues = self.cues
+        return result
+
+    def _assist_receiver(self, carrier: Body, aim: float, want: float) -> tuple[Body | None, float]:
+        """Moderate pass assistance: a team-mate close to the drawn line (angle and distance
+        compatible) is the intended receiver; the ball is bent part of the way towards where
+        he is running. Never a lock-on: pressure and the passer's error still apply."""
+        best, best_score = None, 9.0
+        for a in self.attackers:
+            if a is carrier or a.role == "GK":
+                continue
+            d = _dist(a.x, a.y, carrier.x, carrier.y)
+            if d < 2.5 or not (0.3 * want <= d <= 1.6 * want + 4):
+                continue
+            diff = abs(_wrap(math.atan2(a.y - carrier.y, a.x - carrier.x) - aim))
+            if diff > PASS_ASSIST_ANGLE:
+                continue
+            score = diff + abs(d - want) / max(want, 1) * 0.15
+            if score < best_score:
+                best, best_score = a, score
+        if best is None:
+            return None, aim
+        d = _dist(best.x, best.y, carrier.x, carrier.y)
+        lead = min(1.2, d / 14)
+        lx, ly = best.x + best.vx * lead, best.y + best.vy * lead
+        correction = _wrap(math.atan2(ly - carrier.y, lx - carrier.x) - aim) * (PASS_ASSIST[0] + PASS_ASSIST[1] * carrier.passing / 100)
+        return best, aim + correction
+
+    def _execute(self, carrier: Body, action: str, tx: float, ty: float, power: float) -> ActionResult:
         rng, b = self.rng, self.ball
-        L, W = self.L, self.W
+        L, W, s = self.L, self.W, self.s
         pressure = self.pressure_on(carrier)
         frames = [self.frame(0.0)]
         dx, dy = tx - carrier.x, ty - carrier.y
         aim = math.atan2(dy, dx)
         dist_aim = math.hypot(dx, dy)
         shot = action == "SHOT"          # live shot (the keeper reacts) until blocked/deflected
-        was_shot = shot                    # for the statistics: a blocked shot is still a shot
+        was_shot = shot                  # for the statistics: a blocked shot is still a shot
+        shooter = carrier
         self.shot_live = shot
         xg = self.xg(carrier.x, carrier.y) if shot else 0.0
+        intended = None
         if action == "PASS":
-            sd = 0.075 * (1.3 - carrier.passing / 100) * (1 + pressure * 0.9) * (0.7 + power * 0.6)
+            sd = PASS_ERROR * (1.3 - carrier.passing / 100) * (1 + pressure * 0.9) * (0.7 + power * 0.6)
             v0 = PASS_SPEED[0] + PASS_SPEED[1] * power
+            intended, aim = self._assist_receiver(carrier, aim, v0 * v0 / (2 * GROUND_DECEL))
         elif action == "LOFT":
-            sd = 0.06 * (1.3 - carrier.passing / 100) * (1 + pressure * 0.8)
+            sd = LOFT_ERROR * (1.3 - carrier.passing / 100) * (1 + pressure * 0.8)
             v0 = LOFT_SPEED[0] + LOFT_SPEED[1] * power
-            flight = (LOFT_RANGE[0] + LOFT_RANGE[1] * power) * (L / 105)
+            flight = (LOFT_RANGE[0] + LOFT_RANGE[1] * power) * s
+            intended, aim = self._assist_receiver(carrier, aim, flight)
             flight *= 1 + rng.gauss(0, 0.09 * (1.2 - carrier.passing / 100))
             b.air_total = b.air_left = flight / v0
         elif action == "SHOT":
-            sd = 0.042 * (1.35 - carrier.shooting / 100) * (1 + pressure * 1.0) * (0.75 + max(0.0, power - 0.55) * 1.6)
+            sd = SHOT_ERROR * (1.35 - carrier.shooting / 100) * (1 + pressure * 1.0) * (0.75 + max(0.0, power - 0.55) * 1.6)
             v0 = SHOT_SPEED[0] + SHOT_SPEED[1] * power
         else:  # CARRY
-            return self._carry(carrier, aim, min(dist_aim, (CARRY_RANGE[0] + CARRY_RANGE[1] * power) * (L / 105)), frames)
+            return self._carry(carrier, aim, min(dist_aim, (CARRY_RANGE[0] + CARRY_RANGE[1] * power) * s), frames)
         angle = aim + rng.gauss(0, sd)
         b.x, b.y = carrier.x + math.cos(angle) * 0.5, carrier.y + math.sin(angle) * 0.5
         b.vx, b.vy = math.cos(angle) * v0, math.sin(angle) * v0
-        intended = None
-        if not shot:
+        self.cue(0.0, "KICK", carrier, action=action, power=round(power, 2))
+        if not shot and intended is None:
             intended = min((a for a in self.attackers if a is not carrier and a.role != "GK"),
                            key=lambda a: _dist(a.x, a.y, tx, ty), default=None)
         marks = self.assignments()
         chasers = {d.id for d in sorted((d for d in self.defenders if d.role != "GK"),
                                         key=lambda d: self._time_to_ball(d))[:2]}
         tried: set[str] = set()
-        keeper_reacts = 0.42 - (self.keeper.keeping / 100 * 0.2 if self.keeper else 0) - self.boost * 0.3
+        keeper_reacts = KEEPER_REACTION[0] - (self.keeper.keeping / 100 * KEEPER_REACTION[1] if self.keeper else 0) - self.boost * 0.3
         screened = shot and any(_dist(d.x, d.y, *self._project(carrier, angle, 6)) < 1.2 for d in self.defenders if d.role != "GK")
         if screened:
             keeper_reacts += 0.08
+        post = False
         t = 0.0
         last_touch = "A"
         while t < MAX_ACTION_SECONDS:
             t += DT
+            px, py = b.x, b.y
             self._ball_step(shot)
             self.move_players(t, None, intended, chasers, marks)
             if shot and self.keeper:
-                outcome = self._keeper_vs_shot(t, keeper_reacts, frames)
+                outcome = self._keeper_vs_shot(t - self.shot_t0, keeper_reacts, frames, t, px, py)
                 if outcome:
                     self.shot_live = False
-                    return self._shot_result(outcome, frames, t, xg)
+                    return self._shot_result(outcome, frames, t, xg, shooter, post)
             frames.append(self.frame(t))
-            # Out of play.
-            if b.x >= L or b.x <= 0 or b.y <= 0 or b.y >= W:
-                if b.x >= L and abs(b.y - W / 2) <= self.goal / 2 - 0.11 and (shot or b.z < 2.2):
-                    return ActionResult("GOAL", frames, detail="Gol", shot=was_shot, on_target=True, xg=xg)
-                if b.x >= L and last_touch == "D":
-                    return ActionResult("CORNER", frames, detail="Escanteio", shot=was_shot, xg=xg)
-                return ActionResult("OUT", frames, detail="Para fora" if was_shot else "Bola fora", shot=was_shot, xg=xg)
-            if b.air_left > 0 and b.z > 1.9:
-                continue  # in the air: nobody can play it
+            # Over the goal line: goal, post, corner or goal kick (exact crossing point, not the step's end).
+            if b.x >= L:
+                k = (L - px) / (b.x - px) if b.x != px else 1.0
+                cross_y = py + (b.y - py) * k
+                off = abs(cross_y - W / 2)
+                low = shot or b.z < 2.44
+                if low and abs(off - self.goal / 2) <= POST_RADIUS + BALL_RADIUS:
+                    inner = off < self.goal / 2
+                    self.cue(t, "POST", None)
+                    post = True
+                    if inner and rng.random() < 0.4:
+                        b.x, b.y, b.vx, b.vy = L + 0.6, cross_y, 0.0, 0.0
+                        frames[-1] = self.frame(t)
+                        self.cue(t, "GOAL", shooter)
+                        return ActionResult("GOAL", frames, detail="Na trave… e entra!", shot=was_shot, on_target=True, xg=xg, shooter=shooter.id, post=True)
+                    # Back into play: a rebound for whoever is quicker.
+                    speed = math.hypot(b.vx, b.vy)
+                    away = -1 if cross_y > W / 2 else 1
+                    out_dir = away if inner else -away
+                    ang = math.pi + out_dir * rng.uniform(0.25, 0.9)
+                    sp = speed * rng.uniform(0.3, 0.5)
+                    b.x, b.y = L - 0.3, cross_y
+                    b.vx, b.vy = math.cos(ang) * sp, math.sin(ang) * sp
+                    b.air_left, b.z = 0.0, 0.0
+                    frames[-1] = self.frame(t)
+                    shot = self.shot_live = False
+                    last_touch = "A"
+                    intended = min((a for a in self.attackers if a.role != "GK"), key=lambda a: _dist(a.x, a.y, b.x, b.y))
+                    chasers = {d.id for d in sorted((d for d in self.defenders if d.role != "GK"), key=lambda d: _dist(d.x, d.y, b.x, b.y))[:2]}
+                    tried.clear()
+                    continue
+                if low and off <= self.goal / 2 - BALL_RADIUS:
+                    b.x, b.y, b.vx, b.vy = L + 0.6, cross_y, 0.0, 0.0
+                    frames[-1] = self.frame(t)
+                    self.cue(t, "GOAL", shooter)
+                    return ActionResult("GOAL", frames, detail="Gol", shot=was_shot, on_target=True, xg=xg, shooter=shooter.id, post=post)
+                self.cue(t, "OUT", None)
+                if last_touch == "D":
+                    return ActionResult("CORNER", frames, detail="Escanteio", shot=was_shot, xg=xg, shooter=shooter.id, post=post)
+                return ActionResult("OUT", frames, detail="Para fora" if was_shot else "Bola fora", shot=was_shot, xg=xg, shooter=shooter.id, post=post)
+            if b.x <= 0 or b.y <= 0 or b.y >= W:
+                self.cue(t, "OUT", None)
+                return ActionResult("OUT", frames, detail="Para fora" if was_shot else "Bola fora", shot=was_shot, xg=xg, shooter=shooter.id, post=post)
+            if b.air_left > 0:
+                header = self._header(t, tried, frames)
+                if header is not None:
+                    kind, body = header
+                    if kind == "LOST":
+                        return ActionResult("LOST", frames, detail=f"{body.name} afasta de cabeça", lost_to=body.id)
+                    if kind == "CONTROLLED":
+                        return ActionResult("CONTROLLED", frames, receiver=body.id, completed_pass=True, detail=f"{body.name} ajeita de cabeça")
+                    # A header at goal: a new live shot from the header's point.
+                    shot = was_shot = self.shot_live = True
+                    shooter, self.shot_t0, self.keeper_done = body, t, False
+                    xg = round(self.xg(body.x, body.y) * 0.7, 3)
+                    keeper_reacts = KEEPER_REACTION[0] - (self.keeper.keeping / 100 * KEEPER_REACTION[1] if self.keeper else 0)
+                    intended = None
+                    continue
+                if b.z > 1.9:
+                    continue  # in the air: nobody can play it
             speed = math.hypot(b.vx, b.vy)
             # Who reaches the ball first this step.
             contenders = sorted(self.bodies, key=lambda body: _dist(body.x, body.y, b.x, b.y))
             for body in contenders:
                 d = _dist(body.x, body.y, b.x, b.y)
+                if body is shooter and t - self.shot_t0 < 0.5:
+                    continue
                 if body is carrier and t < 0.5:
                     continue
                 if body.team == "D":
@@ -487,29 +697,35 @@ class Pitch:
                         continue
                     tried.add(body.id)
                     if body.role == "GK" and not shot:
-                        in_box = b.x > L - 16.5 * (L / 105) and abs(b.y - W / 2) < 20 * (W / 68)
+                        in_box = b.x > L - 16.5 * s and abs(b.y - W / 2) < 20 * (W / 68)
                         if in_box and rng.random() < 0.55 + body.keeping / 100 * 0.4:
+                            self.cue(t, "CLAIM", body)
                             return ActionResult("LOST", frames, detail="O goleiro sai e fica com a bola", lost_to=body.id)
                         continue
-                    chance = _clamp(0.16 + body.defending / 100 * 0.42 - speed * 0.015 + self.boost, 0.06, 0.8)
+                    if body.role == "GK":
+                        continue  # a live shot is the keeper's save routine
+                    chance = _clamp(INTERCEPT[0] + body.defending / 100 * INTERCEPT[1] - speed * INTERCEPT[2] + self.boost, 0.06, 0.8)
                     if shot:
                         chance *= 0.55  # a shot blocked, not intercepted cleanly
                     if rng.random() < chance:
                         if shot:
-                            # Block: deflected away; may still be live.
                             ang = math.atan2(b.vy, b.vx) + math.pi + rng.uniform(-1.0, 1.0)
                             sp = speed * rng.uniform(0.25, 0.45)
                             b.vx, b.vy = math.cos(ang) * sp, math.sin(ang) * sp
                             shot = self.shot_live = False
                             last_touch = "D"
+                            self.cue(t, "BLOCK", body)
                             frames[-1] = self.frame(t)
+                            intended = min((a for a in self.attackers if a.role != "GK"), key=lambda a: _dist(a.x, a.y, b.x, b.y))
                             continue
-                        return ActionResult("LOST", frames, detail=f"Interceptação de {body.name}", lost_to=body.id, shot=was_shot, xg=xg)
+                        self.cue(t, "INTERCEPT", body)
+                        return ActionResult("LOST", frames, detail=f"Interceptação de {body.name}", lost_to=body.id, shot=was_shot, xg=xg, shooter=shooter.id)
                     # Deflection: the ball carries on, slower and off line.
                     ang = math.atan2(b.vy, b.vx) + rng.uniform(-0.5, 0.5)
                     sp = speed * 0.7
                     b.vx, b.vy = math.cos(ang) * sp, math.sin(ang) * sp
                     last_touch = "D"
+                    self.cue(t, "DEFLECT", body)
                     break
                 if body.role == "GK" or d > CONTROL_RADIUS:
                     continue
@@ -518,24 +734,74 @@ class Pitch:
                     b.vx = b.vy = 0.0
                     b.air_left = 0.0
                     b.z = 0.0
-                    b.x, b.y = body.x + 0.4, body.y
+                    heading = math.atan2(body.vy, body.vx) if math.hypot(body.vx, body.vy) > 0.5 else 0.0
+                    b.x, b.y = body.x + math.cos(heading) * 0.4, body.y + math.sin(heading) * 0.4
                     frames[-1] = self.frame(t)
+                    self.cue(t, "CONTROL", body)
                     return ActionResult("CONTROLLED", frames, receiver=body.id, completed_pass=not was_shot and body is not carrier,
-                                        detail=f"{body.name} domina", shot=was_shot, xg=xg)
+                                        detail=f"{body.name} domina", shot=was_shot, xg=xg, shooter=shooter.id if was_shot else None, post=post)
                 # Heavy touch: it bounces off, still live.
                 ang = rng.uniform(-math.pi, math.pi)
                 b.vx, b.vy = math.cos(ang) * speed * 0.35, math.sin(ang) * speed * 0.35
+                self.cue(t, "TOUCH", body)
                 break
             if speed < 0.25 and b.air_left <= 0:
-                # Dead ball nobody controls yet: players race for it (handled by chasers next steps).
+                # Dead ball nobody controls yet: players race for it.
                 intended = min((a for a in self.attackers if a.role != "GK"), key=lambda a: _dist(a.x, a.y, b.x, b.y))
                 chasers = {min((d for d in self.defenders if d.role != "GK"), key=lambda d: _dist(d.x, d.y, b.x, b.y)).id}
         # Settled by proximity (the guard is deterministic and never fires mid-flight).
         nearest = min((body for body in self.bodies if body.role != "GK"), key=lambda body: _dist(body.x, body.y, b.x, b.y))
         if nearest.team == "A":
             b.vx = b.vy = 0.0
-            return ActionResult("CONTROLLED", frames, receiver=nearest.id, detail=f"{nearest.name} fica com a sobra", shot=was_shot, xg=xg)
-        return ActionResult("LOST", frames, detail="A defesa recupera", lost_to=nearest.id, shot=was_shot, xg=xg)
+            return ActionResult("CONTROLLED", frames, receiver=nearest.id, detail=f"{nearest.name} fica com a sobra", shot=was_shot, xg=xg,
+                                shooter=shooter.id if was_shot else None, post=post)
+        return ActionResult("LOST", frames, detail="A defesa recupera", lost_to=nearest.id, shot=was_shot, xg=xg, shooter=shooter.id if was_shot else None, post=post)
+
+    def _header(self, t: float, tried: set[str], frames: list[list[float]]) -> tuple[str, Body] | None:
+        """A dropping lofted ball at head height: an aerial duel (physical, a little pace).
+        In the box the winning attacker heads at goal; elsewhere he cushions it down."""
+        b, s, L, W = self.ball, self.s, self.L, self.W
+        if not (HEADER_Z[0] <= b.z <= HEADER_Z[1]) or b.air_left > b.air_total * 0.5:
+            return None
+        att = min((a for a in self.attackers if a.role != "GK" and a.id not in tried), key=lambda a: _dist(a.x, a.y, b.x, b.y), default=None)
+        dfn = min((d for d in self.defenders if d.role != "GK" and d.id not in tried), key=lambda d: _dist(d.x, d.y, b.x, b.y), default=None)
+        att_in = att is not None and _dist(att.x, att.y, b.x, b.y) <= 1.1
+        dfn_in = dfn is not None and _dist(dfn.x, dfn.y, b.x, b.y) <= 1.1
+        if not att_in and not dfn_in:
+            return None
+        if att_in and dfn_in:
+            tried.update((att.id, dfn.id))
+            p_att = _clamp(0.5 + (att.physical - dfn.physical) / 120 + (att.pace - dfn.pace) / 400, 0.2, 0.8)
+            winner = att if self.rng.random() < p_att else dfn
+        else:
+            winner = att if att_in else dfn
+            tried.add(winner.id)
+            if winner.team == "A" and self.rng.random() > 0.85:
+                return None  # misjudged the flight
+        self.cue(t, "HEADER", winner)
+        b.air_left, b.z = 0.0, 0.0
+        if winner.team == "D":
+            ang = math.pi + self.rng.uniform(-0.9, 0.9)
+            sp = 8 + winner.physical / 100 * 6
+            b.vx, b.vy = math.cos(ang) * sp, math.sin(ang) * sp
+            frames[-1] = self.frame(t)
+            return "LOST", winner
+        in_zone = b.x > L - 20 * s and abs(b.y - W / 2) < 13 * s
+        if not in_zone:
+            b.vx = b.vy = 0.0
+            b.x, b.y = winner.x + 0.4, winner.y
+            frames[-1] = self.frame(t)
+            return "CONTROLLED", winner
+        keeper_y = self.keeper.y if self.keeper else W / 2
+        side = -1 if keeper_y > W / 2 else 1
+        ty = W / 2 + side * (self.goal / 2 - 0.6) * self.rng.uniform(0.3, 1.0)
+        aim = math.atan2(ty - b.y, L - b.x)
+        skill = (winner.shooting * 0.5 + winner.physical * 0.5) / 100
+        angle = aim + self.rng.gauss(0, 0.09 * (1.4 - skill))
+        sp = HEADER_SPEED[0] + HEADER_SPEED[1] * winner.physical / 100
+        b.vx, b.vy = math.cos(angle) * sp, math.sin(angle) * sp
+        frames[-1] = self.frame(t)
+        return "SHOT", winner
 
     def _project(self, carrier: Body, angle: float, d: float) -> tuple[float, float]:
         return carrier.x + math.cos(angle) * d, carrier.y + math.sin(angle) * d
@@ -570,54 +836,65 @@ class Pitch:
         b.x += b.vx * DT
         b.y += b.vy * DT
 
-    def _keeper_vs_shot(self, t: float, reaction: float, frames: list[list[float]]) -> str | None:
+    def _keeper_vs_shot(self, ts: float, reaction: float, frames: list[list[float]], t: float, px: float, py: float) -> str | None:
         """Physical keeper: reacts after `reaction` s to the real trajectory, moves with
-        limited speed, dives with limited reach. No knowledge of anything not yet executed."""
+        limited speed, dives with limited reach, and gets ONE chance when the ball crosses
+        his plane. No knowledge of anything not yet executed."""
         gk, b = self.keeper, self.ball
         gy = self.W / 2
-        if b.vx <= 0:
+        if b.vx <= 0 or self.keeper_done:
             return None
-        if t >= reaction:
-            # Where the ball will cross the keeper's plane (from its current real velocity).
+        if ts >= reaction:
             time_to = max(0.0, (gk.x - b.x) / b.vx)
             cross_y = b.y + b.vy * time_to
             target = _clamp(cross_y, gy - self.goal / 2 - 1.2, gy + self.goal / 2 + 1.2)
-            lateral = 1.7 + gk.keeping / 100 * 1.8
-            step = _clamp(target - gk.y, -lateral * DT, lateral * DT)
-            gk.y += step
+            lateral = KEEPER_LATERAL[0] + gk.keeping / 100 * KEEPER_LATERAL[1]
+            gk.y += _clamp(target - gk.y, -lateral * DT, lateral * DT)
             gk.x = min(self.L - 0.4, gk.x + 0.05)
-        if b.x >= gk.x - 0.3:
-            reach = (0.7 + (0.95 * gk.keeping / 100 if t >= reaction + 0.2 else 0.2)) * (self.L / 105) ** 0.3
-            miss = abs(b.y - gk.y)
-            on_target = abs(b.y - gy) <= self.goal / 2
-            if miss <= reach:
-                speed = math.hypot(b.vx, b.vy)
-                clean = miss < reach * 0.45
-                if clean or self.rng.random() < 0.15 + gk.keeping / 100 * 0.4:
-                    hold = speed < 23 and self.rng.random() < 0.25 + gk.keeping / 100 * 0.55
-                    if hold:
-                        b.vx = b.vy = 0.0
-                        b.x, b.y = gk.x - 0.3, gk.y
-                        frames.append(self.frame(t))
-                        return "SAVED_HELD"
-                    # Parry: rebound back into play (or behind for a corner).
-                    ang = math.pi + self.rng.uniform(-1.1, 1.1)
-                    if self.rng.random() < 0.3:
-                        ang = self.rng.choice((-1, 1)) * self.rng.uniform(0.2, 0.9)  # pushed round the post
-                    sp = speed * self.rng.uniform(0.25, 0.45)
-                    b.vx, b.vy = math.cos(ang) * sp, math.sin(ang) * sp
-                    b.x = gk.x - 0.4
-                    frames.append(self.frame(t))
-                    return "PARRIED" if on_target else "PARRIED_WIDE"
-        return None
+        plane = gk.x - 0.3
+        if b.x < plane:
+            return None
+        self.keeper_done = True
+        k = (plane - px) / (b.x - px) if b.x != px else 1.0
+        at_y = py + (b.y - py) * _clamp(k, 0.0, 1.0)
+        dived = ts >= reaction + 0.2
+        reach = (KEEPER_REACH[0] + (KEEPER_REACH[1] * gk.keeping / 100 if dived else 0.2)) * self.s ** 0.3
+        miss = abs(at_y - gk.y)
+        on_target = abs(at_y - gy) <= self.goal / 2
+        if miss > reach:
+            if dived and miss < reach + 1.2:
+                self.cue(t, "DIVE", gk, dy=round((at_y - gk.y) / self.W, 3))
+            return None
+        speed = math.hypot(b.vx, b.vy)
+        clean = miss < reach * 0.45
+        if not (clean or self.rng.random() < 0.15 + gk.keeping / 100 * 0.4):
+            self.cue(t, "DIVE", gk, dy=round((at_y - gk.y) / self.W, 3))
+            return None
+        hold = speed < 23 and self.rng.random() < 0.25 + gk.keeping / 100 * 0.55
+        self.cue(t, "SAVE", gk, hold=hold, dy=round((at_y - gk.y) / self.W, 3))
+        if hold:
+            b.vx = b.vy = 0.0
+            b.x, b.y = gk.x - 0.3, at_y
+            frames.append(self.frame(t))
+            return "SAVED_HELD"
+        # Parry: rebound back into play (or behind for a corner).
+        ang = math.pi + self.rng.uniform(-1.1, 1.1)
+        if self.rng.random() < 0.3:
+            ang = self.rng.choice((-1, 1)) * self.rng.uniform(0.2, 0.9)  # pushed round the post
+        sp = speed * self.rng.uniform(0.25, 0.45)
+        b.vx, b.vy = math.cos(ang) * sp, math.sin(ang) * sp
+        b.x, b.y = gk.x - 0.4, at_y
+        frames.append(self.frame(t))
+        return "PARRIED" if on_target else "PARRIED_WIDE"
 
-    def _shot_result(self, outcome: str, frames: list[list[float]], t: float, xg: float) -> ActionResult:
+    def _shot_result(self, outcome: str, frames: list[list[float]], t: float, xg: float, shooter: Body, post: bool) -> ActionResult:
         gk = self.keeper.id if self.keeper else None
         if outcome == "SAVED_HELD":
-            return ActionResult("SAVED_HELD", frames, detail="Defesa do goleiro", shot=True, on_target=True, xg=xg, keeper=gk)
+            return ActionResult("SAVED_HELD", frames, detail="Defesa do goleiro", shot=True, on_target=True, xg=xg, keeper=gk, shooter=shooter.id, post=post)
         # A parry: keep the ball live a few more seconds - a rebound may stay with the attack.
         rebound = self._loose_ball(t, frames)
         rebound.shot, rebound.on_target, rebound.xg, rebound.keeper = True, outcome == "PARRIED", xg, gk
+        rebound.shooter, rebound.post = shooter.id, post
         rebound.detail = "Defesa! " + rebound.detail
         if rebound.outcome == "OUT" and self.ball.x >= self.L:
             rebound.outcome, rebound.detail = "CORNER", "Defesa! Escanteio"
@@ -637,10 +914,12 @@ class Pitch:
                 return ActionResult("OUT", frames, detail="bola para fora")
             for body in sorted(self.bodies, key=lambda body: _dist(body.x, body.y, b.x, b.y)):
                 if body.role == "GK" and body.team == "D" and _dist(body.x, body.y, b.x, b.y) < 1.0 and t > t0 + 0.6:
+                    self.cue(t, "CLAIM", body)
                     return ActionResult("LOST", frames, detail="o goleiro fica com a sobra", lost_to=body.id)
                 if body.role == "GK":
                     continue
                 if _dist(body.x, body.y, b.x, b.y) < CONTROL_RADIUS:
+                    self.cue(t, "CONTROL", body)
                     if body.team == "A":
                         b.vx = b.vy = 0.0
                         return ActionResult("CONTROLLED", frames, receiver=body.id, detail=f"rebote com {body.name}!")
@@ -652,34 +931,55 @@ class Pitch:
         return ActionResult("LOST", frames, detail="a defesa afasta", lost_to=nearest.id)
 
     def _carry(self, carrier: Body, angle: float, distance: float, frames: list[list[float]]) -> ActionResult:
-        """Conduction: the carrier runs with the ball; defenders close in and may tackle (once each)."""
+        """Conduction: the carrier runs with the ball at the foot (a touch ahead every few
+        strides, further for poor dribblers); defenders close in and may tackle on contact
+        with the ball or the carrier (once each). No loss without contact."""
         rng, b = self.rng, self.ball
         tx, ty = carrier.x + math.cos(angle) * distance, carrier.y + math.sin(angle) * distance
         marks = self.assignments()
         chasers = {d.id for d in sorted((d for d in self.defenders if d.role != "GK"), key=lambda d: _dist(d.x, d.y, carrier.x, carrier.y))[:2]}
         tried: set[str] = set()
+        intensity = min(1.0, CARRY_SPEED[0] + CARRY_SPEED[1] * carrier.dribbling / 100)
+        touch = CARRY_TOUCH[0] - CARRY_TOUCH[1] * carrier.dribbling / 100
+        heading = angle
+        self.cue(0.0, "CARRY", carrier)
         t = 0.0
         while t < MAX_ACTION_SECONDS:
             t += DT
-            self._steer(carrier, tx, ty, 0.86 - (1 - carrier.dribbling / 100) * 0.1)
-            b.x, b.y = carrier.x + math.cos(angle) * 0.5, carrier.y + math.sin(angle) * 0.5
+            self._steer(carrier, tx, ty, intensity, CARRY_ACCEL)
+            if math.hypot(carrier.vx, carrier.vy) > 0.6:
+                heading = math.atan2(carrier.vy, carrier.vx)
+            stride = (t % 0.5) / 0.5            # the ball is pushed ahead, then caught up with
+            ahead = 0.35 + touch * (1 - stride)
+            b.x, b.y = carrier.x + math.cos(heading) * ahead, carrier.y + math.sin(heading) * ahead
             self.move_players(t, carrier, None, chasers, marks)
             frames.append(self.frame(t))
             if b.x >= self.L or b.y <= 0 or b.y >= self.W:
+                self.cue(t, "OUT", None)
                 return ActionResult("OUT", frames, detail="Conduziu para fora")
             for defender in self.defenders:
-                if defender.id in tried or _dist(defender.x, defender.y, carrier.x, carrier.y) > TACKLE_RADIUS + 0.2:
+                if defender.id in tried:
+                    continue
+                near_ball = _dist(defender.x, defender.y, b.x, b.y) <= TACKLE_RADIUS
+                near_body = _dist(defender.x, defender.y, carrier.x, carrier.y) <= TACKLE_RADIUS + 0.15
+                if not (near_ball or near_body):
                     continue
                 tried.add(defender.id)
                 if defender.role == "GK" and rng.random() > 0.35 + defender.keeping / 100 * 0.4:
                     continue
-                chance = _clamp(0.32 + (defender.defending - carrier.dribbling) / 160 + (defender.physical - carrier.physical) / 400 + self.boost, 0.1, 0.8)
+                exposed = 0.06 if near_ball and not near_body else 0.0   # the ball pushed too far is easier to nick
+                chance = _clamp(TACKLE[0] + (defender.defending - carrier.dribbling) / TACKLE[1]
+                                + (defender.physical - carrier.physical) / TACKLE[2] + self.boost + exposed, 0.1, 0.8)
                 if rng.random() < chance:
+                    self.cue(t, "TACKLE", defender)
                     return ActionResult("LOST", frames, detail=f"Desarme de {defender.name}", lost_to=defender.id)
+                self.cue(t, "DRIBBLE", carrier, past=defender.id)
             if _dist(carrier.x, carrier.y, tx, ty) < 0.6:
                 break
-        carrier.vx *= 0.3
-        carrier.vy *= 0.3
+        carrier.vx *= 0.4
+        carrier.vy *= 0.4
+        b.x, b.y = carrier.x + math.cos(heading) * 0.4, carrier.y + math.sin(heading) * 0.4
+        frames[-1] = self.frame(t)
         return ActionResult("CONTROLLED", frames, receiver=carrier.id, detail=f"{carrier.name} avança")
 
 
@@ -688,7 +988,7 @@ def ai_action(bodies: list[Body], ball: Ball, carrier_id: str, mode: str, action
     """A sensible contextual action for the carrier: shoot when it is a chance, otherwise the
     most progressive safe pass (or a cross / carry). Same physics as a human gesture."""
     cfg = PITCH[mode]
-    L, W, goal = cfg["length"], cfg["width"], cfg["goal"]
+    L, W, goal = cfg["length"], cfg["width"], cfg["goal"] * GOAL_WIDTH_SCALE
     s = L / 105
     carrier = next(b for b in bodies if b.id == carrier_id)
     defenders = [b for b in bodies if b.team == "D"]
@@ -700,7 +1000,7 @@ def ai_action(bodies: list[Body], ball: Ball, carrier_id: str, mode: str, action
         side = 1 if (keeper is None or keeper.y <= W / 2) else -1
         if rng.random() < 0.3:
             side = -side
-        ty = W / 2 + side * (goal / 2 - 0.8 * s ** 0.5)
+        ty = W / 2 + side * (goal / 2) * rng.uniform(0.35, 0.85)
         return {"type": "SHOT", "x": L, "y": ty, "power": round(_clamp(0.62 + rng.uniform(0, 0.25), 0, 1), 3)}
 
     def lane_risk(a: Body) -> float:
@@ -814,6 +1114,30 @@ class HighlightMatch:
 
     def side_of(self, club: str) -> int:
         return self.clubs.index(club)
+
+    def attacks_right(self, side: int, second_half: bool | None = None) -> bool:
+        """Real direction of play: home attacks to the right (x = 1) in the first half and to
+        the left after half-time; the away side the opposite. Each keeper stays in its own goal."""
+        second = self.half_time_done if second_half is None else second_half
+        return (side == 0) != second
+
+    @staticmethod
+    def to_world(x: float, y: float, right: bool) -> tuple[float, float]:
+        """Engine-local (the attack always goes to x = 1) -> real pitch, normalised. A point
+        reflection (x, y) -> (1 - x, 1 - y), so a team's left wing stays its left wing. Its own
+        inverse: the same call converts a gesture from the pitch back to the local frame."""
+        return (x, y) if right else (1 - x, 1 - y)
+
+    def _world_frames(self, frames: list[list[float]], right: bool) -> list[list[float]]:
+        if right:
+            return frames
+        out = []
+        for row in frames:
+            new = [row[0], round(1 - row[1], 4), round(1 - row[2], 4), row[3]]
+            for i in range(4, len(row), 2):
+                new += [round(1 - row[i], 4), round(1 - row[i + 1], 4)]
+            out.append(new)
+        return out
 
     def _human_controls(self, club: str) -> bool:
         return club in self.humans and club not in self.ai_control
@@ -977,6 +1301,7 @@ class HighlightMatch:
         self.stats[club]["chances"] += 1
         self.opportunity = {"id": f"{self.match_id}:O{int(row['index']) + 1:02d}", "index": int(row["index"]), "kind": kind,
                             "attacking": club, "defending": self.clubs[1 - side], "minute": self.minute, "status": "LIVE",
+                            "right": self.attacks_right(side),
                             "bodies": [asdict(b) for b in bodies], "ball": asdict(ball), "carrier": carrier,
                             "actions": 0, "last": None, "opened_at": at, "assist_candidate": None, "result": None}
         self._event("CHANCE", club, self.minute, outcome=kind, reveal=at, extra={"label": KIND_LABEL.get(kind, kind)})
@@ -1063,6 +1388,7 @@ class HighlightMatch:
         cfg = PITCH[self.mode]
         bodies, _ = self._restore_bodies(opp)
         carrier = next(b for b in bodies if b.id == opp["carrier"])
+        x, y = self.to_world(x, y, bool(opp.get("right", True)))   # the gesture is on the real pitch
         tx, ty = x * cfg["length"], y * cfg["width"]
         if math.hypot(tx - carrier.x, ty - carrier.y) < 0.8:
             raise ValueError("Arraste mais longe para indicar a direção.")
@@ -1073,7 +1399,7 @@ class HighlightMatch:
     def _execute(self, choice: dict[str, object], by: str, at: float) -> None:
         step = self._resolve(choice, by, at)
         self.opportunity["last"] = step
-        self.state, self.state_until = "EXECUTING", at + float(step["duration"]) + 0.35
+        self.state, self.state_until = "EXECUTING", at + float(step["duration"]) + EXECUTE_TAIL_SECONDS
         self.revision += 1
 
     def _restore_bodies(self, opp: dict[str, object]) -> tuple[list[Body], Ball]:
@@ -1106,24 +1432,28 @@ class HighlightMatch:
         elif kind == "CARRY" and result.outcome == "CONTROLLED":
             self.players[carrier.id]["dribbles"] += 1
         if result.shot:
+            shooter = by_id.get(str(result.shooter)) or carrier
+            header = shooter is not carrier
             stats["shots"] += 1
             stats["xg"] = round(stats["xg"] + result.xg, 3)
-            self.players[carrier.id]["shots"] += 1
+            self.players[shooter.id]["shots"] += 1
             if result.on_target:
                 stats["shots_on_target"] += 1
-                self.players[carrier.id]["shots_on_target"] += 1
-            assister = by_id.get(str(opp.get("assist_candidate"))) if opp.get("assist_candidate") else None
-            if assister and result.outcome != "GOAL":
+                self.players[shooter.id]["shots_on_target"] += 1
+            # A header's assist is the cross itself; otherwise the last completed pass.
+            assister = carrier if header else (by_id.get(str(opp.get("assist_candidate"))) if opp.get("assist_candidate") else None)
+            if assister and result.outcome != "GOAL" and assister.id != shooter.id:
                 self.players[assister.id]["key_passes"] += 1
             if result.outcome == "GOAL":
                 self.score[self.side_of(club)] += 1
-                self.players[carrier.id]["goals"] += 1
-                if assister and assister.id != carrier.id:
+                self.players[shooter.id]["goals"] += 1
+                if assister and assister.id != shooter.id:
                     self.players[assister.id]["assists"] += 1
             outcome = "GOAL" if result.outcome == "GOAL" else "ON_TARGET" if result.on_target else "OFF_TARGET"
-            self._event("SHOT", club, minute, carrier, outcome, xg=result.xg, x=cx, y=cy, reveal=reveal)
+            sx, sy = (shooter.x / pitch.L, shooter.y / pitch.W)
+            self._event("SHOT", club, minute, shooter, outcome, xg=result.xg, x=sx, y=sy, reveal=reveal, extra={"header": header} if header else None)
             if result.outcome == "GOAL":
-                self._event("GOAL", club, minute, carrier, "GOAL", other=assister if assister and assister.id != carrier.id else None,
+                self._event("GOAL", club, minute, shooter, "GOAL", other=assister if assister and assister.id != shooter.id else None,
                             xg=result.xg, x=1.0, y=0.5, reveal=reveal)
             elif result.on_target and result.keeper:
                 self.stats[rival]["saves"] += 1
@@ -1141,9 +1471,13 @@ class HighlightMatch:
         if result.outcome == "CORNER":
             stats["corners"] += 1
             self._event("CORNER", club, minute, None, "", x=1.0, y=0.0, reveal=reveal)
-        step = {"by": by, "type": kind, "aim": {"x": round(float(choice["x"]) / pitch.L, 4), "y": round(float(choice["y"]) / pitch.W, 4)},
+        # Everything a client receives is on the real pitch (the conversion happens here, once).
+        right = bool(opp.get("right", True))
+        ax, ay = self.to_world(float(choice["x"]) / pitch.L, float(choice["y"]) / pitch.W, right)
+        step = {"by": by, "type": kind, "aim": {"x": round(ax, 4), "y": round(ay, 4)},
                 "power": round(float(choice["power"]), 3), "carrier": carrier.id, "outcome": result.outcome, "detail": result.detail,
-                "frames": result.frames, "duration": round(len(result.frames) * DT, 2), "starts_at": at, "receiver": result.receiver}
+                "frames": self._world_frames(result.frames, right), "duration": round(len(result.frames) * DT, 2), "starts_at": at,
+                "receiver": result.receiver, "shooter": result.shooter, "post": result.post, "cues": result.cues}
         self.action_log.append({"opportunity": opp["id"], "action": int(opp["actions"]), "by": by, "type": kind,
                                 "x": round(float(choice["x"]), 3), "y": round(float(choice["y"]), 3), "power": step["power"], "at": round(at, 3),
                                 "outcome": result.outcome})
@@ -1180,15 +1514,18 @@ class HighlightMatch:
         score = [sum(1 for e in shown if e["kind"] == "GOAL" and e["team"] == c) for c in self.clubs]
         opp = self.opportunity
         opp_view = None
+        L, W = PITCH[self.mode]["length"], PITCH[self.mode]["width"]
         if opp is not None:
+            right = bool(opp.get("right", True))
             last = opp.get("last")
             opp_view = {"id": opp["id"], "kind": opp["kind"], "label": KIND_LABEL.get(str(opp["kind"]), opp["kind"]),
                         "attacking": opp["attacking"], "defending": opp["defending"], "minute": opp["minute"],
                         "status": opp["status"], "result": opp.get("result"), "actions": opp["actions"], "max_actions": MAX_ACTIONS,
                         "carrier": opp["carrier"],
                         "roster": [{"id": b["id"], "name": b["name"], "number": b["number"], "team": b["team"], "role": b["role"]} for b in opp["bodies"]],
-                        "positions": [[round(b["x"] / PITCH[self.mode]["length"], 4), round(b["y"] / PITCH[self.mode]["width"], 4)] for b in opp["bodies"]],
-                        "ball": [round(opp["ball"]["x"] / PITCH[self.mode]["length"], 4), round(opp["ball"]["y"] / PITCH[self.mode]["width"], 4)],
+                        "right": right,
+                        "positions": [[round(v, 4) for v in self.to_world(b["x"] / L, b["y"] / W, right)] for b in opp["bodies"]],
+                        "ball": [round(v, 4) for v in self.to_world(opp["ball"]["x"] / L, opp["ball"]["y"] / W, right)],
                         "last": last if self.state == "EXECUTING" or (self.state in ("DECISION", "OUTCOME") and last) else None,
                         "replay": opp.get("replay") if self.state in ("REPLAY", "OUTCOME") else None,
                         "opened_at": opp.get("opened_at")}
@@ -1205,8 +1542,12 @@ class HighlightMatch:
                 "controller": controller, "ai_control": list(self.ai_control), "humans": self.humans,
                 "connected": {c: self.connected(c, now) for c in self.humans},
                 "opportunity": opp_view, "ruleset": self.ruleset,
-                "pitch": {"length": cfg["length"], "width": cfg["width"], "goal": cfg["goal"], "box": cfg["box"]},
-                "physics": {"pass": PASS_SPEED, "loft": LOFT_SPEED, "loft_range": LOFT_RANGE, "shot": SHOT_SPEED, "carry": CARRY_RANGE, "decel": GROUND_DECEL},
+                "pitch": {"length": cfg["length"], "width": cfg["width"], "goal": round(cfg["goal"] * GOAL_WIDTH_SCALE, 3), "box": cfg["box"],
+                          "post": POST_RADIUS},
+                "half": 2 if self.half_time_done else 1,
+                "attacks_right": {self.clubs[0]: self.attacks_right(0), self.clubs[1]: self.attacks_right(1)},
+                "physics": {"pass": PASS_SPEED, "loft": LOFT_SPEED, "loft_range": LOFT_RANGE, "shot": SHOT_SPEED, "carry": CARRY_RANGE, "decel": GROUND_DECEL,
+                            "assist_angle": PASS_ASSIST_ANGLE},
                 "events": [{k: v for k, v in e.items() if k != "revealed_at"} for e in shown[-30:]],
                 "stats": self.stats}
 

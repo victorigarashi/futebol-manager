@@ -15,19 +15,26 @@ export type DecisionSeconds = 5 | 10 | 15 | 20;
 export type InteractiveActionType = "PASS" | "LOFT" | "CARRY" | "SHOT";
 /** One physics frame: [t, ballX, ballY, ballZ, x0, y0, x1, y1, ...] in normalised pitch units (roster order). */
 export type InteractiveFrame = number[];
-export type InteractiveStep = { by: "HUMAN" | "AI" | "TIMEOUT" | "AI_TAKEOVER" | "AI_CONTROL"; type: InteractiveActionType; aim: { x: number; y: number }; power: number; carrier: string; outcome: string; detail: string; frames: InteractiveFrame[]; duration: number; starts_at: number; receiver: string | null };
+export type InteractiveStep = { by: "HUMAN" | "AI" | "TIMEOUT" | "AI_TAKEOVER" | "AI_CONTROL"; type: InteractiveActionType; aim: { x: number; y: number }; power: number; carrier: string; outcome: string; detail: string; frames: InteractiveFrame[]; duration: number; starts_at: number; receiver: string | null;
+  shooter?: string | null; post?: boolean;
+  /** Timed moments of the action (seconds from its start) for animation and sound: KICK, CONTROL, SAVE, POST, GOAL, TACKLE, HEADER, DIVE… */
+  cues?: InteractiveCue[] };
+export type InteractiveCue = { t: number; kind: string; id: string | null; action?: InteractiveActionType; power?: number; hold?: boolean; dy?: number; past?: string };
 export type InteractiveOpportunity = {
   id: string; kind: string; label: string; attacking: string; defending: string; minute: number; status: string; result: string | null;
   actions: number; max_actions: number; carrier: string; roster: { id: string; name: string; number: number; team: "A" | "D"; role: string }[];
   positions: [number, number][]; ball: [number, number]; last: InteractiveStep | null; replay: InteractiveStep[] | null; opened_at: number;
+  /** Real direction of the attacking club in this half (true = towards x = 1). Every coordinate is already on the real pitch. */
+  right?: boolean;
 };
 export type InteractiveView = {
   match_id: string | null; unchanged?: boolean; home: string; away: string; state: "NONE" | "CLOCK" | "DECISION" | "EXECUTING" | "REPLAY" | "OUTCOME" | "HALF_TIME" | "FINISHED";
   revision: number; minute: number; clock_rate: number; score: { home: number; away: number }; server_now: number; deadline: number | null;
   decision_seconds: number; state_until: number | null; grace_until: number | null; you: string | null; your_turn: boolean; controller: "HUMAN" | "AI" | null;
   ai_control: string[]; humans: string[]; connected: Record<string, boolean>; opportunity: InteractiveOpportunity | null; ruleset: Ruleset;
-  pitch: { length: number; width: number; goal: number; box: number };
-  physics: { pass: [number, number]; loft: [number, number]; loft_range: [number, number]; shot: [number, number]; carry: [number, number]; decel: number };
+  pitch: { length: number; width: number; goal: number; box: number; post?: number };
+  half?: 1 | 2; attacks_right?: Record<string, boolean>;
+  physics: { pass: [number, number]; loft: [number, number]; loft_range: [number, number]; shot: [number, number]; carry: [number, number]; decel: number; assist_angle?: number };
   events: MatchEvent[]; stats: Record<string, Record<string, number>>;
 };
 export type InteractiveActionPayload = { action_id: string; opportunity_id: string; revision: number; type: InteractiveActionType; x: number; y: number; power: number };
@@ -289,6 +296,9 @@ export const api = {
   season: (roomId: string) => request<Envelope<SeasonView>>(`/rooms/${roomId}/season`),
   live: (roomId: string) => request<Envelope<LiveView>>(`/rooms/${roomId}/season/live`),
   interactive: (roomId: string, revision?: number) => request<Envelope<InteractiveView>>(`/rooms/${roomId}/season/interactive${revision !== undefined ? `?revision=${revision}` : ""}`),
+  labCreate: (body: { kind: string; mode: "ELEVEN_A_SIDE" | "FIVE_A_SIDE"; home?: string; away?: string; seed?: number }) => request<Envelope<{ id: string; match: InteractiveView }>>("/lab/sessions", { method: "POST", body: JSON.stringify(body) }),
+  labState: (id: string, revision?: number) => request<Envelope<InteractiveView>>(`/lab/sessions/${id}${revision !== undefined ? `?revision=${revision}` : ""}`),
+  labAction: (id: string, payload: InteractiveActionPayload) => request<Envelope<{ status: string; revision: number; match: InteractiveView }>>(`/lab/sessions/${id}/actions`, { method: "POST", body: JSON.stringify(payload) }),
   interactiveAction: (roomId: string, payload: InteractiveActionPayload) => request<Envelope<{ status: string; revision: number; match: InteractiveView }>>(`/rooms/${roomId}/season/interactive/actions`, { method: "POST", body: JSON.stringify(payload) }),
   addBot: (roomId: string, clubCode?: string) => request<Envelope<RoomState>>(`/rooms/${roomId}/bots`, { method: "POST", body: JSON.stringify(clubCode ? { club_code: clubCode } : {}) }),
   removeBot: (roomId: string, clubCode: string) => request<Envelope<RoomState>>(`/rooms/${roomId}/bots/${clubCode}`, { method: "DELETE" }),

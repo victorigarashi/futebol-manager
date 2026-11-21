@@ -206,3 +206,124 @@ Teste de fumaça: o motor e o serviço jogam a competição inteira com `executi
 - capturas.
 
 O "multiplayer" da tabela significa que o servidor suporta os dois humanos na mesma partida. Isso não foi verificado com dois navegadores reais.
+
+## 9. Atualização de 20/11/2026 — polimento e dois renderizadores
+
+### 9.1 Bug corrigido: os dois times atacavam o mesmo gol
+
+**Causa.** O motor resolve cada lance num referencial local, em que o atacante sempre vai para x = L. Esse referencial era enviado direto ao cliente. Por isso, os dois clubes apareciam atacando o mesmo gol, nos dois tempos.
+
+**Correção (no motor, não na tela):**
+
+- `HighlightMatch.attacks_right(side)` define a direção oficial:
+  - no 1º tempo, o mandante ataca para a direita (x = 1) e o visitante para a esquerda;
+  - no 2º tempo, os lados se invertem.
+- A oportunidade grava `right`.
+- Toda saída do servidor está no campo real: quadros, posições, bola, mira e eventos. A conversão `to_world` é uma reflexão por ponto, (x, y) → (1 − x, 1 − y). Ela é aplicada uma única vez, no servidor.
+- O gesto do técnico chega em coordenadas do campo real e é convertido de volta pela mesma função, que é a sua própria inversa.
+- Os goleiros ficam no gol do próprio clube.
+- O 2D e o 3D não espelham nada.
+
+**Testes** (`app/tests/test_highlights.py`):
+
+- os dois clubes nos dois tempos;
+- goleiros no gol certo;
+- gol marcado na rede adversária;
+- chute contra o próprio gol nunca marca para o atacante;
+- gesto humano lido no campo real, para o mandante e para o visitante.
+
+### 9.2 Física recalibrada
+
+Todos os parâmetros ficam no topo de `highlights.py`.
+
+| Parâmetro | Antes | Agora | Motivo |
+|---|---|---|---|
+| `GOAL_WIDTH_SCALE` | 1,0 | 1,3 | Gols maiores. A colisão usa a mesma boca desenhada, com traves (`POST_RADIUS` 0,12 m) que devolvem a bola ao jogo; em 40% dos toques na parte interna da trave, a bola entra |
+| Goleiro | testava a defesa a cada passo depois de a bola passar | uma única tentativa, no plano dele | Esse bug fazia o goleiro defender quase tudo |
+| `KEEPER_REACH` | (0,7, 0,95) | (0,95, 1,35) | Alcance compatível com o gol maior |
+| `KEEPER_LATERAL` | (1,7, 1,8) | (2,2, 2,2) | Idem |
+| `SHOT_ERROR` | 0,042 | 0,06 | Chutes erram mais |
+| Mira da IA | sempre no canto | 35% a 85% da meia-boca | Mira mais variada |
+| Condução | 0,80 a 0,85 da velocidade máxima, aceleração de 7,5 m/s² | `CARRY_SPEED` de 0,93 a 1,0 da velocidade máxima, `CARRY_ACCEL` de 11 m/s² | Cerca de 25% a 35% mais rápida em 1,5 s |
+| Distância da bola na condução | — | `CARRY_TOUCH`: a bola vai à frente do pé, mais longe para quem dribla mal | Desarme no contato com a bola ou com o corpo, nunca sem contato |
+| Alcance da condução | (3, 9) | (4, 11) m | — |
+| Assistência de passe | nenhuma | `PASS_ASSIST_ANGLE` de 0,24 rad; corrige de 35% a 70% do ângulo até o ponto de chegada do companheiro | Moderada |
+| Cabeceio | nenhum | bola alta entre 0,9 e 2,6 m (`HEADER_Z`), com disputa aérea por físico | Na área vira finalização; fora dela, o atacante ajeita |
+| Cruzamento | — | a assistência só vale para quem está no setor | O setor tracejado desenhado na tela é o mesmo ângulo do servidor |
+| `OUTCOME_PAUSE_SECONDS` | 2,2 s | 1,8 s | Ações mais rápidas |
+| Pausa após a ação (`EXECUTE_TAIL_SECONDS`) | 0,35 s | 0,2 s | Ações mais rápidas |
+
+Os testes do motor verificam cada um desses comportamentos.
+
+**Determinismo.** O `hash()` do Python, que é aleatório a cada processo, foi trocado por `crc32`. Com isso, a mesma semente gera o mesmo jogo depois de um reinício.
+
+**IA de movimento.**
+
+- O centroavante corre nas costas do último defensor e procura o espaço livre.
+- Os pontas mantêm a amplitude.
+- Os meias se oferecem num ângulo livre.
+- Os companheiros não se amontoam (`_spread`).
+- A defesa:
+  - marca pelo lado do gol;
+  - desliza o bloco em direção à bola;
+  - protege a área quando a bola chega a menos de 30 m.
+
+**Variedade.**
+
+- Novo lance: `REBOUND` (sobra na entrada da área).
+- O bloco inteiro é deslocado lateralmente, então cada abertura é diferente.
+- A posição inicial do ataque trabalhado varia.
+
+**Calibragem** (40 jogos de IA contra IA):
+
+| Formato | Gols por jogo | Defesas por jogo |
+|---|---|---|
+| 11×11 | 2,0 | 3,0 |
+| 5×5 | 2,25 | 1,5 |
+
+Postes, cabeceios, dribles e desarmes aparecem nos dados.
+
+### 9.3 Um motor, dois renderizadores
+
+```
+HighlightMatch (servidor, autoritativo) → view/frames/cues (campo real)
+   → render/presentation.ts (cena compartilhada: posições, velocidades, orientação,
+     poses sincronizadas aos "cues" físicos KICK/SAVE/DIVE/TACKLE/HEADER/GOAL/POST)
+       → renderer2d.ts (Canvas 2D: visão de cima, jogadores estilizados)
+       → renderer3d.ts (Three.js, carregado sob demanda: low-poly, estádio, câmera contextual)
+```
+
+**O que o renderizador pode e não pode fazer:**
+
+- Nenhum renderizador calcula resultado.
+- As poses vêm dos "cues" que o motor grava no instante físico. Por isso, o chute acontece no contato, e o goleiro só mergulha quando houve tentativa de defesa.
+
+**Gesto.** O 2D converte o gesto por projeção inversa; o 3D, por raycast no plano do gramado. Os dois levam a `aimFromDrag`, que é a mesma intenção em metros do campo, com potência = comprimento / (0,4·L).
+
+**Escolha individual.**
+
+- O lobby tem o card "Experiência de partida".
+- A partida tem um botão 2D/3D, que troca a visualização sem reiniciar o lance nem o cronômetro.
+- A escolha fica salva no navegador. Ela não vai ao servidor e não afeta o adversário.
+
+**Qualidade gráfica e fallback.**
+
+- A qualidade gráfica pode ser automática, baixa, média ou alta. Ela muda resolução, sombras, torcida e texturas.
+- Se o FPS cair, a qualidade baixa sozinha.
+- O jogo volta para o 2D sozinho, sem mexer no estado oficial, se o WebGL não existir, se o contexto se perder ou se o 3D continuar lento mesmo na qualidade baixa.
+
+**Laboratório** (`#lab`): cenários reproduzíveis com o motor real e isolados de ligas.
+
+- Rotas: `POST /lab/sessions`, `GET /lab/sessions/{id}` e `POST /lab/sessions/{id}/actions`.
+- Cenários: passe curto, passe longo, ponta, cruzamento, contra-ataque, cara a cara, rebote, falta e pênalti.
+
+**Som.**
+
+- Sintetizado por WebAudio, sem arquivos: chute, passe, trave, defesa, apito, gol e torcida.
+- Volume e mudo ficam salvos.
+- O som só começa depois do primeiro gesto, como o navegador exige.
+
+**Arte.**
+
+- Toda a arte é original: personagens procedurais, estádio com patrocinadores fictícios e uniformes parametrizados.
+- Nada foi copiado de World Soccer Champs ou de Mini Soccer Star.

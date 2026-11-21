@@ -253,3 +253,11 @@ class PackPlace(BaseModel):
 
 class PackBench(BaseModel):
     catalog_ids: list[str] = Field(default_factory=list, max_length=7)
+
+
+class LabCreate(BaseModel):
+    kind: str = Field(default="BUILDUP", max_length=20)
+    mode: Literal["ELEVEN_A_SIDE", "FIVE_A_SIDE"] = "ELEVEN_A_SIDE"
+    home: str = Field(default="", max_length=8)
+    away: str = Field(default="", max_length=8)
+    seed: int = Field(default=7, ge=0, le=1_000_000)
