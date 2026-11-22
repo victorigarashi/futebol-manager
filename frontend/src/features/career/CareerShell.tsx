@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api, type Club, type RoomState, type SeasonTableRow, type SeasonView, type SurvivorView } from "../../lib/api";
@@ -7,7 +7,12 @@ import { CareerPanel } from "../../components/CareerPanel";
 import { readLocal, writeLocal } from "../../lib/storage";
 import { StandingsTable } from "../season/StandingsTable";
 import { TransferHub } from "../season/TransferHub";
-import { ClubHub, type CareerTab } from "./ClubHub";
+import type { CareerTab } from "./ClubHub";
+import { CentralHub } from "./CentralHub";
+import { Connection, RetroFooter, RetroFrame, RetroNav, RetroSubNav } from "../retro/primitives";
+import { useTileNav } from "../retro/useTileNav";
+import { formatMoney } from "../../lib/format";
+import "./career-retro.css";
 import { LineupBoard } from "./LineupBoard";
 import { LiveMatchCenter } from "./live/LiveMatchCenter";
 import { InteractiveMatch } from "./interactive/InteractiveMatch";
@@ -30,8 +35,13 @@ const AREA_DEFAULT: Record<CareerArea, CareerTab> = { central: "hub", squad: "sq
 const AREA_FOR: Record<CareerTab, CareerArea> = { hub: "central", next: "central", squad: "squad", tactics: "squad", market: "market", season: "competition", table: "competition", cup: "competition", stats: "club", news: "club", trophies: "club" };
 const STAGES: Record<string, string> = { QUARTERFINALS: "quartas de final", SEMIFINALS: "semifinais", FINAL: "final", COMPLETE: "temporada encerrada" };
 
-export function CareerShell({ roomId, room, isHost, clubCode }: { roomId: string; room: RoomState; isHost: boolean; clubCode: string }) {
+/** What the lobby hands to the career: the legacy chrome (kept for live/post-match screens) and room-level actions. */
+export type CareerChrome = { legacy: ReactNode; connection: "connecting" | "online" | "reconnecting" | "offline"; onHome: () => void; onEditProfile: () => void; error?: string | null };
+
+export function CareerShell({ roomId, room, isHost, clubCode, chrome }: { roomId: string; room: RoomState; isHost: boolean; clubCode: string; chrome?: CareerChrome }) {
   const client = useQueryClient();
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const squadQuery = useQuery({ queryKey: ["squad", roomId], queryFn: () => api.squad(roomId).then((r) => r.data) });
   const [tab, setTab] = useState<CareerTab>(() => (readLocal(`bm_tab_${roomId}`) as CareerTab | null) ?? "hub");
   const [openMatch, setOpenMatch] = useState<string | null>(null);
   const baseline = useRef<SeasonTableRow[] | undefined>(undefined);
@@ -69,20 +79,23 @@ export function CareerShell({ roomId, room, isHost, clubCode }: { roomId: string
   }, [live.data?.live_round, liveMatchId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const data = season.data;
+  const backToHub = useCallback(() => { if (tab !== "hub") setTab("hub"); }, [tab]);
+  useTileNav(bodyRef, backToHub);
+  const legacy = (node: ReactNode) => chrome ? <main className="app-shell app-shell--reference" id="top">{chrome.legacy}<div id="main-content" tabIndex={-1} />{chrome.error && <p className="feedback feedback--error" role="alert">{chrome.error}</p>}{node}</main> : <>{node}</>;
   if (live.data?.live_round && live.data.recovering) {
-    return <div className="career career--live"><div className="panel-loading panel-loading--recovering" role="status"><b>Recuperando a partida…</b><span>O servidor foi reiniciado e está reconstruindo a rodada exatamente como estava (mesmos lances, placar e ordens). A transmissão volta sozinha em instantes.</span></div></div>;
+    return legacy(<div className="career career--live"><div className="panel-loading panel-loading--recovering" role="status"><b>Recuperando a partida…</b><span>O servidor foi reiniciado e está reconstruindo a rodada exatamente como estava (mesmos lances, placar e ordens). A transmissão volta sozinha em instantes.</span></div></div>);
   }
   if (live.data?.live_round && live.data.interactive && clubList.length) {
     // Modo Jogável: the same round, the coach plays the decisive moments of his match.
-    return <div className="career career--live"><InteractiveMatch roomId={roomId} clubCode={clubCode} clubs={clubList} /></div>;
+    return legacy(<div className="career career--live"><InteractiveMatch roomId={roomId} clubCode={clubCode} clubs={clubList} /></div>);
   }
   if (live.data?.live_round && live.data.match && clubList.length) {
-    return <div className="career career--live"><LiveMatchCenter roomId={roomId} data={live.data} clubCode={clubCode} clubs={clubList} /></div>;
+    return legacy(<div className="career career--live"><LiveMatchCenter roomId={roomId} data={live.data} clubCode={clubCode} clubs={clubList} /></div>);
   }
-  if (!data) return <div className="career"><div className="panel-loading" role="status">{season.error ? season.error.message : "Entrando no centro de treinamento…"}</div></div>;
+  if (!data) return legacy(<div className="career"><div className="panel-loading" role="status">{season.error ? season.error.message : "Entrando no centro de treinamento…"}</div></div>);
   if (openMatch) {
     const roundNumber = data.matches.find((m) => m.id === openMatch)?.round_number;
-    return <div className="career"><PostMatch roomId={roomId} matchId={openMatch} clubCode={clubCode} clubs={clubList} table={data.table} previousTable={baseline.current} roundLabel={roundNumber && roundNumber <= 38 ? `RODADA ${roundNumber}` : "MATA-MATA"} onContinue={() => { writeLocal(`bm_ack_${roomId}_${openMatch}`, "1"); setOpenMatch(null); setTab("hub"); }} /></div>;
+    return legacy(<div className="career"><PostMatch roomId={roomId} matchId={openMatch} clubCode={clubCode} clubs={clubList} table={data.table} previousTable={baseline.current} roundLabel={roundNumber && roundNumber <= 38 ? `RODADA ${roundNumber}` : "MATA-MATA"} onContinue={() => { writeLocal(`bm_ack_${roomId}_${openMatch}`, "1"); setOpenMatch(null); setTab("hub"); }} /></div>);
   }
 
   const own = data.table.find((r) => r.club_code === clubCode);
@@ -103,39 +116,45 @@ export function CareerShell({ roomId, room, isHost, clubCode }: { roomId: string
 
   const shownAreas = AREAS.filter((item) => !shortMode || item.id !== "market");
   const subTabs = areaTabs(area);
-  return <div className="career">
-    <header className="career-head">
-      <div className="career-head__club"><ClubCrest club={club(clubCode)} size="md" /><div><p className="kicker">MODO CARREIRA · TEMPORADA {data.season_number}</p><h1>{club(clubCode).name}</h1><span>{manager ? `Técnico ${manager}` : "Seu clube"} · {room.name}</span></div></div>
-      {shortMode
-        ? <dl className="career-head__facts"><div><dt>Fase</dt><dd>{data.champion ? "Encerrado" : data.next_round?.stage_name ?? (data.game_mode === "SURVIVOR" ? "Sobrevivência" : "Torneio")}</dd></div>
-            {data.game_mode === "SURVIVOR" && data.survivor && <div><dt>Restam</dt><dd>{data.survivor.remaining}</dd></div>}
-            <div><dt>Seu clube</dt><dd>{data.champion === clubCode ? "Campeão" : alive(data, clubCode) ? "Vivo" : "Eliminado"}</dd></div></dl>
-        : <dl className="career-head__facts"><div><dt>Rodada</dt><dd>{data.regular_season_complete ? (data.playoffs ? STAGES[data.playoffs.next_stage] ?? "playoffs" : "playoffs") : data.current_round}</dd></div><div><dt>Posição</dt><dd>{own?.position ?? "—"}º</dd></div><div><dt>Pontos</dt><dd>{own?.points ?? 0}</dd></div><div><dt>Prontos</dt><dd>{data.ready_clubs.length}/{room.participants.filter((p) => p.selected_club_code).length}</dd></div></dl>}
-      <div className="career-head__cta"><button type="button" className="btn btn--primary" onClick={() => goTo("next")}>{tab === "next" ? "Preparando…" : data.ready_clubs.includes(clubCode) ? "✓ Equipe pronta" : "Próxima partida →"}</button></div>
-    </header>
-    <nav className="career-nav" aria-label="Áreas da carreira">{shownAreas.map((item) => <button key={item.id} type="button" aria-current={area === item.id ? "page" : undefined} className={area === item.id ? "is-active" : ""} onClick={() => goTo(AREA_DEFAULT[item.id])}><i aria-hidden="true">{item.icon}</i>{item.label}</button>)}</nav>
-    {actionError && <p className="cm-toast cm-toast--error" role="alert">{actionError.message}</p>}
+  const humans = room.participants.filter((p) => p.selected_club_code && p.role !== "BOT");
+  const ready = data.ready_clubs.includes(clubCode);
+  const roundLabel = shortMode ? (data.next_round?.stage_name ?? "Torneio") : data.regular_season_complete ? (data.playoffs ? STAGES[data.playoffs.next_stage] ?? "Playoffs" : "Playoffs") : `Rodada ${data.current_round}`;
+  const ownClub = club(clubCode);
+  const legacyPanel = (node: ReactNode) => <div className="career rt-legacy">{node}</div>;
 
-    <main className="career-body" key={tab}>
-      {tab === "next" ? <PreMatch roomId={roomId} room={room} season={data} clubCode={clubCode} clubs={clubList} onGo={goTo} isHost={isHost} /> : <>
-      {area === "central" && <ClubHub roomId={roomId} room={room} season={data} clubCode={clubCode} clubs={clubList} onGo={goTo} onOpenMatch={setOpenMatch} />}
-      {area === "squad" && <section className="career-area"><AreaTabs tabs={subTabs} selected={tab} onSelect={goTo} />{tab === "squad" ? <LineupBoard roomId={roomId} locked={locked} /> : <><TacticsBoard roomId={roomId} locked={locked} /><CohesionPanel roomId={roomId} locked={locked} /></>}</section>}
-      {area === "market" && !shortMode && <section className="market-tab">{data.transfer_window_open ? <>
+  return <RetroFrame view={area === "squad" ? "squad" : "career"} fit={area === "central" || area === "squad"} label={`Carreira: ${AREAS.find((a) => a.id === area)?.label}`}
+    top={<header className="rt-top">
+      <div className="rt-plate"><span className="rt-plate__crest"><ClubCrest club={ownClub} size="md" /></span><div className="rt-plate__text"><strong>{ownClub.name}</strong><span>{manager ? `Técnico ${manager}` : "Seu clube"} · {room.name}</span></div></div>
+      <div className="rt-plate rt-plate--right">
+        <div className="rt-stat"><small>Temporada {data.season_number}</small><b>{roundLabel}</b></div>
+        {!shortMode && <div className="rt-stat"><small>Posição</small><b>{own?.position ?? "—"}º <em>{own?.points ?? 0} pts</em></b></div>}
+        {shortMode && <div className="rt-stat"><small>Seu clube</small><b>{data.champion === clubCode ? "Campeão" : alive(data, clubCode) ? "Vivo" : "Eliminado"}</b></div>}
+        {!shortMode && <div className="rt-stat"><small>Orçamento</small><b>{squadQuery.data ? formatMoney(squadQuery.data.budget_cents) : "—"}</b></div>}
+        <div className="rt-stat"><small>Prontos</small><b>{data.ready_clubs.length}/{humans.length}</b></div>
+        {chrome && <div className="rt-top__tools"><Connection state={chrome.connection} /><span className="rt-invite" title="Código de convite da sala">Convite <b>{room.code}</b></span><button type="button" className="rt-iconbtn" onClick={chrome.onHome}>Menu</button></div>}
+      </div>
+    </header>}
+    nav={<div className="cr-navrow"><RetroNav label="Áreas da carreira" items={shownAreas.map((a) => ({ id: a.id, label: a.label }))} current={area} onSelect={(id) => goTo(AREA_DEFAULT[id])} />
+      <button type="button" className={`rt-btn ${ready ? "rt-btn--ghost cr-ready" : "rt-btn--lime"} cr-cta`} onClick={() => goTo("next")}>{tab === "next" ? "Pré-jogo" : ready ? "✓ Equipe pronta" : "Próxima partida ▶"}</button></div>}
+    footer={<RetroFooter hints={[{ key: "Enter", label: "Selecionar" }, ...(tab !== "hub" ? [{ key: "Esc", label: "Central" }] : []), ...(area === "central" ? [{ key: "↑↓←→", label: "Navegar" }] : [{ key: "← →", label: "Abas" }])]} right={<>{room.name} · {humans.length} técnicos</>} />}>
+    <div ref={bodyRef} className={`cr-body cr-body--${area}`} key={tab}>
+      {chrome?.error && <p className="rt-toast rt-toast--error" role="alert">{chrome.error}</p>}
+      {actionError && <p className="rt-toast rt-toast--error" role="alert">{actionError.message}</p>}
+      {tab === "next" ? legacyPanel(<PreMatch roomId={roomId} room={room} season={data} clubCode={clubCode} clubs={clubList} onGo={goTo} isHost={isHost} />) : <>
+      {area === "central" && <CentralHub roomId={roomId} room={room} season={data} clubCode={clubCode} clubs={clubList} onGo={goTo} onOpenMatch={setOpenMatch} />}
+      {area === "squad" && <section className="cr-squad"><RetroSubNav label="Seções do elenco" items={subTabs} current={tab} onSelect={goTo} />{tab === "squad" ? <LineupBoard roomId={roomId} locked={locked} /> : legacyPanel(<><TacticsBoard roomId={roomId} locked={locked} /><CohesionPanel roomId={roomId} locked={locked} /></>)}</section>}
+      {area === "market" && !shortMode && legacyPanel(<section className="market-tab">{data.transfer_window_open ? <>
         {isHost && <div className="host-bar"><p>Você é o anfitrião: encerre a janela quando todos terminarem as negociações.</p><button type="button" className="btn btn--primary" disabled={closeWindow.isPending} onClick={() => closeWindow.mutate()}>{closeWindow.isPending ? "Encerrando…" : "Encerrar janela e seguir →"}</button></div>}
         {data.preseason_window && room.coach_moves_enabled && <CoachMarket roomId={roomId} room={room} clubCode={clubCode} club={club} clubs={clubList} onDone={refresh} />}
         <TransferHub roomId={roomId} />
-      </> : <div className="empty-feature"><h2>Mercado fechado</h2><p>A janela de transferências abre na metade do campeonato e entre temporadas. Até lá, acompanhe as finanças e o histórico de negociações do clube.</p></div>}<CareerPanel roomId={roomId} /></section>}
-      {area === "competition" && <section className="career-area">{shortMode ? <ShortCompetition roomId={roomId} data={data} club={club} ownClub={clubCode} /> : <><AreaTabs tabs={subTabs} selected={tab} onSelect={goTo} />{tab === "season" && <SeasonCalendar roomId={roomId} data={data} clubCode={clubCode} club={club} isHost={isHost} onAdvance={() => advance.mutate()} advancing={advance.isPending} onNextSeason={() => nextSeason.mutate()} nextPending={nextSeason.isPending} onOpenMatch={setOpenMatch} />}{tab === "table" && <section className="card card--flush"><header className="card__head"><h2>Classificação</h2><span className="badge">Oficial</span></header><StandingsTable rows={data.table} ownClub={clubCode} /></section>}{tab === "cup" && data.knockout?.cup_enabled && <CupPage knockout={data.knockout} club={club} ownClub={clubCode} />}</>}</section>}
-      {area === "club" && <section className="career-area"><AreaTabs tabs={subTabs} selected={tab} onSelect={goTo} />{tab === "stats" && <StatsCenter roomId={roomId} season={data} clubCode={clubCode} club={club} />}{tab === "news" && <NewsCenter roomId={roomId} season={data} clubCode={clubCode} club={club} />}{tab === "trophies" && <TrophyRoom roomId={roomId} clubCode={clubCode} club={club} userId={room.participants.find((p) => p.selected_club_code === clubCode)?.user_id} />}</section>}
+      </> : <div className="empty-feature"><h2>Mercado fechado</h2><p>A janela de transferências abre na metade do campeonato e entre temporadas. Até lá, acompanhe as finanças e o histórico de negociações do clube.</p></div>}<CareerPanel roomId={roomId} /></section>)}
+      {area === "competition" && <section className="cr-legacy-area">{!shortMode && <RetroSubNav label="Seções de competições" items={subTabs} current={tab} onSelect={goTo} />}{legacyPanel(shortMode ? <ShortCompetition roomId={roomId} data={data} club={club} ownClub={clubCode} /> : <>{tab === "season" && <SeasonCalendar roomId={roomId} data={data} clubCode={clubCode} club={club} isHost={isHost} onAdvance={() => advance.mutate()} advancing={advance.isPending} onNextSeason={() => nextSeason.mutate()} nextPending={nextSeason.isPending} onOpenMatch={setOpenMatch} />}{tab === "table" && <section className="card card--flush"><header className="card__head"><h2>Classificação</h2><span className="badge">Oficial</span></header><StandingsTable rows={data.table} ownClub={clubCode} /></section>}{tab === "cup" && data.knockout?.cup_enabled && <CupPage knockout={data.knockout} club={club} ownClub={clubCode} />}</>)}</section>}
+      {area === "club" && <section className="cr-legacy-area"><RetroSubNav label="Seções do clube" items={subTabs} current={tab} onSelect={goTo} />{legacyPanel(<>{tab === "stats" && <StatsCenter roomId={roomId} season={data} clubCode={clubCode} club={club} />}{tab === "news" && <NewsCenter roomId={roomId} season={data} clubCode={clubCode} club={club} />}{tab === "trophies" && <TrophyRoom roomId={roomId} clubCode={clubCode} club={club} userId={room.participants.find((p) => p.selected_club_code === clubCode)?.user_id} />}</>)}</section>}
       </>}
-    </main>
-  </div>;
+    </div>
+  </RetroFrame>;
 }
 
-function AreaTabs({ tabs, selected, onSelect }: { tabs: { id: CareerTab; label: string }[]; selected: CareerTab; onSelect: (id: CareerTab) => void }) {
-  if (!tabs.length) return null;
-  return <nav className="segmented career-area__tabs" aria-label="Seções"><>{tabs.map((item) => <button key={item.id} type="button" className={selected === item.id ? "is-active" : ""} aria-current={selected === item.id ? "page" : undefined} onClick={() => onSelect(item.id)}>{item.label}</button>)}</></nav>;
-}
 
 function ShortCompetition({ roomId, data, club, ownClub }: { roomId: string; data: SeasonView; club: (code: string) => Club; ownClub: string }) {
   if (data.game_mode === "SURVIVOR" && data.survivor) return <SurvivorPanel roomId={roomId} survivor={data.survivor} club={club} ownClub={ownClub} />;

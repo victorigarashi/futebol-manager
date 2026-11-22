@@ -30,3 +30,13 @@ A licença de cada um precisa ser confirmada **asset por asset** antes de qualqu
 2. Fazer as texturas: uniforme com máscaras de cor, para manter a escolha de uniformes do servidor; pele; rosto.
 3. Exportar em GLB e otimizar com glTF-Transform e meshopt.
 4. O `buildHumanRig` troca a malha procedural pela GLB clonada com `SkeletonUtils.clone`. O sistema de poses, a mistura de poses (blending) e o resto da pipeline continuam iguais.
+
+## Retro Career (branch feature/retro-career-final)
+
+| Asset | Origem | Licença |
+|---|---|---|
+| Fundos de estádio `frontend/public/retro/stadium-{menu,career,squad}.webp` | Renderizados em código por `frontend/src/retro-tools/backdrop.ts` (Three.js), com `scripts/retro/render-backdrops.cjs` | Original do projeto. As placas são fictícias ("Resenha") |
+| Camisas do campo tático e ícones em traço dos tiles | SVG desenhado em código (`features/retro/primitives.tsx`) | Original do projeto. As cores vêm da paleta de clubes já existente (`clubColors.ts`) |
+| Fontes Barlow Condensed e Inter | Google Fonts, já carregadas pelo projeto | SIL Open Font License |
+
+Nenhuma captura do FIFA 14, do FIFA 16 ou de outro jogo foi usada como fundo ou como asset. As referências externas serviram apenas de estudo e não estão no repositório.
