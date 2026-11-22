@@ -25,7 +25,7 @@ from app.services.season_service import team_input_view  # noqa: E402
 def frame_metrics(step, roster, L, W, acc):
     frames = step["frames"]
     n = len(roster)
-    k = 4 if step.get("layout") == "v7" else 2
+    k = 4 if step.get("layout") in ("v7", "v8") else 2
     for f in range(2, len(frames)):
         a, b, c = frames[f - 2], frames[f - 1], frames[f]
         dt1, dt2 = max(1e-3, b[0] - a[0]), max(1e-3, c[0] - b[0])

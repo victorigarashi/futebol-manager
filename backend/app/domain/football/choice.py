@@ -174,6 +174,12 @@ def ai_choice(bodies: list[Athlete], carrier_id: str, cfg: dict[str, float], act
         value = min(space_ahead, 14) * 0.11 + min(free, 8) * 0.12 + (carrier.dribbling - 60) / 60 + rng.gauss(0, noise * 0.35)
         if space_ahead < 3:
             value -= 0.8
+        if v8 and d_goal < 30 * s:
+            # In range of goal a carry is worth the chance it creates (xG where it ends, on the
+            # shot's own scale) minus the risk of losing it on the way — not just open grass.
+            near_path = min((dist(x.x, x.y, (carrier.x + tx) / 2, (carrier.y + ty) / 2) for x in defenders), default=20.0)
+            keep = 0.92 if near_path > 6 * s ** 0.5 else 0.7 if near_path > 3 else 0.45
+            value = keep * (1.2 + 15 * xg_of(tx, ty, L, W, goal)) - 0.25 + rng.gauss(0, noise * 0.3)
         options.append((value, {"type": "CARRY", "x": tx, "y": ty, "power": 0.45}))
     if not options:
         return {"type": "SHOT", "x": L, "y": W / 2, "power": 0.8}
