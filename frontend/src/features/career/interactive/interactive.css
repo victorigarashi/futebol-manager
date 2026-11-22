@@ -116,3 +116,6 @@ body.im-open { overflow: hidden; }
 
 /* Football Lab: repeat the same scenario (same seed) in one tap. */
 .lab-again { position: fixed; top: 74px; left: 12px; z-index: 50; padding: 8px 14px; border: 0; border-radius: 999px; background: #c6f24e; color: #10140c; font-weight: 900; cursor: pointer; box-shadow: 0 6px 18px rgb(0 0 0 / 35%); }
+
+/* Lab-only diagnostics overlay */
+.im-diag { position: absolute; left: 12px; bottom: 90px; z-index: 7; padding: 4px 10px; border-radius: 8px; background: rgb(0 0 0 / 70%); color: #c6f24e; font: 700 12px ui-monospace, monospace; pointer-events: none; }

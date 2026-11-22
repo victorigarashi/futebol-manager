@@ -75,8 +75,9 @@ async function act(c, v) {
 
 (async () => {
   const browser = await chromium.launch({ executablePath: "/usr/bin/google-chrome", headless: true, args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });
-  const A = await open(browser, state.tokens[0], "2D", "A-2D");
-  const B = await open(browser, state.tokens[1], "3D", "B-3D");
+  const expA = process.env.EXP_A || "2D", expB = process.env.EXP_B || "3D";
+  const A = await open(browser, state.tokens[0], expA, `A-${expA}`);
+  const B = await open(browser, state.tokens[1], expB, `B-${expB}`);
   try {
     for (const c of [A, B]) {
       await c.page.waitForSelector(".career-head", { timeout: 30000 });
@@ -119,7 +120,7 @@ async function act(c, v) {
           await B.page.reload();
           await B.page.waitForFunction(() => window.__bmMatch && window.__bmMatch.view() && window.__bmMatch.view().state !== "NONE", null, { timeout: 60000 }).catch(() => {});
           const after = await view(B);
-          check("3D coach reloads mid-match and is back in the same match", Boolean(after && after.match_id === before.match_id), `${before?.minute?.toFixed(1)}' → ${after?.minute?.toFixed(1)}'`);
+          check(`${B.exp} coach reloads mid-match and is back in the same match`, Boolean(after && after.match_id === before.match_id), `${before?.minute?.toFixed(1)}' → ${after?.minute?.toFixed(1)}'`);
           check("reload keeps the score and the clock", Boolean(after && after.score.home >= before.score.home && after.score.away >= before.score.away && after.minute >= before.minute - 0.5));
         }
       }
@@ -127,7 +128,7 @@ async function act(c, v) {
     }
     const fa = final.A, fb = final.B;
     check("match finishes for both coaches", (fa?.state === "FINISHED" || fa?.minute > 85) && (fb?.state === "FINISHED" || fb?.minute > 85), `${fa?.state} ${fa?.minute?.toFixed?.(1)}' / ${fb?.state} ${fb?.minute?.toFixed?.(1)}'`);
-    check("same official score on 2D and 3D", Boolean(fa && fb && fa.score.home === fb.score.home && fa.score.away === fb.score.away), JSON.stringify(fa?.score));
+    check(`same official score on ${A.exp} and ${B.exp}`, Boolean(fa && fb && fa.score.home === fb.score.home && fa.score.away === fb.score.away), JSON.stringify(fa?.score));
     check("no divergence during the match", mismatches === 0, `${mismatches} mismatches in ${syncs} synchronised polls`);
     check("clock never reset", !minuteReset, `max ${maxMinute.toFixed(1)}'`);
     check("both coaches played their own attacks", A.actions > 0 && B.actions > 0, `2D: ${A.actions} gestos (${A.rejected} recusados), 3D: ${B.actions} gestos (${B.rejected} recusados)`);
@@ -143,8 +144,8 @@ async function act(c, v) {
     await A.page.screenshot({ path: path.join(out, "zz-falha-a.png") }).catch(() => {});
     await B.page.screenshot({ path: path.join(out, "zz-falha-b.png") }).catch(() => {});
   }
-  check("no page errors (2D)", A.errors.length === 0, A.errors.slice(0, 2).join(" | "));
-  check("no page errors (3D)", B.errors.length === 0, B.errors.slice(0, 2).join(" | "));
+  check(`no page errors (${A.exp})`, A.errors.length === 0, A.errors.slice(0, 2).join(" | "));
+  check(`no page errors (${B.exp})`, B.errors.length === 0, B.errors.slice(0, 2).join(" | "));
   fs.writeFileSync(path.join(out, "results.json"), JSON.stringify(results, null, 2));
   await A.context.close(); await B.context.close();
   await browser.close();

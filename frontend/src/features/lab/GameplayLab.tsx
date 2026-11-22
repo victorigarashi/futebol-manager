@@ -74,6 +74,8 @@ export function GameplayLab() {
         <label title="Comparação de desenvolvimento: V8 é o motor integrado experimental; V7 é a reconstrução anterior; V6 é o que está nas partidas competitivas hoje">Motor <select value={engine} onChange={(e) => setEngine(e.target.value as Engine)}><option value="v8">V8 (integrado, experimental)</option><option value="v7">V7</option><option value="v6">V6 (atual nas competições)</option></select></label>
         <label>Semente <input type="number" min={0} max={999999} value={seed} onChange={(e) => setSeed(Number(e.target.value) || 0)} style={{ width: "7rem" }} /></label>
         <button type="button" className="button-primary" onClick={() => void start()}>Jogar cenário →</button>
+        <label title="Só no Lab: FPS, CPU por quadro e deslize dos pés medido"><input type="checkbox" defaultChecked={(() => { try { return localStorage.getItem("bm_lab_diag") === "1"; } catch { return false; } })()} onChange={(e) => { try { localStorage.setItem("bm_lab_diag", e.target.checked ? "1" : "0"); } catch { /* optional */ } }} /> Diagnóstico</label>
+        <a href="football-lab.html" target="_blank" rel="noreferrer">Laboratório de animação, goleiro, sprites, física e IA →</a>
         <a href="#" onClick={() => { window.location.hash = ""; }}>Voltar ao jogo</a>
       </div>
       {error && <p className="feedback feedback--error" role="alert">{error}</p>}

@@ -155,10 +155,26 @@ export function InteractiveMatch({ roomId, clubCode, clubs, source: given, onExi
     let raf = 0;
     let lastStep = "", lastT = 0, lastState = "", lastFrame = performance.now(), slowSince = 0;
     let frames: number[] = [];
+    let diagLast = performance.now(), diagFrames = 0, diagCpu = 0;
+    const diag = (() => { try { return window.location.hash.startsWith("#lab") && localStorage.getItem("bm_lab_diag") === "1"; } catch { return false; } })();
+    const diagEl = diag ? Object.assign(document.createElement("div"), { className: "im-diag" }) : null;
+    if (diagEl) stage.current?.append(diagEl);
     const draw = () => {
       raf = requestAnimationFrame(draw);
       const box = stage.current, current = viewRef.current;
       if (!box || !current) return;
+      const cpu0 = performance.now();
+      if (diagEl) {
+        // Lab diagnostics (never in public matches): FPS, CPU per frame, measured foot sliding.
+        diagFrames += 1;
+        if (cpu0 - diagLast > 1000) {
+          const r = r3d.current as unknown as { footSlide?: number } | null;
+          diagEl.textContent = `${current.engine ?? "v6"} · ${r ? "3D" : "2D"} · ${Math.round(diagFrames * 1000 / (cpu0 - diagLast))} FPS · CPU ${(diagCpu / Math.max(1, diagFrames)).toFixed(1)} ms/quadro`
+            + (r?.footSlide ? ` · deslize dos pés ${r.footSlide.toFixed(0)} cm/s` : "") + ` · rev ${current.revision}`;
+          diagLast = cpu0; diagFrames = 0; diagCpu = 0;
+        }
+        queueMicrotask(() => { diagCpu += performance.now() - cpu0; });
+      }
       const width = box.clientWidth, height = box.clientHeight;
       const now = Date.now() / 1000 + offset;
       const scene = buildScene(current, now);
@@ -248,7 +264,7 @@ export function InteractiveMatch({ roomId, clubCode, clubs, source: given, onExi
       drawScene2D(ctx, g, dpr, current, scene, { attack: kitA, defend: kitD }, overlay);
     };
     raf = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(raf);
+    return () => { cancelAnimationFrame(raf); diagEl?.remove(); };
   }, [offset, kits, r3dStatus]);
 
   // Lab-only playtest hook (#lab): lets the automated playtest drag from real screen points.
