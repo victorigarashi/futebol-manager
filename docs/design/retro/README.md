@@ -67,3 +67,15 @@ As telas de partida ao vivo, Modo Jogável, recuperação e pós-jogo continuam 
 2. Táticas consumindo o contrato do Football Tactical Engine, quando ele existir. Nenhum slider decorativo.
 3. Rever, junto com o proprietário, a tela de entrada (nome do técnico), que ainda tem o visual antigo.
 4. Medir os fundos (cerca de 1 MB nos três WebP) e o custo do `backdrop-filter` em celular real.
+
+## Etapa 2 do gate (2026-11-22): Lobby e Elenco · visão geral
+
+- **Lobby (sala da liga):** `features/rooms/RetroLobby.tsx` + `lobby-retro.css`.
+  - Usa a moldura retrô com os componentes reais do lobby: participantes, vagas e bots, experiência de partida, regras com início, convite e configurações. O estilo novo vale só dentro de `.lb`.
+  - A ação "Começar a resenha" abre a coluna de regras e fica visível sem rolar em 1366×768.
+  - A escolha de clube continua no visual antigo.
+- **Elenco · visão geral:** `features/career/SquadHub.tsx`, no formato do hub de elenco do FIFA 16.
+  - À esquerda, um tile grande com os titulares salvos (ou a sugestão automática, sinalizada), que abre a Escalação.
+  - Os tiles mostram só dados reais do servidor: Táticas (estratégia atual), Entrosamento, Relatório do elenco (atletas, médias, setores), Destaques, Jovens promessas (até 25 anos) e Mercado (orçamento).
+  - Elenco agora abre aqui, e as abas ficam Visão geral | Escalação | Táticas. O tile Elenco da Central também leva para cá.
+- **Gate:** `scripts/retro/gate.cjs <career.json> [out] [lobby.json]` agora cobre também a visão geral e o lobby (1366, 1920 e celular). Resultado: 48/48.

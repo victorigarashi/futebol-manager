@@ -1,0 +1,106 @@
+/*
+ * Sala da liga — Retro Career (FIFA 14–16 lobby). Restyles the lobby's existing components
+ * inside .lb only: flat light panels, condensed caps headings, teal selection, lime action.
+ */
+.lb-navrow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; align-items: stretch; }
+.lb-navrow .rt-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 620px; }
+html body .rt .lb-invite .invite-code { display: flex; align-items: center; gap: 10px; height: 100%; margin: 0; padding: 0 8px 0 18px; border: 0; border-radius: 0; background: var(--rt-panel-a); }
+html body .rt .lb-invite .invite-code label { font: 600 13px/1 var(--rt-display); letter-spacing: .08em; text-transform: uppercase; color: var(--rt-ink-2); }
+html body .rt .lb-invite .invite-code input { width: 8.5ch; padding: 0; border: 0; background: transparent; color: var(--rt-ink); font: 700 26px/1 var(--rt-display); letter-spacing: .12em; }
+html body .rt .lb-invite .invite-code button { padding: 8px 14px; border: 0; border-radius: 0; background: var(--rt-night); color: #fff; font: 600 14px/1 var(--rt-display); letter-spacing: .06em; text-transform: uppercase; cursor: pointer; }
+html body .rt .lb-invite .invite-code button:hover, html body .rt .lb-invite .invite-code button:focus-visible { background: var(--rt-teal-ink); outline: none; }
+html body .rt .lb-invite .invite-code__status { font-size: 12px; color: var(--rt-teal-ink); }
+
+.lb { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 1fr); gap: 6px; height: 100%; min-height: 0; }
+.lb-error { grid-column: 1 / -1; }
+.lb-col { min-height: 0; overflow: auto; padding: 18px 20px; }
+.lb:not(:has(.lb-xp)) { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); }
+
+/* shared reset of the legacy dark cards inside the lobby */
+html body .rt .lb :is(.lobby-participants, .bot-slots, .league-summary, .xp) { margin: 0; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; color: var(--rt-ink); }
+html body .rt .lb :is(h2, h3) { margin: 0; color: var(--rt-ink); font: 700 26px/1 var(--rt-display); letter-spacing: .01em; text-transform: uppercase; }
+html body .rt .lb .section-kicker { margin: 0 0 4px; color: var(--rt-teal-ink); font: 600 13px/1 var(--rt-display); letter-spacing: .1em; text-transform: uppercase; }
+html body .rt .lb :is(p, small, span, dd) { color: inherit; }
+
+/* participants: FIFA-style rows */
+html body .rt .lb .section-heading { display: flex; align-items: end; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+html body .rt .lb .section-heading > span { color: var(--rt-ink-2); font-size: 13px; font-weight: 600; }
+html body .rt .lb .lobby-participants .section-kicker { display: none; }
+html body .rt .lb .participant-grid { display: grid; gap: 4px; }
+html body .rt .lb .participant-card { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 8px 12px; border: 0; border-radius: 0; background: var(--rt-panel-2a); color: var(--rt-ink); }
+html body .rt .lb .participant-card:first-child { background: linear-gradient(160deg, var(--rt-teal-hi), var(--rt-teal-ink) 75%); color: #fff; }
+html body .rt .lb .participant-card strong { display: block; font: 700 20px/1.05 var(--rt-display); text-transform: uppercase; }
+html body .rt .lb .participant-card span:not(.participant-card__avatar) { font-size: 13px; opacity: .8; }
+html body .rt .lb .participant-card small { font: 600 16px/1 var(--rt-display); text-transform: uppercase; color: inherit; }
+html body .rt .lb .participant-card__avatar { display: grid; place-items: center; width: 36px; height: 36px; background: var(--rt-night); color: #fff; font: 700 18px/1 var(--rt-display); border-radius: 0; }
+
+/* bot places */
+html body .rt .lb .bot-slots { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--rt-line); }
+html body .rt .lb .bot-slots__counts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; margin: 6px 0 8px; }
+html body .rt .lb .bot-slots__counts div { padding: 8px 10px; background: var(--rt-panel-2a); }
+html body .rt .lb .bot-slots__counts dt { font: 600 12px/1 var(--rt-display); letter-spacing: .06em; text-transform: uppercase; color: var(--rt-ink-2); }
+html body .rt .lb .bot-slots__counts dd { margin: 4px 0 0; font: 700 26px/1 var(--rt-display); color: var(--rt-ink); }
+html body .rt .lb .bot-slots__hint { display: block; color: var(--rt-ink-2); font-size: 13px; }
+html body .rt .lb .bot-slots__list { display: grid; gap: 4px; margin: 8px 0 0; padding: 0; list-style: none; }
+html body .rt .lb .bot-slots__list li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 6px 10px; background: var(--rt-panel-2a); }
+html body .rt .lb .bot-slots__list b { display: block; font: 700 16px/1 var(--rt-display); text-transform: uppercase; }
+html body .rt .lb .bot-slots__actions { display: flex; gap: 6px; margin-top: 8px; }
+
+/* match experience */
+html body .rt .lb .xp header p { margin: 6px 0 12px; color: var(--rt-ink-2); font-size: 13px; }
+html body .rt .lb .xp-cards { display: grid; grid-template-columns: 1fr; gap: 6px; }
+html body .rt .lb .xp-card { display: grid; grid-template-columns: 120px minmax(0, 1fr); grid-template-rows: auto 1fr; column-gap: 12px; align-items: start; padding: 8px; border: 0; border-radius: 0; background: var(--rt-panel-2a); color: var(--rt-ink); text-align: left; box-shadow: none; }
+html body .rt .lb .xp-card img { grid-row: 1 / 3; width: 120px; height: 68px; object-fit: cover; border-radius: 0; }
+html body .rt .lb .xp-card b { font: 700 20px/1 var(--rt-display); text-transform: uppercase; }
+html body .rt .lb .xp-card span { font-size: 13px; color: var(--rt-ink-2); }
+html body .rt .lb .xp-card.is-on { background: linear-gradient(160deg, var(--rt-teal-hi), var(--rt-teal-ink) 75%); color: #fff; box-shadow: inset 6px 0 0 var(--rt-lime); }
+html body .rt .lb .xp-card.is-on span { color: rgba(255, 255, 255, .88); }
+html body .rt .lb .xp-card > i { display: none; }
+html body .rt .lb .xp-card:focus-visible { outline: 3px solid var(--rt-lime); outline-offset: -3px; }
+html body .rt .lb .xp footer { display: grid; gap: 6px; margin-top: 10px; font-size: 13px; color: var(--rt-ink-2); }
+html body .rt .lb .xp footer label { display: flex; align-items: center; justify-content: space-between; gap: 8px; font: 600 15px/1 var(--rt-display); text-transform: uppercase; color: var(--rt-ink); }
+
+/* selects and secondary buttons inside the lobby */
+html body .rt .lb select { padding: 6px 8px; border: 0; border-radius: 0; background: var(--rt-panel-2); color: var(--rt-ink); font: 600 15px/1 var(--rt-ui); }
+html body .rt .lb :is(.button-secondary, .btn--ghost, .btn) { padding: 9px 14px; border: 0; border-radius: 0; background: var(--rt-panel-2); color: var(--rt-ink); font: 600 15px/1 var(--rt-display); letter-spacing: .05em; text-transform: uppercase; box-shadow: none; cursor: pointer; }
+html body .rt .lb :is(.button-secondary, .btn--ghost, .btn):hover:not(:disabled) { background: #fff; }
+
+/* rules + start: the start action leads the column (dominant lime tile) */
+html body .rt .lb .league-summary { display: flex; flex-direction: column; gap: 8px; }
+html body .rt .lb .league-summary > .section-kicker, html body .rt .lb .league-summary > h2, html body .rt .lb .league-summary > .invite-code, html body .rt .lb .league-summary__line { display: none; }
+html body .rt .lb .league-summary > .button-primary { order: -3; min-height: 64px; padding: 14px 18px; border: 0; border-radius: 0; background: var(--rt-lime); color: var(--rt-ink); font: 700 24px/1 var(--rt-display); letter-spacing: .04em; text-align: left; text-transform: uppercase; box-shadow: none; cursor: pointer; }
+html body .rt .lb .league-summary > .button-primary::after { content: " ▶"; }
+html body .rt .lb .league-summary > .button-primary:hover:not(:disabled) { background: #dcec52; }
+html body .rt .lb .league-summary > .button-primary:focus-visible { outline: 3px solid var(--rt-night); outline-offset: -3px; }
+html body .rt .lb .league-summary > .button-primary:disabled { background: var(--rt-panel-2); color: #6c7f89; cursor: not-allowed; }
+html body .rt .lb .league-summary__reason { order: -2; margin: 0; padding: 8px 12px; background: var(--rt-night); color: #fff; font-size: 13px; font-weight: 600; }
+html body .rt .lb .league-summary__edit { order: -1; }
+html body .rt .lb .mode-summary { display: grid; gap: 2px; padding: 8px 12px; border: 0; border-left: 6px solid; border-radius: 0; background: var(--rt-panel-2a); }
+html body .rt .lb .mode-summary b { font: 700 20px/1 var(--rt-display); text-transform: uppercase; }
+html body .rt .lb .mode-summary span { font-size: 13px; color: var(--rt-ink-2); }
+html body .rt .lb .league-summary dl { display: grid; gap: 0; margin: 0; }
+html body .rt .lb .league-summary dl > div { display: grid; grid-template-columns: 42% minmax(0, 1fr); gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--rt-line); }
+html body .rt .lb .league-summary dt { font: 600 13px/1.3 var(--rt-display); letter-spacing: .06em; text-transform: uppercase; color: var(--rt-ink-2); }
+html body .rt .lb .league-summary dd { margin: 0; font-size: 13px; font-weight: 600; }
+html body .rt .lb .match-settings { margin: 0; padding: 10px 12px; border: 0; border-radius: 0; background: var(--rt-panel-2a); color: var(--rt-ink); }
+
+@media (max-width: 1100px) {
+  .lb, .lb:not(:has(.lb-xp)) { grid-template-columns: minmax(0, 1fr); height: auto; }
+  .lb-col { overflow: visible; }
+  .lb-rules { order: -1; }
+  .lb-navrow { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* polish after the first capture */
+html body .rt .lb .participant-grid { grid-template-columns: minmax(0, 1fr); }
+html body .rt .lb .participant-card { grid-template-columns: 40px minmax(0, 1fr) auto; }
+html body .rt .lb .participant-card > div { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+html body .rt .lb .bot-slots__counts div { border: 0; border-radius: 0; }
+html body .rt .lb .bot-slots .button-primary { padding: 9px 14px; border: 0; border-radius: 0; background: var(--rt-teal-ink); color: #fff; font: 600 15px/1 var(--rt-display); letter-spacing: .05em; text-transform: uppercase; box-shadow: none; cursor: pointer; }
+html body .rt .lb .bot-slots .button-primary:hover:not(:disabled) { background: var(--rt-teal); }
+html body .rt .lb .mode-summary b { color: var(--rt-ink) !important; }
+html body .rt .lb .bot-slots__list li { border: 0; }
+html body .rt .lb .participant-card { grid-template-areas: none; grid-auto-flow: column; min-height: 0; }
+html body .rt .lb .participant-card > :first-child { grid-column: 1; grid-row: 1; }
+html body .rt .lb .participant-card > div { grid-column: 2; grid-row: 1; }
+html body .rt .lb .participant-card > small { grid-column: 3; grid-row: 1; justify-self: end; }

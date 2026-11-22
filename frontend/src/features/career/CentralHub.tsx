@@ -121,7 +121,7 @@ export function CentralHub({ roomId, room, season, clubCode, clubs, onGo, onOpen
     </button>
 
     <div className="ch-col">
-      <button type="button" data-rt-tile className="rt-tile ch-squad" onClick={() => onGo("squad")}>
+      <button type="button" data-rt-tile className="rt-tile ch-squad" onClick={() => onGo("roster")}>
         <p className="rt-kicker">Elenco</p>
         <div className="ch-big"><b>{average ? average.toFixed(1) : "—"}</b><span>overall médio<br />{players.length} atletas</span></div>
         <ul className="ch-top">{best.map((p) => <li key={p.id}><PlayerPhoto name={p.name} photoUrl={p.photo_url} size="xs" /><span className={`rt-pos rt-pos--${p.position}`}>{POSITION_LABEL[p.position]}</span><span className="ch-top__name">{p.name}</span><b className="rt-ovr">{p.overall}</b></li>)}</ul>

@@ -1,10 +1,10 @@
 // Retro Career — nostalgia gate: real screenshots + functional checks of the 3 approved screens.
 // Needs: backend tools.career_acceptance on :8010 and the dev server on :5180.
-// node scripts/retro/gate.cjs <state.json> [outDir=../docs/design/retro/gate]
+// node scripts/retro/gate.cjs <state.json> [outDir=../docs/design/retro/gate] [lobby.json]
 const fs = require("fs"), path = require("path");
 const { chromium } = require("playwright");
 const BASE = process.env.RETRO_URL || "http://localhost:5180";
-const [stateFile, outArg] = process.argv.slice(2);
+const [stateFile, outArg, lobbyFile] = process.argv.slice(2);
 const OUT = path.resolve(outArg || path.join(__dirname, "../../../docs/design/retro/gate"));
 fs.mkdirSync(OUT, { recursive: true });
 const state = JSON.parse(fs.readFileSync(stateFile, "utf8"));
@@ -45,8 +45,14 @@ const noPageScroll = (page) => page.evaluate(() => document.documentElement.scro
     check(`[${tag}] Setas movem o foco entre os tiles`, afterRight === "story" && /ch-(table|col|squad|money|next)/.test(afterDown), `${afterRight} → ${afterDown}`);
     await page.locator(".ch-next").focus(); await wait(150);
     await shot(page, `02b-central-foco-${tag}.png`);
-    // ---------------- Squad
+    // ---------------- Squad hub (Elenco · visão geral), then the lineup editor (Escalação)
     await page.getByRole("button", { name: /^Elenco$/ }).click();
+    await page.waitForSelector(".sh-xi");
+    await wait(600);
+    await shot(page, `03a-elenco-visao-geral-${tag}.png`);
+    check(`[${tag}] Elenco abre a visão geral sem rolagem`, await noPageScroll(page));
+    check(`[${tag}] Visão geral mostra os 11 titulares`, await page.locator(".sh-slot").count() === 11);
+    await page.locator(".sh-xi").click();
     await page.waitForSelector(".sq-slot");
     await wait(600);
     await shot(page, `03-elenco-${tag}.png`);
@@ -90,6 +96,7 @@ const noPageScroll = (page) => page.evaluate(() => document.documentElement.scro
   {
     const { ctx, page } = await session(browser, 0, [1366, 768]);
     await page.getByRole("button", { name: /^Elenco$/ }).click();
+    await page.getByRole("button", { name: /^Escalação$/ }).click();
     await page.waitForSelector(".sq-slot"); await wait(500);
     const before = await page.locator(".sq-slot").nth(5).getAttribute("aria-label");
     await page.locator(".sq-slot").nth(5).click(); await wait(150);
@@ -114,6 +121,9 @@ const noPageScroll = (page) => page.evaluate(() => document.documentElement.scro
     const wide = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
     check("Celular: sem rolagem horizontal na Central", wide);
     await page.getByRole("button", { name: /^Elenco$/ }).click(); await wait(800);
+    await shot(page, `04a-elenco-visao-geral-celular-rival.png`);
+    check("Celular: sem rolagem horizontal na visão geral do elenco", await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
+    await page.getByRole("button", { name: /^Escalação$/ }).click(); await wait(800);
     await shot(page, `04b-elenco-celular-rival.png`);
     check("Celular: sem rolagem horizontal no Elenco", await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
     const clipped = await page.evaluate(() => Array.from(document.querySelectorAll(".sq-slot")).filter((el) => { const r = el.getBoundingClientRect(), p = el.closest(".sq-left").getBoundingClientRect(); return r.left < p.left - 1 || r.right > p.right + 1; }).length);
@@ -122,6 +132,32 @@ const noPageScroll = (page) => page.evaluate(() => document.documentElement.scro
     check("Celular: nomes no campo sem sobreposição", overlapM === 0, `${overlapM} sobreposições`);
     check("Celular: sem erros no console", errors.length === 0, errors.slice(0, 2).join(" | "));
     await ctx.close();
+  }
+  // ---------------- Lobby (sala da liga) of a room still waiting: optional second state file
+  if (lobbyFile) {
+    const lobby = JSON.parse(fs.readFileSync(lobbyFile, "utf8"));
+    for (const [size, mobile] of [[[1366, 768], false], [[1920, 1080], false], [[390, 844], true]]) {
+      const ctx = await browser.newContext({ viewport: { width: size[0], height: size[1] }, ...(mobile ? { isMobile: true, hasTouch: true, deviceScaleFactor: 2 } : {}) });
+      await ctx.addInitScript(([t, r]) => { localStorage.setItem("bm_session_token", t); localStorage.setItem("bm_active_room", r); }, [lobby.tokens[0], lobby.room_id]);
+      const page = await ctx.newPage();
+      const errors = [];
+      page.on("pageerror", (e) => errors.push(e.message));
+      page.on("console", (m) => { if (m.type() === "error" && !/WebSocket|favicon|Failed to load resource/.test(m.text())) errors.push(m.text()); });
+      await page.goto(BASE + "/");
+      await page.waitForSelector(".lb", { timeout: 20000 });
+      await wait(1500);
+      const tag = mobile ? "celular" : `${size[0]}`;
+      await shot(page, `05-lobby-${tag}.png`);
+      const start = page.getByRole("button", { name: /Começar a resenha/ });
+      if (!mobile) {
+        check(`[${tag}] Lobby sem rolagem da página`, await noPageScroll(page));
+        const box = await start.boundingBox();
+        check(`[${tag}] Lobby: iniciar visível sem rolar`, Boolean(box && box.y + box.height <= size[1]));
+      } else check("Celular: lobby sem rolagem horizontal", await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
+      check(`[${tag}] Lobby lista os participantes reais`, await page.locator(".lb .participant-card").count() === 3);
+      check(`[${tag}] Lobby sem erros no console`, errors.length === 0, errors.slice(0, 2).join(" | "));
+      await ctx.close();
+    }
   }
   await browser.close();
   fs.writeFileSync(path.join(OUT, "checks.json"), JSON.stringify({ date: new Date().toISOString(), checks }, null, 2));

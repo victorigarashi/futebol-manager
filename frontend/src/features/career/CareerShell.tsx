@@ -14,6 +14,7 @@ import { useTileNav } from "../retro/useTileNav";
 import { formatMoney } from "../../lib/format";
 import "./career-retro.css";
 import { LineupBoard } from "./LineupBoard";
+import { SquadHub } from "./SquadHub";
 import { LiveMatchCenter } from "./live/LiveMatchCenter";
 import { InteractiveMatch } from "./interactive/InteractiveMatch";
 import { PostMatch } from "./PostMatch";
@@ -31,8 +32,8 @@ type CareerArea = "central" | "squad" | "market" | "competition" | "club";
 const AREAS: { id: CareerArea; label: string; icon: string }[] = [
   { id: "central", label: "Central", icon: "◆" }, { id: "squad", label: "Elenco", icon: "▦" }, { id: "market", label: "Mercado", icon: "⇄" }, { id: "competition", label: "Competições", icon: "▤" }, { id: "club", label: "Clube", icon: "★" },
 ];
-const AREA_DEFAULT: Record<CareerArea, CareerTab> = { central: "hub", squad: "squad", market: "market", competition: "season", club: "stats" };
-const AREA_FOR: Record<CareerTab, CareerArea> = { hub: "central", next: "central", squad: "squad", tactics: "squad", market: "market", season: "competition", table: "competition", cup: "competition", stats: "club", news: "club", trophies: "club" };
+const AREA_DEFAULT: Record<CareerArea, CareerTab> = { central: "hub", squad: "roster", market: "market", competition: "season", club: "stats" };
+const AREA_FOR: Record<CareerTab, CareerArea> = { hub: "central", next: "central", roster: "squad", squad: "squad", tactics: "squad", market: "market", season: "competition", table: "competition", cup: "competition", stats: "club", news: "club", trophies: "club" };
 const STAGES: Record<string, string> = { QUARTERFINALS: "quartas de final", SEMIFINALS: "semifinais", FINAL: "final", COMPLETE: "temporada encerrada" };
 
 /** What the lobby hands to the career: the legacy chrome (kept for live/post-match screens) and room-level actions. */
@@ -103,7 +104,7 @@ export function CareerShell({ roomId, room, isHost, clubCode, chrome }: { roomId
   const area = AREA_FOR[tab];
   const goTo = (target: CareerTab) => setTab(target);
   const areaTabs = (selectedArea: CareerArea): { id: CareerTab; label: string }[] => {
-    if (selectedArea === "squad") return [{ id: "squad", label: "Escalação" }, { id: "tactics", label: "Táticas" }];
+    if (selectedArea === "squad") return [{ id: "roster", label: "Visão geral" }, { id: "squad", label: "Escalação" }, { id: "tactics", label: "Táticas" }];
     if (selectedArea === "competition") return shortMode
       ? []
       : [{ id: "season", label: "Calendário" }, { id: "table", label: "Classificação" }, ...(data.knockout?.cup_enabled ? [{ id: "cup" as CareerTab, label: "Copa" }] : [])];
@@ -142,7 +143,7 @@ export function CareerShell({ roomId, room, isHost, clubCode, chrome }: { roomId
       {actionError && <p className="rt-toast rt-toast--error" role="alert">{actionError.message}</p>}
       {tab === "next" ? legacyPanel(<PreMatch roomId={roomId} room={room} season={data} clubCode={clubCode} clubs={clubList} onGo={goTo} isHost={isHost} />) : <>
       {area === "central" && <CentralHub roomId={roomId} room={room} season={data} clubCode={clubCode} clubs={clubList} onGo={goTo} onOpenMatch={setOpenMatch} />}
-      {area === "squad" && <section className="cr-squad"><RetroSubNav label="Seções do elenco" items={subTabs} current={tab} onSelect={goTo} />{tab === "squad" ? <LineupBoard roomId={roomId} locked={locked} /> : legacyPanel(<><TacticsBoard roomId={roomId} locked={locked} /><CohesionPanel roomId={roomId} locked={locked} /></>)}</section>}
+      {area === "squad" && <section className="cr-squad"><RetroSubNav label="Seções do elenco" items={subTabs} current={tab} onSelect={goTo} />{tab === "roster" ? <SquadHub roomId={roomId} shortMode={shortMode} onGo={goTo} /> : tab === "squad" ? <LineupBoard roomId={roomId} locked={locked} /> : legacyPanel(<><TacticsBoard roomId={roomId} locked={locked} /><CohesionPanel roomId={roomId} locked={locked} /></>)}</section>}
       {area === "market" && !shortMode && legacyPanel(<section className="market-tab">{data.transfer_window_open ? <>
         {isHost && <div className="host-bar"><p>Você é o anfitrião: encerre a janela quando todos terminarem as negociações.</p><button type="button" className="btn btn--primary" disabled={closeWindow.isPending} onClick={() => closeWindow.mutate()}>{closeWindow.isPending ? "Encerrando…" : "Encerrar janela e seguir →"}</button></div>}
         {data.preseason_window && room.coach_moves_enabled && <CoachMarket roomId={roomId} room={room} clubCode={clubCode} club={club} clubs={clubList} onDone={refresh} />}

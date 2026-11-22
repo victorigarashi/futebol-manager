@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type Formation, type Squad, type SquadPlayer } from "../../lib/api";
 import { formatMoney } from "../../lib/format";
 import { ATTRIBUTE_LABEL, POSITION_LABEL, POSITION_NAME } from "./labels";
-import { autoPick, carryOver, fit, teamStrength } from "./lineup";
+import { autoPick, carryOver, fit, project, surname, teamStrength } from "./lineup";
 import { PlayerPhoto } from "../../components/PlayerPhoto";
 import { Shirt } from "../retro/primitives";
 import { clubColors } from "./clubColors";
@@ -159,18 +159,8 @@ export function LineupBoard({ roomId, locked, onSaved }: { roomId: string; locke
   </section>;
 }
 
-/** Perspective of the vertical pitch (presentation only: the official slot stays x/y). */
-function project(x: number, y: number): { left: number; top: number; scale: number } {
-  const depth = y / 100;
-  const width = 0.76 + 0.24 * depth;
-  return { left: 50 + (x - 50) * width * 0.92, top: 3 + y * 0.9, scale: 0.86 + 0.14 * depth };
-}
-function surname(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  return parts.length > 1 && parts[parts.length - 1].length <= 3 ? parts.slice(-2).join(" ") : parts[parts.length - 1];
-}
 /** Pitch drawn in the same projection as the slots. */
-function PitchArt() {
+export function PitchArt() {
   const P = (x: number, y: number) => { const p = project(x, y); return `${p.left},${p.top}`; };
   const rect = (x0: number, y0: number, x1: number, y1: number) => `M${P(x0, y0)} L${P(x1, y0)} L${P(x1, y1)} L${P(x0, y1)} Z`;
   const stripes = Array.from({ length: 10 }, (_, i) => i);
