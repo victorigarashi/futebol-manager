@@ -176,3 +176,30 @@ def test_every_mode_finishes_with_v8(monkeypatch, game_mode, size, rules):
     service, market, clubs, now = new_competition(game_mode, size, {**rules, "execution_mode": "INTERACTIVE", "decision_seconds": 5}, room=room)
     champion, engines = _play(service, market, room, set(clubs[:2]), now, True)
     assert champion in clubs and engines == {"v8"}
+
+
+def test_every_v8_view_and_snapshot_is_json_serialisable():
+    """Regression (found while measuring payloads): a cue carried an Athlete object instead
+    of its id, which made the API view and the snapshot of a match with a keeper catch fail."""
+    import json
+    throws = 0
+    for index in range(8):
+        match = _match(index % 4, engine="v8")
+        match.seed += index * 7919
+        original = match._resolve
+
+        def spy(choice, by, at, original=original):
+            step = original(choice, by, at)
+            json.dumps(step)
+            return step
+        match._resolve = spy
+        now = 0.0
+        while not match.finished and now < 3000:
+            now += 0.7
+            match.advance(now)
+            text = json.dumps(match.view(match.clubs[0], now))
+            throws += '"THROW"' in text
+        json.dumps(match.to_dict())
+        throws += '"THROW"' in json.dumps(match.to_dict())
+        assert match.finished
+    assert throws > 0, "no keeper restart happened: the regression was not exercised"

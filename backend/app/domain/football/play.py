@@ -868,7 +868,7 @@ class Play:
                     ang = math.atan2(mate.y - kb.y, mate.x - kb.x)
                     b.owner, b.z, b.vz = None, 0.4, 1.5
                     b.vx, b.vy = math.cos(ang) * 12.0, math.sin(ang) * 12.0
-                    self.cues.append(Cue(self.t, "THROW", kb))
+                    self.cues.append(Cue(self.t, "THROW", kb.id))
                 throw_at = None
             if self.keeper and b.owner == self.keeper.b.id:
                 kb = self.keeper.b
