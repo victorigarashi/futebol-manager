@@ -34,3 +34,7 @@ A licença de cada um precisa ser confirmada **asset por asset** antes de qualqu
 ## Football Lab (branch research/football-gameplay-lab, só em desenvolvimento)
 
 Os assets do laboratório também são originais: o atleta em loft, o rig de 21 ossos, os 30 clipes, os sprites gerados e as capturas. O único asset de terceiros é o GLB CC0 da Quaternius, usado como comparação. Ele **não é commitado**: fica em `public/lab-assets/third-party/`, que está no `.gitignore`. O detalhamento está em `docs/research/football-lab/LICENCAS.md`.
+
+## V8 Broadcast Visuals (branch feature/v8-broadcast-visuals)
+
+Tudo é gerado em código, em `render/stadium3d.ts`: gramado com faixas de corte, desgaste e marcações; torcida pintada em canvas como impostor por arquibancada; escadas, corrimões, muro azul-marinho com placas; céu em gradiente. As placas usam apenas marcas fictícias ("BRASILEIRÃO MANAGER", "RESENHA"). Não há fotos, logos reais, texturas de terceiros nem arquivos extraídos de jogos. As imagens de `references/` do pacote V8 serviram só de comparação visual e **não** foram copiadas para o repositório.

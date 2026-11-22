@@ -7,6 +7,9 @@ import { VISUAL, hashOf } from "./config";
 import type { Scene, ScenePlayer } from "./presentation";
 import type { Kit, Overlay } from "./renderer2d";
 import { createHuman, type Detail } from "./human";
+import { applyDaylight, buildStadium as buildBroadcastStadium, cornerFlags, paintGrass } from "./stadium3d";
+import { broadcastShot } from "./camera3d";
+import { clubColors } from "../../clubColors";
 
 /**
  * 3D Imersivo renderer (Three.js, loaded on demand). Original low-poly "blocky" art:
@@ -20,7 +23,6 @@ import { createHuman, type Detail } from "./human";
 export type Quality = "low" | "medium" | "high";
 export type CameraMode = "auto" | "wide";
 
-const CROWD = { low: 500, medium: 1800, high: 3600 } as const;
 const SHADOW = { low: 0, medium: 1024, high: 2048 } as const;
 const TEXTURE = { low: 1024, medium: 2048, high: 4096 } as const;
 const PLAYER_HEIGHT = 1.85;       // metres (the model is built at real scale)
@@ -318,6 +320,7 @@ export class Renderer3D {
   private pitchGroup = new THREE.Group();
   private nets: { lines: THREE.LineSegments; base: Float32Array; end: 0 | 1 }[] = [];
   private crowd: THREE.Group | null = null;
+  private stadiumClubs: [string, string] = ["", ""];
   private aimGroup = new THREE.Group();
   private trajectory: THREE.Line;
   private target: THREE.Mesh;
@@ -352,12 +355,12 @@ export class Renderer3D {
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.NoToneMapping;   // saturated, toy-like colours
     this.canvas.addEventListener("webglcontextlost", (event) => { event.preventDefault(); this.lost = true; });
-    this.scene.background = new THREE.Color(0x9fd3ff);
-    this.scene.fog = new THREE.Fog(0x9fd3ff, 160, 420);
-    this.scene.add(new THREE.HemisphereLight(0xeef6ff, 0x46703a, 1.25));
+    const hemi = new THREE.HemisphereLight(0xeef6ff, 0x46703a, 1.25);
+    this.scene.add(hemi);
     this.sun = new THREE.DirectionalLight(0xffefd2, 1.9);
-    this.sun.position.set(-40, 80, 30);
     this.scene.add(this.sun, this.sun.target);
+    // V8 broadcast look: filmic daylight, sky and haze (stadium3d.ts)
+    applyDaylight(this.renderer, this.scene, this.sun, hemi);
     this.applyQuality();
     this.scene.add(this.pitchGroup, this.aimGroup);
     // Ball (classic panels) and its blob shadow (always, also without shadow maps).
@@ -443,7 +446,8 @@ export class Renderer3D {
   private buildPitch(view: InteractiveView) {
     const { length: L, width: W, goal, box } = view.pitch;
     this.L = L; this.W = W;
-    const key = `${L}x${W}:${goal}:${this.quality}`;
+    const key = `${L}x${W}:${goal}:${this.quality}:${view.home}:${view.away}`;
+    this.stadiumClubs = [view.home, view.away];
     if (key === this.pitchKey) return;
     this.pitchKey = key;
     this.pitchGroup.clear();
@@ -453,62 +457,13 @@ export class Renderer3D {
     const fullL = L + margin * 2, fullW = W + margin * 2;
     const res = TEXTURE[this.quality];
     const pxm = res / fullL;
-    const tex = canvasTexture(res, Math.round(fullW * pxm), (ctx) => {
-      const X = (m: number) => (m + margin) * pxm, Y = (m: number) => (m + margin) * pxm;
-      ctx.fillStyle = "#56b046"; ctx.fillRect(0, 0, res, fullW * pxm);
-      // Diagonal checkerboard mowing (two greens), like a freshly cut stadium lawn.
-      const cell = 6 * (L / 105) * pxm;
-      ctx.save(); ctx.translate(X(L / 2), Y(W / 2)); ctx.rotate(Math.PI / 4);
-      const span = Math.hypot(fullL, fullW) * pxm;
-      const n = Math.ceil(span / cell);
-      for (let i = -n; i < n; i += 1) for (let j = -n; j < n; j += 1) {
-        ctx.fillStyle = Math.abs(i + j) % 2 === 0 ? "#56b046" : "#54ad44";   // barely-there checker
-        ctx.fillRect(i * cell, j * cell, cell + 0.5, cell + 0.5);
-      }
-      ctx.restore();
-      // Soft mowing stripes along the length over the checker, then fine grass grain.
-      // Broadcast-style mowing stripes along the length, with a soft gradient inside each stripe.
-      for (let i = 0; i < 18; i += 1) {
-        const x0 = X((L / 18) * i), w = (L / 18) * pxm;
-        const grad = ctx.createLinearGradient(x0, 0, x0 + w, 0);
-        const tone = i % 2 ? "rgba(255,255,240,0.075)" : "rgba(0,40,0,0.06)";
-        grad.addColorStop(0, tone); grad.addColorStop(0.5, tone); grad.addColorStop(1, i % 2 ? "rgba(255,255,240,0.05)" : "rgba(0,40,0,0.04)");
-        ctx.fillStyle = grad; ctx.fillRect(x0, Y(0), w, W * pxm);
-      }
-      // Large, soft colour patches (natural variation, not a pattern).
-      for (let i = 0; i < 40; i += 1) {
-        const cx = X(((i * 37) % 100) / 100 * L), cy = Y(((i * 61) % 100) / 100 * W), r = (6 + (i % 5) * 3) * pxm;
-        const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-        g.addColorStop(0, i % 3 ? "rgba(70,140,40,0.06)" : "rgba(150,200,80,0.05)"); g.addColorStop(1, "rgba(0,0,0,0)");
-        ctx.fillStyle = g; ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
-      }
-      let seed = 11; const rand = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
-      for (let i = 0; i < res * 6; i += 1) { ctx.fillStyle = rand() < 0.5 ? "rgba(255,255,255,0.035)" : "rgba(0,0,0,0.05)"; ctx.fillRect(rand() * res, rand() * fullW * pxm, 2, 3); }
-      // Surround (darker) outside the touchlines.
-      ctx.fillStyle = "rgba(20,60,20,0.25)";
-      ctx.fillRect(0, 0, res, Y(0)); ctx.fillRect(0, Y(W), res, margin * pxm); ctx.fillRect(0, 0, X(0), fullW * pxm); ctx.fillRect(X(L), 0, margin * pxm, fullW * pxm);
-      ctx.strokeStyle = "rgba(255,255,255,0.95)"; ctx.lineWidth = Math.max(2, 0.14 * pxm); ctx.lineCap = "round";
-      const poly = (pts: [number, number][], close = false) => { ctx.beginPath(); pts.forEach(([x, y], i) => (i ? ctx.lineTo(X(x), Y(y)) : ctx.moveTo(X(x), Y(y)))); if (close) ctx.closePath(); ctx.stroke(); };
-      const s = L / 105;
-      poly([[0, 0], [L, 0], [L, W], [0, W]], true); poly([[L / 2, 0], [L / 2, W]]);
-      ctx.beginPath(); ctx.arc(X(L / 2), Y(W / 2), 9.15 * s * pxm, 0, Math.PI * 2); ctx.stroke();
-      const halfBox = Math.min(W * 0.46, box * (20.16 / 16.5)), six = box / 3, halfSix = Math.min(W * 0.3, box * (9.16 / 16.5));
-      const spot = box * (11 / 16.5), arcR = box * (9.15 / 16.5);
-      ctx.fillStyle = "#ffffff";
-      for (const end of [0, 1]) {
-        const x = end ? L : 0, d = end ? -1 : 1;
-        poly([[x, W / 2 - halfBox], [x + d * box, W / 2 - halfBox], [x + d * box, W / 2 + halfBox], [x, W / 2 + halfBox]]);
-        poly([[x, W / 2 - halfSix], [x + d * six, W / 2 - halfSix], [x + d * six, W / 2 + halfSix], [x, W / 2 + halfSix]]);
-        ctx.beginPath(); ctx.arc(X(x + d * spot), Y(W / 2), 0.25 * pxm, 0, Math.PI * 2); ctx.fill();
-        const lim = Math.acos(Math.min(1, (box - spot) / arcR));
-        ctx.beginPath(); if (end) ctx.arc(X(x + d * spot), Y(W / 2), arcR * pxm, Math.PI - lim, Math.PI + lim); else ctx.arc(X(x + d * spot), Y(W / 2), arcR * pxm, -lim, lim); ctx.stroke();
-      }
-    });
+    const tex = paintGrass(L, W, margin, box, res);   // V8 natural lawn (stadium3d.ts)
+    void pxm;
     const grass = new THREE.Mesh(new THREE.PlaneGeometry(fullL, fullW), new THREE.MeshLambertMaterial({ map: tex }));
     grass.rotation.x = -Math.PI / 2; grass.receiveShadow = true;
     this.pitchGroup.add(grass);
     // Running track / concourse.
-    const apron = new THREE.Mesh(new THREE.PlaneGeometry(fullL + 40, fullW + 40), mat("#5d7a4c"));
+    const apron = new THREE.Mesh(new THREE.PlaneGeometry(fullL + 40, fullW + 40), mat("#4d6b42"));
     apron.rotation.x = -Math.PI / 2; apron.position.y = -0.02; apron.receiveShadow = true;
     this.pitchGroup.add(apron);
     // Goals: posts, crossbar and a deep net exactly at the physical mouth.
@@ -541,89 +496,11 @@ export class Renderer3D {
   }
 
   private buildStadium(fullL: number, fullW: number, shadows: boolean) {
-    let seed = 5; const rand = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
-    // Ad boards (fictional sponsors only), each side starting at a different board.
-    const brands: [string, string, string][] = [["RESENHA FC", "#0f4fa8", "#ffd31a"], ["BRASILEIRÃO MANAGER", "#e8352e", "#ffffff"], ["VAI PRA CIMA", "#14975a", "#ffffff"],
-      ["CRAQUE DA RODADA", "#ffd31a", "#111111"], ["BOLA NA REDE", "#7a2bd1", "#ffffff"], ["ARQUIBANCADA", "#ff7a00", "#111111"], ["GOLAÇO", "#111827", "#c6f24e"],
-      ["TABELINHA", "#0ea5e9", "#ffffff"], ["CHAPÉU", "#be123c", "#ffffff"], ["PANENKA", "#f8fafc", "#0f172a"]];
-    const boardTex = canvasTexture(4096, 64, (ctx) => {
-      const w = 4096 / brands.length;
-      brands.forEach(([text, bg, fg], i) => { ctx.fillStyle = bg; ctx.fillRect(i * w, 0, w + 1, 64); ctx.fillStyle = fg; ctx.font = "900 34px 'Barlow Condensed', Inter, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(text, i * w + w / 2, 34); });
-    });
-    boardTex.wrapS = THREE.RepeatWrapping;
-    const boards: [number, number, number, number][] = [[0, -fullW / 2 - 0.5, fullL, 0], [0, fullW / 2 + 0.5, fullL, Math.PI], [-fullL / 2 - 0.5, 0, fullW, Math.PI / 2], [fullL / 2 + 0.5, 0, fullW, -Math.PI / 2]];
-    boards.forEach(([x, z, len, ry], i) => {
-      const tex = boardTex.clone(); tex.needsUpdate = true; tex.repeat.set(len / 60, 1); tex.offset.x = i * 0.27;
-      const board = new THREE.Mesh(new THREE.BoxGeometry(len, 0.9, 0.15), new THREE.MeshLambertMaterial({ map: tex, emissive: 0x1a1a1a }));
-      board.position.set(x, 0.45, z); board.rotation.y = ry; board.castShadow = shadows; this.pitchGroup.add(board);
-    });
-    // Stands: a front wall, stepped tiers (alternating seat colours) and a roof canopy.
-    const tiers = this.quality === "low" ? 7 : 12;
-    const rise = 0.75, depth = 1.1, front = 4.5;
-    const seatColors = ["#1e4fa8", "#d6dbe3", "#1e4fa8", "#f2c230"].map((c) => mat(c));
-    const sides = [
-      { cx: 0, cz: -fullW / 2 - front, len: fullL + 14, ry: 0, out: [0, -1] }, { cx: 0, cz: fullW / 2 + front, len: fullL + 14, ry: Math.PI, out: [0, 1] },
-      { cx: -fullL / 2 - front, cz: 0, len: fullW + 14, ry: Math.PI / 2, out: [-1, 0] }, { cx: fullL / 2 + front, cz: 0, len: fullW + 14, ry: -Math.PI / 2, out: [1, 0] },
-    ];
-    for (const side of sides) {
-      const wall = new THREE.Mesh(new THREE.BoxGeometry(side.len, 1.6, 0.4), mat("#2b3340"));
-      wall.position.set(side.cx - side.out[0] * 0.4, 0.8, side.cz - side.out[1] * 0.4); wall.rotation.y = side.ry; this.pitchGroup.add(wall);
-      for (let t = 0; t < tiers; t += 1) {
-        const step = new THREE.Mesh(new THREE.BoxGeometry(side.len + t * 2 * depth, 1.6 + t * rise, depth), seatColors[Math.floor(t / 3) % seatColors.length]);
-        step.position.set(side.cx + side.out[0] * t * depth, (1.6 + t * rise) / 2, side.cz + side.out[1] * t * depth); step.rotation.y = side.ry;
-        step.receiveShadow = shadows; this.pitchGroup.add(step);
-      }
-      if (this.quality !== "low") {
-        const roof = new THREE.Mesh(new THREE.BoxGeometry(side.len + tiers * 2 * depth, 0.4, tiers * depth * 0.7), mat("#e5e7eb"));
-        roof.position.set(side.cx + side.out[0] * tiers * depth * 0.6, 1.6 + tiers * rise + 4, side.cz + side.out[1] * tiers * depth * 0.6); roof.rotation.y = side.ry; this.pitchGroup.add(roof);
-      }
-    }
-    // Crowd: people silhouettes (shirt body, skin head, some arms raised), one draw call each part.
-    const count = CROWD_COUNT(CROWD[this.quality]);
-    const bodyMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.46, 0.62, 0.3), new THREE.MeshLambertMaterial(), count);
-    const headMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.26, 0.28, 0.26), new THREE.MeshLambertMaterial(), count);
-    const armMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.1, 0.5, 0.1), new THREE.MeshLambertMaterial(), count);
-    const shirts = ["#e8352e", "#ffd31a", "#ffffff", "#0f4fa8", "#14975a", "#111111", "#ff7a00", "#7a2bd1", "#c6f24e", "#0ea5e9"].map((c) => new THREE.Color(c));
-    const skins = VISUAL.skin.map((c) => new THREE.Color(c));
-    const dummy = new THREE.Object3D();
-    let arms = 0;
-    for (let i = 0; i < count; i += 1) {
-      const side = sides[i % 4];
-      const t = Math.floor(rand() * tiers);
-      const along = (rand() - 0.5) * (side.len + t * 2 * depth - 2);
-      const x = side.cx + side.out[0] * t * depth + (side.out[1] !== 0 ? along : 0);
-      const z = side.cz + side.out[1] * t * depth + (side.out[0] !== 0 ? along : 0);
-      const standing = rand() < 0.35;
-      const baseY = 1.6 + t * rise + (standing ? 0.42 : 0.28);
-      const shirt = shirts[Math.floor(rand() * shirts.length)];
-      dummy.position.set(x, baseY, z); dummy.rotation.set(0, side.ry + (rand() - 0.5) * 0.4, 0); dummy.scale.set(1, standing ? 1.15 : 0.9, 1); dummy.updateMatrix();
-      bodyMesh.setMatrixAt(i, dummy.matrix); bodyMesh.setColorAt(i, shirt);
-      dummy.position.y = baseY + (standing ? 0.52 : 0.45); dummy.scale.set(1, 1, 1); dummy.updateMatrix();
-      headMesh.setMatrixAt(i, dummy.matrix); headMesh.setColorAt(i, skins[Math.floor(rand() * skins.length)]);
-      if (standing && rand() < 0.5 && arms < count) {
-        dummy.position.set(x + Math.cos(side.ry) * 0.2, baseY + 0.55, z - Math.sin(side.ry) * 0.2); dummy.rotation.z = 0.25; dummy.updateMatrix();
-        armMesh.setMatrixAt(arms, dummy.matrix); armMesh.setColorAt(arms, shirt); arms += 1;
-        dummy.rotation.z = 0;
-      }
-    }
-    armMesh.count = arms;
-    for (const m of [bodyMesh, headMesh, armMesh]) { m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; }
-    const crowd = new THREE.Group(); crowd.add(bodyMesh, headMesh, armMesh);
-    this.crowd = crowd;
-    this.pitchGroup.add(crowd);
-    // Flags at the corners, floodlights, benches and tunnel (discreet).
-    const flagColors = ["#e8352e", "#ffd31a", "#0f4fa8", "#14975a"];
-    [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([x, z], i) => {
-      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.6, 6), mat("#f8fafc")); pole.position.set(x * (fullL / 2 - 0.2), 0.8, z * (fullW / 2 - 0.2)); this.pitchGroup.add(pole);
-      const flag = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.35, 0.02), mat(flagColors[i])); flag.position.set(x * (fullL / 2 - 0.2) + 0.25, 1.4, z * (fullW / 2 - 0.2)); this.pitchGroup.add(flag);
-      const tower = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.7, 38, 8), mat("#9aa1ab")); tower.position.set(x * (fullL / 2 + 20), 19, z * (fullW / 2 + 20)); this.pitchGroup.add(tower);
-      const lamp = new THREE.Mesh(new THREE.BoxGeometry(8, 4, 1), new THREE.MeshBasicMaterial({ color: 0xfffbe6 })); lamp.position.set(x * (fullL / 2 + 20), 39, z * (fullW / 2 + 20)); lamp.lookAt(0, 0, 0); this.pitchGroup.add(lamp);
-    });
-    for (const sgn of [-1, 1]) {
-      const bench = new THREE.Mesh(new THREE.BoxGeometry(7, 1.4, 1.4), new THREE.MeshLambertMaterial({ color: 0x1b2a44, transparent: true, opacity: 0.85 }));
-      bench.position.set(sgn * 10, 0.7, fullW / 2 + 2.2); this.pitchGroup.add(bench);
-    }
-    const tunnel = new THREE.Mesh(new THREE.BoxGeometry(5, 2.6, 2), mat("#30343b")); tunnel.position.set(0, 1.3, fullW / 2 + 3.4); this.pitchGroup.add(tunnel);
+    // V8 broadcast stadium (stadium3d.ts): boards, wall, raked terraces with a crowd impostor
+    // in the home club's colours, corners, roof and floodlights; corner flags on the pitch.
+    const home = clubColors(this.stadiumClubs[0]), away = clubColors(this.stadiumClubs[1]);
+    this.crowd = buildBroadcastStadium(this.pitchGroup, { fullL, fullW, quality: this.quality as "low" | "medium" | "high", shadows, home, away });
+    cornerFlags(this.pitchGroup, this.L, this.W);
   }
 
   // -------------------------------------------------------------------------- frame
@@ -772,9 +649,10 @@ export class Renderer3D {
     const opp = view.opportunity;
     const pos = new THREE.Vector3(), look = new THREE.Vector3();
     const portrait = this.camera.aspect < 0.9;
+    let fov = this.camera.aspect < 0.8 ? 62 : this.camera.aspect < 1.2 ? 52 : 45;
     if (!scene || !opp) {
       // Fast simulation: broadcast camera from the main stand.
-      look.set(0, 0, 0); pos.set(0, this.L * 0.42, this.W * 0.5 + this.L * 0.45);
+      look.set(0, 0, 0); pos.set(0, this.L * 0.36, this.W * 0.5 + this.L * 0.5); fov = this.camera.aspect < 1.2 ? 50 : 38;
     } else {
       const dir = opp.right === false ? -1 : 1;
       const ball = this.world(scene.ball.x, scene.ball.y);
@@ -792,6 +670,11 @@ export class Renderer3D {
         // Manual wide view: the whole pitch, tactical tilt.
         look.set(dir * this.L * 0.06, 0, 0);
         pos.set(-dir * this.L * 0.5, this.L * (portrait ? 0.95 : 0.62), 0);
+      } else if (!portrait) {
+        // V8 broadcast camera (camera3d.ts): main stand, narrow lens, pans with the play.
+        const mates = scene.players.filter((p) => p.team === "A" && !p.keeper).map((p) => this.world(p.x, p.y));
+        const shot = broadcastShot({ L: this.L, W: this.W, ball, dir: dir as 1 | -1, mates, aspect: this.camera.aspect });
+        pos.copy(shot.pos); look.copy(shot.look); fov = shot.fov;
       } else {
         // Build-up/finishing: elevated and tilted behind the ball carrier (ball in the lower third,
         // team-mates and the goal ahead), the goal kept in frame when close to it.
@@ -831,6 +714,8 @@ export class Renderer3D {
     this.camLook.lerp(look, this.cinematic ? 1 : smooth);
     this.camera.position.copy(this.camPos);
     this.camera.lookAt(this.camLook);
+    if (this.cinematic) fov = this.camera.aspect < 0.8 ? 62 : 45;
+    if (Math.abs(this.camera.fov - fov) > 0.05) { this.camera.fov += (fov - this.camera.fov) * (cut ? 1 : Math.min(1, dt * 3)); this.camera.updateProjectionMatrix(); }
     void overlay;
   }
 
@@ -876,7 +761,6 @@ export class Renderer3D {
   }
 }
 
-function CROWD_COUNT(n: number) { return Math.max(100, n); }
 
 export function webglAvailable(): boolean {
   try {
