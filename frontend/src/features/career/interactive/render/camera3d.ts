@@ -42,3 +42,24 @@ export function broadcastShot(i: BroadcastInput, out?: BroadcastShot): Broadcast
   const fov = base + near * 3;
   return { pos, look, fov };
 }
+
+/**
+ * Portrait phones: an elevated "end" broadcast camera. It looks down the pitch towards the goal
+ * being attacked, so the play runs vertically on the narrow screen, with the carrier in the lower
+ * third (above the action bar), team-mates and the goal ahead, and the end stand at the top.
+ * Near the goal the axis turns towards the goal mouth so the goal never leaves the frame.
+ */
+export function portraitShot(i: BroadcastInput, out?: BroadcastShot): BroadcastShot {
+  const k = Math.max(0.55, i.L / 105);
+  const goalX = i.dir * i.L / 2;
+  const gx = goalX - i.ball.x, gz = -i.ball.z, gl = Math.hypot(gx, gz) || 1;
+  const near = Math.max(0, Math.min(1, 1 - (gl - 12 * k) / (24 * k)));
+  let ax = i.dir * (1 - near) + (gx / gl) * near, az = (gz / gl) * near * 0.85;
+  const al = Math.hypot(ax, az) || 1; ax /= al; az /= al;
+  const back = (18 - near * 4) * k, height = (16.5 - near * 2.5) * k;
+  const lead = Math.min(12 * k, Math.max(4 * k, gl * 0.45));
+  const pos = out?.pos ?? new THREE.Vector3(), look = out?.look ?? new THREE.Vector3();
+  look.set(i.ball.x + ax * lead, 0, i.ball.z * 0.9 + az * lead);
+  pos.set(i.ball.x - ax * back, height, i.ball.z * 0.9 - az * back);
+  return { pos, look, fov: i.aspect < 0.6 ? 58 : 52 };
+}
