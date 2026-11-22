@@ -126,6 +126,19 @@ async function act(c, v) {
       }
       await sleep(250);
     }
+    // The loop window may end before the final whistle (slow automated gestures): keep
+    // watching the OFFICIAL state until both coaches see the end (or the screen closes on it).
+    const endBy = Date.now() + 300000;
+    while (Date.now() < endBy) {
+      let [va, vb] = await Promise.all([view(A), view(B)]);
+      if (va && va.match_id !== matchId) va = null;
+      if (vb && vb.match_id !== matchId) vb = null;
+      if (va) final.A = va;
+      if (vb) final.B = vb;
+      for (const [c, v] of [[A, va], [B, vb]]) if (v?.your_turn) await act(c, v);
+      if ((!va || va.state === "FINISHED") && (!vb || vb.state === "FINISHED") && (final.A?.state === "FINISHED" || final.B?.state === "FINISHED" || (!va && !vb))) break;
+      await sleep(400);
+    }
     const fa = final.A, fb = final.B;
     check("match finishes for both coaches", (fa?.state === "FINISHED" || fa?.minute > 85) && (fb?.state === "FINISHED" || fb?.minute > 85), `${fa?.state} ${fa?.minute?.toFixed?.(1)}' / ${fb?.state} ${fb?.minute?.toFixed?.(1)}'`);
     check(`same official score on ${A.exp} and ${B.exp}`, Boolean(fa && fb && fa.score.home === fb.score.home && fa.score.away === fb.score.away), JSON.stringify(fa?.score));
