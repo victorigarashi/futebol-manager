@@ -119,3 +119,44 @@ body.im-open { overflow: hidden; }
 
 /* Lab-only diagnostics overlay */
 .im-diag { position: absolute; left: 12px; bottom: 90px; z-index: 7; padding: 4px 10px; border-radius: 8px; background: rgb(0 0 0 / 70%); color: #c6f24e; font: 700 12px ui-monospace, monospace; pointer-events: none; }
+
+/* ---------------------------------------------------------------------------------------------
+   V8 HUD (reference 09, FIFA 14–16 style): a flat rectangular scoreboard with the clock in a
+   lime cell, light team/score cells, and square light action buttons with the selected one in
+   lime. Visual only, appended: same elements, same positions and hit areas, nothing new above
+   the action bar (the carrier must stay clickable there). Applies to 2D and 3D.
+   --------------------------------------------------------------------------------------------- */
+.im { --v8-cell: #eef1f4; --v8-cell-2: #dde2e8; --v8-ink: #121821; --v8-lime: #d4f24a; --v8-shadow: 0 2px 0 rgb(0 0 0 / 28%), 0 8px 20px rgb(0 0 0 / 28%); }
+.im-bug { grid-template-columns: auto auto auto auto; grid-template-rows: auto; column-gap: 0; padding: 0; border-radius: 3px; background: var(--v8-cell); color: var(--v8-ink); box-shadow: var(--v8-shadow); overflow: hidden; }
+.im-bug__clock { grid-column: 1; grid-row: 1; align-self: stretch; display: flex; align-items: center; margin: 0; padding: 0 10px; border-radius: 0; background: var(--v8-lime); color: var(--v8-ink); font-size: .95rem; letter-spacing: .02em; }
+.im-bug__clock small { margin-left: 5px; color: #3d4a14; font-size: .64rem; }
+.im-bug__team { grid-row: 1; padding: 5px 9px; font-size: .9rem; letter-spacing: .04em; text-transform: uppercase; }
+.im-bug__team:first-of-type { grid-column: 2; }
+.im-bug__team--away { grid-column: 4; }
+.im-bug__team.is-you abbr { color: var(--v8-ink); box-shadow: inset 0 -3px 0 var(--v8-lime); }
+.im-bug__score { grid-column: 3; grid-row: 1; align-self: stretch; display: flex; align-items: center; justify-content: center; min-width: 58px; padding: 0 8px; background: var(--v8-ink); color: #fff; font-size: 1.2rem; }
+.im-bug__score span { margin: 0 3px; }
+.im-dir.is-right { border-left-color: #5d7a10; }
+.im-dir.is-left { border-right-color: #5d7a10; }
+.im-chip { border-radius: 3px; background: rgb(18 24 33 / 82%); color: #e8edf2; letter-spacing: .03em; text-transform: uppercase; }
+.im-banner { border-radius: 4px; }
+.im-toast { border-radius: 4px; text-transform: uppercase; }
+.im-tool { border-radius: 4px; }
+
+.im-actions { gap: 6px; padding: 6px; border-radius: 6px; background: rgb(18 24 33 / 78%); }
+.im-actions button { min-height: 62px; border: 0; border-radius: 4px; color: var(--v8-ink); background: linear-gradient(180deg, var(--v8-cell), var(--v8-cell-2)); box-shadow: inset 0 -2px 0 rgb(0 0 0 / 14%); }
+.im-actions button em { font-weight: 900; letter-spacing: .05em; text-transform: uppercase; }
+.im-actions button kbd { color: #6b7684; }
+.im-actions button:hover { background: #fff; }
+.im-actions button.is-active { color: var(--v8-ink); background: var(--v8-lime); box-shadow: inset 0 -3px 0 #8fae12; }
+.im-actions button.is-auto:not(.is-active) { color: var(--v8-ink); box-shadow: inset 0 0 0 2px var(--v8-lime), inset 0 -2px 0 rgb(0 0 0 / 14%); }
+.im-actions button:focus-visible { outline: 3px solid #fff; outline-offset: 1px; }
+
+@media (max-width: 640px) {
+  .im-bug { padding: 0; }
+  .im-bug__team { padding: 4px 6px; font-size: .72rem; }
+  .im-bug__clock { padding: 0 6px; font-size: .8rem; }
+  .im-bug__score { min-width: 44px; font-size: 1rem; }
+  .im-actions button { min-height: 56px; }
+  .im-chip { top: 114px; }   /* below the "Sua jogada" banner instead of under it */
+}

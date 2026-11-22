@@ -8,7 +8,7 @@ import type { Scene, ScenePlayer } from "./presentation";
 import type { Kit, Overlay } from "./renderer2d";
 import { createHuman, type Detail } from "./human";
 import { applyDaylight, buildStadium as buildBroadcastStadium, cornerFlags, paintGrass } from "./stadium3d";
-import { broadcastShot } from "./camera3d";
+import { broadcastShot, portraitShot } from "./camera3d";
 import { clubColors } from "../../clubColors";
 
 /**
@@ -321,6 +321,8 @@ export class Renderer3D {
   private nets: { lines: THREE.LineSegments; base: Float32Array; end: 0 | 1 }[] = [];
   private crowd: THREE.Group | null = null;
   private stadiumClubs: [string, string] = ["", ""];
+  /** V7 portrait camera kept as a fallback (off by default). */
+  private legacyPortrait = false;
   private aimGroup = new THREE.Group();
   private trajectory: THREE.Line;
   private target: THREE.Mesh;
@@ -670,10 +672,11 @@ export class Renderer3D {
         // Manual wide view: the whole pitch, tactical tilt.
         look.set(dir * this.L * 0.06, 0, 0);
         pos.set(-dir * this.L * 0.5, this.L * (portrait ? 0.95 : 0.62), 0);
-      } else if (!portrait) {
-        // V8 broadcast camera (camera3d.ts): main stand, narrow lens, pans with the play.
+      } else if (!portrait || !this.legacyPortrait) {
+        // V8 broadcast cameras (camera3d.ts): main stand in landscape, elevated end camera on portrait phones.
         const mates = scene.players.filter((p) => p.team === "A" && !p.keeper).map((p) => this.world(p.x, p.y));
-        const shot = broadcastShot({ L: this.L, W: this.W, ball, dir: dir as 1 | -1, mates, aspect: this.camera.aspect });
+        const input = { L: this.L, W: this.W, ball, dir: dir as 1 | -1, mates, aspect: this.camera.aspect };
+        const shot = portrait ? portraitShot(input) : broadcastShot(input);
         pos.copy(shot.pos); look.copy(shot.look); fov = shot.fov;
       } else {
         // Build-up/finishing: elevated and tilted behind the ball carrier (ball in the lower third,

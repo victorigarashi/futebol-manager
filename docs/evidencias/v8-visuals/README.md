@@ -25,3 +25,23 @@ Desempenho (`scripts/v8visuals/fps.cjs`, construção, 1672×941, headless/iGPU)
 - **Atletas:** ficam com cerca de 65% da altura vista nas referências e têm menos detalhe. A malha e as animações pertencem à frente de personagens e não foram mexidas aqui.
 - **Torcida:** é pintada, então parece mais plana que a fotografia das referências.
 - **Aprovação:** ainda não há aprovação visual do proprietário.
+
+## HUD e câmera de retrato (branch feature/v8-hud-portrait, a partir de e658f12)
+
+- **HUD**, baseado na referência 09. As regras foram só acrescentadas ao fim de `interactive.css`, sem mudar o markup.
+  - Placar retangular plano: relógio numa célula lima, times em células claras e placar numa célula escura.
+  - Botões de ação quadrados e claros; o selecionado fica lima.
+  - Vale para 2D e 3D.
+  - No celular, o chip da jogada saiu de baixo do banner "Sua jogada".
+- **Câmera de retrato**, `portraitShot` em `camera3d.ts`: câmera de fundo, elevada.
+  - O jogo corre na vertical, com o portador no terço inferior, acima da barra de ações.
+  - A arquibancada do fundo e o gol aparecem no alto.
+  - Perto do gol, o eixo gira para o gol.
+- **Área clicável:** `scripts/v8visuals/hud-check.cjs` confirma que a faixa de até 120 px acima da barra de ações atinge `.im-input` em 2D e 3D, a 1672, 1366 e 390 px. Os 6 casos passam.
+- **Evidências:**
+  - `hud/comparativo-hud.png`;
+  - `hud/antes|depois`;
+  - `retrato/comparativo-retrato.png`;
+  - `retrato/antes|depois`.
+- **Desempenho no retrato** (390×844, headless/iGPU): 60 fps em low, medium e high.
+- **Fora desta frente:** a linha de competição/rodada da referência 09 exigiria markup novo em `InteractiveMatch.tsx` e ficou de fora.
