@@ -76,6 +76,7 @@ async function playScenario(browser, exp, kind, format) {
   if (exp === "3D") await page.waitForFunction(() => window.__bmMatch.experience() === "3D", null, { timeout: 30000 }).catch(() => {});
   const log = [];
   let step = 0;
+  if (process.env.WARMUP) await sleep(Number(process.env.WARMUP));   // e.g. let the 2D sprite atlas bake first
   const t0 = Date.now();
   let lastOpp = null;
   while (Date.now() - t0 < 70000) {

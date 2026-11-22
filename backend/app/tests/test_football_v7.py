@@ -266,7 +266,7 @@ def test_lab_drill_and_full_match_sessions():
     players = list(base.players) + [p.model_copy(update={"id": f"pal-{p.id}", "club_code": "PAL"}) for p in base.players]
     catalog = PlayerCatalog(catalog_version="test", source="test-fixture", source_version="1", players=players)
     clubs = sorted({p.club_code for p in catalog.players})
-    drill = lab.create("u", catalog, "ELEVEN_A_SIDE", "DRILL_1V_GK", clubs[0], clubs[1], 3)
+    drill = lab.create("u", catalog, "ELEVEN_A_SIDE", "DRILL_1V_GK", clubs[0], clubs[1], 3, engine="v7")
     roster = drill["match"]["opportunity"]["roster"] if drill["match"]["opportunity"] else None
     session = lab.sessions[drill["id"]].match
     assert session.engine == "v7" and len(session.timeline) == 1

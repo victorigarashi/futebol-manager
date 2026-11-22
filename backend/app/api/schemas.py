@@ -262,5 +262,5 @@ class LabCreate(BaseModel):
     away: str = Field(default="", max_length=8)
     seed: int = Field(default=7, ge=0, le=1_000_000)
     second_half: bool = False
-    engine: Literal["v6", "v7"] = "v7"
+    engine: Literal["v6", "v7", "v8"] = "v8"
     difficulty: Literal["EASY", "NORMAL", "HARD"] = "NORMAL"

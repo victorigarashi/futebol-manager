@@ -43,20 +43,22 @@ def rows(bodies: list[Athlete]) -> list[dict[str, object]]:
 
 
 def resolve(body_rows: list[dict[str, object]], ball_row: dict[str, object], carrier_id: str, action: str, tx: float, ty: float, power: float,
-            cfg: dict[str, float], rng: random.Random, boost: float, tactics: dict[str, str] | None, difficulty: str) -> tuple[PlayResult, list[dict], dict]:
+            cfg: dict[str, float], rng: random.Random, boost: float, tactics: dict[str, object] | None, difficulty: str,
+            profile: str = "v7") -> tuple[PlayResult, list[dict], dict]:
     bodies = athletes(body_rows)
     ball = BallState(float(ball_row.get("x", 0.0)), float(ball_row.get("y", 0.0)))
-    play = Play(bodies, ball, cfg, rng, boost, tactics, difficulty)
+    play = Play(bodies, ball, cfg, rng, boost, tactics, difficulty, profile)
     result = play.run(carrier_id, action, tx, ty, power)
     return result, rows(bodies), {"x": ball.x, "y": ball.y, "vx": 0.0, "vy": 0.0, "z": 0.0, "vz": 0.0, "air_left": 0.0, "air_total": 0.0}
 
 
 def choose(body_rows: list[dict[str, object]], carrier_id: str, cfg: dict[str, float], actions_done: int, kind: str, rng: random.Random,
-           difficulty: str) -> dict[str, object]:
-    return ai_choice(athletes(body_rows), carrier_id, cfg, actions_done, kind, rng, difficulty)
+           difficulty: str, profile: str = "v7", tactics: dict[str, object] | None = None) -> dict[str, object]:
+    return ai_choice(athletes(body_rows), carrier_id, cfg, actions_done, kind, rng, difficulty, profile, tactics)
 
 
-def opening(body_rows: list[dict[str, object]], carrier_id: str, kind: str, cfg: dict[str, float], rng: random.Random) -> tuple[list[dict], str]:
+def opening(body_rows: list[dict[str, object]], carrier_id: str, kind: str, cfg: dict[str, float], rng: random.Random,
+            profile: str = "v7") -> tuple[list[dict], str]:
     """Drills / overload placement and the opening movement of every opportunity."""
     bodies = athletes(body_rows)
     L, W = cfg["length"], cfg["width"]
@@ -68,9 +70,9 @@ def opening(body_rows: list[dict[str, object]], carrier_id: str, kind: str, cfg:
     return rows(bodies), carrier_id
 
 
-def physics_view(scale: float, assist_angle: float) -> dict[str, object]:
+def physics_view(scale: float, assist_angle: float, profile: str = "v7") -> dict[str, object]:
     """What the client needs to forecast the line of a gesture with the SAME formulas."""
-    return {"model": ENGINE, "pass": PASS_SPEED, "roll": [ROLL_DECEL, ROLL_DRAG], "decel": ROLL_DECEL, "loft_range": LOFT_RANGE,
+    return {"model": "v7", "profile": profile, "pass": PASS_SPEED, "roll": [ROLL_DECEL, ROLL_DRAG], "decel": ROLL_DECEL, "loft_range": LOFT_RANGE,
             "loft_angle": LOFT_ANGLE, "shot": SHOT_SPEED, "carry": CARRY_RANGE, "assist_angle": assist_angle, "frame_dt": FRAME_DT,
             "scale": scale}
 

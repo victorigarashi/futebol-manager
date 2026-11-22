@@ -27,6 +27,8 @@ BALL_RADIUS = 0.11
 ROLL_DECEL = 2.6      # m/s² rolling resistance on grass (constant part)
 ROLL_DRAG = 0.010     # 1/m: velocity-squared part while rolling
 AIR_DRAG = 0.0105     # 1/m: drag in flight (a 0.43 kg ball ~ 0.01 v² m/s²)
+MAGNUS = 0.0036       # V8: lateral accel = MAGNUS * spin (rad/s) * speed, in flight (a curled shot bends ~1-2 m over 20 m)
+SPIN_DECAY = 0.35     # 1/s
 BOUNCE = 0.52         # vertical restitution on the grass
 BOUNCE_FRICTION = 0.86  # horizontal speed kept on a bounce
 PASS_SPEED = (6.5, 19.5)   # v0 = a + b * power (m/s)
@@ -224,6 +226,7 @@ class BallState:
     vy: float = 0.0
     vz: float = 0.0
     owner: str | None = None     # controlled at the feet of this athlete (dribble / settle)
+    spin: float = 0.0            # V8 side spin (rad/s, + bends to the left of the motion)
     last_touch: str = "A"        # team of the last touch (corner vs goal kick)
 
     @property
@@ -243,6 +246,12 @@ def ball_step(b: BallState, dt: float = DT) -> None:
         drag = AIR_DRAG * total
         b.vx -= b.vx * drag * dt
         b.vy -= b.vy * drag * dt
+        if b.spin and speed > 1.0:
+            a = MAGNUS * b.spin * speed
+            vx, vy = b.vx, b.vy
+            b.vx = vx - vy / speed * a * dt
+            b.vy = vy + vx / speed * a * dt
+            b.spin *= max(0.0, 1 - SPIN_DECAY * dt)
         b.vz -= (GRAVITY + b.vz * drag) * dt
         b.x += b.vx * dt
         b.y += b.vy * dt
@@ -253,6 +262,7 @@ def ball_step(b: BallState, dt: float = DT) -> None:
                 b.vz = -b.vz * BOUNCE
                 b.vx *= BOUNCE_FRICTION
                 b.vy *= BOUNCE_FRICTION
+                b.spin *= 0.4
             else:
                 b.vz = 0.0
         return
@@ -268,7 +278,7 @@ def ball_step(b: BallState, dt: float = DT) -> None:
 def predict_ball(b: BallState, seconds: float, step: float = 0.05) -> list[tuple[float, float, float, float]]:
     """Ball path (t, x, y, z) over the next seconds with the real physics (what any player can
     'read' once the ball has been struck — never the outcome of a future decision)."""
-    probe = BallState(b.x, b.y, b.z, b.vx, b.vy, b.vz)
+    probe = BallState(b.x, b.y, b.z, b.vx, b.vy, b.vz, spin=b.spin)
     out, t = [], 0.0
     while t < seconds - 1e-9:
         for _ in range(int(round(step / DT))):

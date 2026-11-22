@@ -36,6 +36,29 @@ def xg_of(x: float, y: float, L: float, W: float, goal: float) -> float:
     return clamp(0.9 * angle * math.exp(-d * (105 / L) / 22), 0.01, 0.85)
 
 
+def aim_shot(carrier: Athlete, defenders: list[Athlete], keeper: Athlete | None, L: float, W: float, goal: float, s: float, d_goal: float,
+             rng: random.Random, noise: float) -> tuple[float, float, float]:
+    """V8 shot placement: the point of the goal mouth that the blockers' bodies and the
+    keeper's reach leave most open (what a finisher sees), not a fixed 'far corner'."""
+    best, best_score = W / 2, -9.0
+    for k in (-0.88, -0.7, -0.45, -0.2, 0.2, 0.45, 0.7, 0.88):
+        ty = W / 2 + k * goal / 2
+        lx, ly = L - carrier.x, ty - carrier.y
+        l2 = lx * lx + ly * ly or 1.0
+        block = 2.0
+        for x in defenders:
+            u = clamp(((x.x - carrier.x) * lx + (x.y - carrier.y) * ly) / l2, 0.0, 1.0)
+            if u > 0.05:
+                block = min(block, dist(x.x, x.y, carrier.x + lx * u, carrier.y + ly * u))
+        gap = abs(ty - keeper.y) if keeper else goal / 2
+        score = min(block, 1.5) * 1.2 + min(gap, 3.0) * 0.6 - abs(k) * 0.15 + rng.gauss(0, 0.25 * noise)
+        if score > best_score:
+            best, best_score = ty, score
+    power = clamp((0.55 if d_goal < 14 * s else 0.72) + rng.uniform(0, 0.2), 0, 1)
+    clear = -0.8 if best_score < 0.6 else 0.0   # every lane blocked: a shot is a poor option
+    return best, power, clear
+
+
 def lane_risk(carrier: Athlete, tx: float, ty: float, defenders: list[Athlete], ball_speed: float) -> float:
     """How likely a defender gets to the lane before the ball: time margin along the path."""
     d = dist(carrier.x, carrier.y, tx, ty) or 1.0
@@ -59,7 +82,16 @@ def lane_risk(carrier: Athlete, tx: float, ty: float, defenders: list[Athlete], 
 
 
 def ai_choice(bodies: list[Athlete], carrier_id: str, cfg: dict[str, float], actions_done: int, kind: str, rng: random.Random,
-              difficulty: str = "NORMAL") -> dict[str, object]:
+              difficulty: str = "NORMAL", profile: str = "v7", tactics: dict[str, object] | None = None) -> dict[str, object]:
+    v8 = profile == "v8"
+    t = tactics or {}
+    style = str(t.get("style", "POSSESSION"))
+    mentality = str(t.get("att_mentality", "BALANCED"))
+    # V8: the attacking style and mentality shape the choice (no bonus to any outcome).
+    risk_w = 2.0 if not v8 else {"POSSESSION": 2.6, "SHORT_BUILDUP": 2.8, "DIRECT": 1.6, "COUNTER": 1.7, "WIDE": 2.0}.get(style, 2.0)
+    through_bonus = 0.0 if not v8 else {"DIRECT": 0.5, "COUNTER": 0.6}.get(style, 0.0)
+    wide_bonus = 0.4 if v8 and style == "WIDE" else 0.0
+    shot_bias = 0.0 if not v8 else {"ATTACKING": 0.3, "VERY_ATTACKING": 0.5, "DEFENSIVE": -0.2, "VERY_DEFENSIVE": -0.35}.get(mentality, 0.0)
     L, W, goal = cfg["length"], cfg["width"], cfg["goal"]
     s = L / 105
     noise = NOISE.get(difficulty, 0.45)
@@ -74,16 +106,20 @@ def ai_choice(bodies: list[Athlete], carrier_id: str, cfg: dict[str, float], act
     shot_value = 0.0
     if kind == "PENALTY" or (angle_ok and d_goal < 32 * s):
         xg = xg_of(carrier.x, carrier.y, L, W, goal)
-        shot_value = 1.4 + 16 * xg + (0.5 if pressure > 2.5 else 0.0) - (0.5 if d_goal > 26 * s else 0.0)
+        shot_value = 1.4 + 16 * xg + (0.5 if pressure > 2.5 else 0.0) - (0.5 if d_goal > 26 * s else 0.0) + shot_bias
     if kind == "PENALTY" or must_shoot and d_goal < 38 * s:
         shot_value = 99.0
     options: list[tuple[float, dict[str, object]]] = []
     if shot_value > 0:
-        side = 1 if keeper is None or keeper.y <= W / 2 else -1
-        if rng.random() < 0.3:
-            side = -side
-        ty = W / 2 + side * (goal / 2) * rng.uniform(0.5, 0.88)
-        power = clamp(0.6 + rng.uniform(0, 0.25) + (0.1 if d_goal > 20 * s else 0.0), 0, 1)
+        if v8:
+            ty, power, clear = aim_shot(carrier, defenders, keeper, L, W, goal, s, d_goal, rng, noise)
+            shot_value += clear
+        else:
+            side = 1 if keeper is None or keeper.y <= W / 2 else -1
+            if rng.random() < 0.3:
+                side = -side
+            ty = W / 2 + side * (goal / 2) * rng.uniform(0.5, 0.88)
+            power = clamp(0.6 + rng.uniform(0, 0.25) + (0.1 if d_goal > 20 * s else 0.0), 0, 1)
         options.append((shot_value + rng.gauss(0, noise * 0.3), {"type": "SHOT", "x": L, "y": ty, "power": round(power, 3)}))
     for m in mates:
         d = dist(m.x, m.y, carrier.x, carrier.y)
@@ -98,7 +134,17 @@ def ai_choice(bodies: list[Athlete], carrier_id: str, cfg: dict[str, float], act
         lofted = wide_delivery and in_box or d > 32 * s
         speed = 18.0 if lofted else PASS_SPEED[0] + PASS_SPEED[1] * 0.6
         risk = lane_risk(carrier, tx, ty, defenders, speed) * (0.35 if lofted else 1.0)
-        value = gain * 0.075 + min(free, 7) * 0.25 - risk * 2.0 + (1.0 if in_box else 0.0) + rng.gauss(0, noise * 0.35)
+        value = gain * 0.075 + min(free, 7) * 0.25 - risk * risk_w + (1.0 if in_box else 0.0) + rng.gauss(0, noise * 0.35)
+        if v8:
+            if min(m.y, W - m.y) < 12 * s and m.x > carrier.x:
+                value += wide_bonus
+            if lofted and in_box:
+                # A cross only makes sense if the man in the box can win it (space or strength).
+                rival = min(defenders, key=lambda x: dist(x.x, x.y, tx, ty), default=None)
+                if rival is not None and dist(rival.x, rival.y, tx, ty) < 1.8 and m.physical < rival.physical + 5:
+                    value -= 1.2
+            if m.vx > 4 and free > 3:
+                value += 0.3      # a team-mate already running into space (one-two, third man)
         if lofted:
             flight = dist(carrier.x, carrier.y, tx, ty) / s
             power = clamp((flight - LOFT_RANGE[0]) / LOFT_RANGE[1], 0.0, 1.0)
@@ -114,7 +160,7 @@ def ai_choice(bodies: list[Athlete], carrier_id: str, cfg: dict[str, float], act
             space = min((dist(sx, sy, x.x, x.y) for x in defenders), default=10.0)
             if space > 4 * s ** 0.5 and sx > carrier.x:
                 risk2 = lane_risk(carrier, sx, sy, defenders, 16.0)
-                v2 = (sx - carrier.x) / s * 0.09 + min(space, 8) * 0.25 - risk2 * 2.0 + 0.4 + rng.gauss(0, noise * 0.4)
+                v2 = (sx - carrier.x) / s * 0.09 + min(space, 8) * 0.25 - risk2 * risk_w + 0.4 + through_bonus + rng.gauss(0, noise * 0.4)
                 p2 = power_for_pass(dist(carrier.x, carrier.y, sx, sy) + 3.0)
                 options.append((v2, {"type": "PASS", "x": sx, "y": sy, "power": round(p2, 3)}))
     # Carry / dribble: space ahead, or a 1v1 a good dribbler can attack.

@@ -1,5 +1,6 @@
 import type { InteractiveView } from "../../../../lib/api";
 import { frame, predictTarget, pxPerMetre, toScreen, type Aim, type Geometry, type Region } from "../gesture";
+import { drawSpriteAthlete } from "./sprites2d";
 import { VISUAL, hashOf, shade } from "./config";
 import type { Scene, ScenePlayer } from "./presentation";
 
@@ -12,6 +13,8 @@ export type Overlay = {
   aim: Aim | null; aimValid: boolean; carrierIndex: number; receivers: Set<string>; yourTurn: boolean; pending: Aim | null; now: number;
   label: boolean; quality: "low" | "medium" | "high";
 };
+
+const SPRITE_STYLE = (() => { try { return localStorage.getItem("bm_2d_style") === "vector" ? "vector" : "athlete"; } catch { return "athlete"; } })();
 
 let pitchCache: { key: string; canvas: HTMLCanvasElement; k: number } | null = null;
 
@@ -69,7 +72,11 @@ export function drawScene2D(ctx: CanvasRenderingContext2D, g: Geometry, dpr: num
   void dpr;
   for (const { p, s } of order) {
     if (!ballDrawn && ballS[1] < s[1]) { drawBall(ctx, ballS[0], ballS[1], scene.ball.z, ballR, scene.ball.roll, ppm); ballDrawn = true; }
-    drawPlayer(ctx, s[0], s[1], height, p, p.team === "A" ? kits.attack : kits.defend, g, ppm, overlay.now);
+    const kit = p.team === "A" ? kits.attack : kits.defend;
+    // V8: sprites rendered from the 3D athlete (same body and clips); the vector sprite is the
+    // fallback while the atlas bakes or without WebGL. localStorage bm_2d_style=vector forces it.
+    if (SPRITE_STYLE !== "vector" && drawSpriteAthlete(ctx, s[0], s[1], height, p, kit, g, screenDir)) continue;
+    drawPlayer(ctx, s[0], s[1], height, p, kit, g, ppm, overlay.now);
   }
   if (!ballDrawn && !scene.ball.held) drawBall(ctx, ballS[0], ballS[1], scene.ball.z, ballR, scene.ball.roll, ppm);
   // Only the ball carrier gets a name (no clutter).

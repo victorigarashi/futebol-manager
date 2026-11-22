@@ -47,7 +47,7 @@ const strideCache = new WeakMap<InteractiveFrame[], number[][]>();
 
 function stepKey(step: InteractiveStep): string { return `${step.starts_at}:${step.carrier}:${step.type}`; }
 /** Values per athlete in a frame row. */
-export function strideOf(step: InteractiveStep | null): 2 | 4 { return step?.layout === "v7" ? 4 : 2; }
+export function strideOf(step: InteractiveStep | null): 2 | 4 { return step?.layout === "v7" || step?.layout === "v8" ? 4 : 2; }
 
 /**
  * Local playback time of a step. Latency catch-up: the step starts when this client first
@@ -66,7 +66,7 @@ function localTime(step: InteractiveStep, now: number): number {
 export function currentStep(view: InteractiveView, now: number): { step: InteractiveStep; t: number } | null {
   const opp = view.opportunity;
   if (!opp) return null;
-  const gap = view.engine === "v7" ? 0.25 : 0.6;
+  const gap = view.engine === "v7" || view.engine === "v8" ? 0.25 : 0.6;
   if (opp.replay && opp.replay.length && (view.state === "REPLAY" || view.state === "OUTCOME")) {
     let start = opp.replay[0].starts_at;
     for (const step of opp.replay) {
@@ -176,7 +176,7 @@ export function buildScene(view: InteractiveView, now: number): Scene | null {
   let strides: number[] = new Array(count + 1).fill(0);
   const step = playing?.step ?? null;
   const t = playing?.t ?? 0;
-  const v7 = step?.layout === "v7";
+  const v7 = step?.layout === "v7" || step?.layout === "v8";
   const k = strideOf(step);
   if (step && step.frames.length) {
     const frame = v7 ? sampleV7(step.frames, t, count) : sample(step.frames, t);

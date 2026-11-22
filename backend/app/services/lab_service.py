@@ -59,7 +59,7 @@ class LabService:
             self.sessions.pop(oldest.id)
 
     def create(self, owner: str, catalog: PlayerCatalog, mode: str, kind: str, home: str, away: str, seed: int, ruleset: str = "TRADITIONAL",
-               second_half: bool = False, engine: str = "v7", difficulty: str = "NORMAL") -> dict[str, object]:
+               second_half: bool = False, engine: str = "v8", difficulty: str = "NORMAL") -> dict[str, object]:
         if kind not in LAB_KINDS:
             raise ValueError("Cenário desconhecido.")
         clubs = sorted({p.club_code for p in catalog.players})
@@ -77,7 +77,7 @@ class LabService:
             session = LabSession(uuid.uuid4().hex, owner, match, now)
             self.sessions[session.id] = session
             return {"id": session.id, "match": match.view(home, now)}
-        if kind.startswith("DRILL_") and match.engine != "v7":
+        if kind.startswith("DRILL_") and match.engine == "v6":
             raise ValueError("Os treinos isolados usam o motor V7.")
         # One chosen chance for the coach, then one bot attack (replay) and the final whistle.
         match.timeline = [{"side": 0, "kind": kind, "minute": 1.0, "index": 0}, {"side": 1, "kind": "BUILDUP", "minute": 50.0, "index": 1}]

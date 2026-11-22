@@ -37,6 +37,7 @@ from app.domain.football.world import (
     FRAME_DT,
     LOFT_ANGLE,
     LOFT_RANGE,
+    MAGNUS,
     MAX_ACTION_SECONDS,
     PASS_SPEED,
     ROLL_DECEL,
@@ -86,7 +87,8 @@ class PlayResult:
 
 class Play:
     def __init__(self, bodies: list[Athlete], ball: BallState, cfg: dict[str, float], rng: random.Random, boost: float = 0.0,
-                 tactics: dict[str, str] | None = None, difficulty: str = "NORMAL") -> None:
+                 tactics: dict[str, object] | None = None, difficulty: str = "NORMAL", profile: str = "v7") -> None:
+        self.v8 = profile == "v8"   # V8 behaviours (docs/v8); "v7" reproduces the V7 engine exactly
         self.L, self.W, self.goal, self.goal_h = cfg["length"], cfg["width"], cfg["goal"], cfg["goal_height"]
         self.s = self.L / 105.0
         self.bodies, self.ball, self.rng, self.boost = bodies, ball, rng, boost
@@ -95,9 +97,9 @@ class Play:
         self.attackers = [b for b in bodies if b.team == "A" and b.role != "GK"]
         self.defenders = [b for b in bodies if b.team == "D" and b.role != "GK"]
         gk = next((b for b in bodies if b.team == "D" and b.role == "GK"), None)
-        self.keeper = Keeper(gk, self.L, self.W, self.goal, self.goal_h, self.s, rng, self.diff["keeper"]) if gk else None
+        self.keeper = Keeper(gk, self.L, self.W, self.goal, self.goal_h, self.s, rng, self.diff["keeper"], self.v8) if gk else None
         self.own_keeper = next((b for b in bodies if b.team == "A" and b.role == "GK"), None)
-        self.brain = TeamBrain(bodies, self.L, self.W, self.s, tactics, difficulty)
+        self.brain = TeamBrain(bodies, self.L, self.W, self.s, tactics, difficulty, self.v8)
         self.cues: list[Cue] = []
         self.frames: list[list[float]] = []
         self.t = 0.0
@@ -129,7 +131,21 @@ class Play:
         self.tackle_cool: dict[str, float] = {}
         self.headed: set[str] = set()
         self.completed_pass = False
+        self.box_runners: set[str] = set()
         self.after_parry_until: float | None = None
+        t = tactics or {}
+        self.kind = str(t.get("kind", ""))
+        self.def_cohesion = float(t.get("def_cohesion", 0.0) or 0.0)
+        # V8 free kick: the wall (the defenders nearest the line ball-goal) holds until the kick.
+        self.wall: set[str] = set()
+        if self.v8 and self.kind == "FREE_KICK":
+            gx, gy = self.L, self.W / 2
+            def off_line(d: Athlete) -> float:
+                lx, ly = gx - ball.x, gy - ball.y
+                l2 = lx * lx + ly * ly or 1.0
+                u = clamp(((d.x - ball.x) * lx + (d.y - ball.y) * ly) / l2, 0.0, 1.0)
+                return dist(d.x, d.y, ball.x + lx * u, ball.y + ly * u) + (0 if 0.05 < u < 0.6 else 9)
+            self.wall = {d.id for d in sorted(self.defenders, key=off_line)[:4] if off_line(d) < 2.5}
 
     # ------------------------------------------------------------ recording
     def cue(self, kind: str, body: Athlete | None, **extra: object) -> None:
@@ -206,7 +222,12 @@ class Play:
         t, b = self.t, self.ball
         if t >= self.next_plan:
             self.next_plan += BRAIN_DT
-            skip = {x.id for x in (self.owner, self.receiver, self.dribbler) if x is not None} | self.interceptors
+            skip = {x.id for x in (self.owner, self.receiver, self.dribbler) if x is not None} | self.interceptors | self.box_runners
+            if self.wall and (self.pending is not None or t < self.kick_t + 0.15):
+                skip |= self.wall
+                for d in self.defenders:
+                    if d.id in self.wall:
+                        d.tx, d.ty, d.intensity, d.look = d.x, d.y, 0.5, (b.x, b.y)
             self.brain.plan(t, b, self.owner or self.dribbler, self.receiver, skip)
             self.plan_ball_runs()
         if self.pending and t >= self.kick_at:
@@ -291,10 +312,22 @@ class Play:
             self.xg = self.xg_at(c.x, c.y)
             ahead = (c.x + math.cos(aim) * 6, c.y + math.sin(aim) * 6)
             self.screened = any(dist(d.x, d.y, *ahead) < 1.3 for d in self.defenders)
+        spin = 0.0
+        if self.v8 and action == "SHOT":
+            # V8 placed shot: aimed near a post with medium power, it is struck with side spin and
+            # curls back in (it starts outside the line and bends onto the aimed point).
+            near_post = abs(abs(ty - self.W / 2) - self.goal / 2) < 1.6
+            if near_post and 0.3 <= power <= 0.8 and dist(c.x, c.y, tx, ty) > 9:
+                bend = 1.0 if ty < self.W / 2 else -1.0                    # towards the centre of the goal
+                spin = bend * (30 + 30 * c.shooting / 100)
+                d = dist(c.x, c.y, tx, ty)
+                v = math.hypot(horizontal, vz)
+                aim -= 0.5 * MAGNUS * spin * d / max(8.0, v) * 0.9           # start outside the line
         angle = aim + rng.gauss(0, sd)
         b.owner = None
         self.owner = None
         b.vx, b.vy, b.vz = math.cos(angle) * horizontal, math.sin(angle) * horizontal, vz
+        b.spin = spin
         b.last_touch = "A"
         if action == "SHOT":
             self.on_target = self.predicted_on_target()
@@ -308,6 +341,8 @@ class Play:
             self.receiver = intended or self.best_receiver()
         avg_def = sum(d.defending for d in self.defenders) / max(1, len(self.defenders))
         self.brain.react_until = self.t + DEFENCE_REACTION[0] - DEFENCE_REACTION[1] * avg_def / 100 + self.diff["defence"] - self.boost
+        if self.v8:
+            self.brain.react_until -= 0.05 * self.def_cohesion   # a familiar defence reads the play a little sooner
         self.plan_ball_runs()
 
     def predicted_on_target(self) -> bool:
@@ -381,6 +416,16 @@ class Play:
                 spot = (path[-1][0], path[-1][1], path[-1][2])
             r.tx, r.ty, r.intensity, r.look = spot[1], spot[2], 1.0, (b.x, b.y)
             receiver_t = spot[0]
+        self.box_runners: set[str] = set()
+        if self.v8 and (b.airborne and b.vx > 0) and b.x > self.L - 45 * self.s:
+            # V8 crosses: up to two more attackers attack the drop zone (near and far side of it).
+            drop = next(((px, py) for pt, px, py, pz in path if pz < 2.3 and pt > 0.3), None)
+            if drop:
+                runners = sorted((a for a in self.attackers if a is not self.receiver and a is not self.kicker),
+                                 key=lambda a: dist(a.x, a.y, *drop))[:2]
+                for i, a in enumerate(runners):
+                    a.tx, a.ty, a.intensity = drop[0] + (0.6 if i else -0.9), drop[1] + (1.6 if i else -1.2), 1.0
+                    self.box_runners.add(a.id)
         if self.t < self.brain.react_until or self.shot_live:
             return
         commits: list[tuple[float, Athlete, float, float]] = []
@@ -607,9 +652,10 @@ class Play:
         b = self.ball
         if not (0.85 <= b.z <= 2.7) or b.vz > 1.0:
             return None
-        att = [a for a in self.attackers if a.id not in self.headed and a is not self.kicker and dist(a.x, a.y, b.x, b.y) < 1.05
+        reach = 1.35 if self.v8 else 1.05   # V8: an aerial CONTEST (everyone who can jump to it), not "first body under the ball"
+        att = [a for a in self.attackers if a.id not in self.headed and a is not self.kicker and dist(a.x, a.y, b.x, b.y) < reach
                and b.z <= 2.1 + a.physical / 100 * 0.6]
-        dfn = [d for d in self.defenders if d.id not in self.headed and dist(d.x, d.y, b.x, b.y) < 1.05 and b.z <= 2.1 + d.physical / 100 * 0.6]
+        dfn = [d for d in self.defenders if d.id not in self.headed and dist(d.x, d.y, b.x, b.y) < reach and b.z <= 2.1 + d.physical / 100 * 0.6]
         if not att and not dfn:
             return None
         a = min(att, key=lambda x: dist(x.x, x.y, b.x, b.y)) if att else None
@@ -619,6 +665,11 @@ class Play:
                 self.headed.add(x.id)
         if a and d:
             p_att = clamp(0.5 + (a.physical - d.physical) / 120 + (a.pace - d.pace) / 400, 0.2, 0.8)
+            if self.v8:
+                # Who is better placed and who attacks the ball (run-up towards it) matters.
+                gap = dist(d.x, d.y, b.x, b.y) - dist(a.x, a.y, b.x, b.y)
+                toward = lambda x: max(0.0, (x.vx * (b.x - x.x) + x.vy * (b.y - x.y)) / max(0.3, dist(x.x, x.y, b.x, b.y)))  # noqa: E731
+                p_att = clamp(p_att + 0.25 * clamp(gap, -1.0, 1.0) + 0.04 * clamp(toward(a) - toward(d), -3.0, 3.0), 0.12, 0.85)
             winner = a if self.rng.random() < p_att else d
         else:
             winner = a or d
@@ -788,6 +839,11 @@ class Play:
         freezing on the spot; nothing in the tail can change the result."""
         terminal = result.outcome in ("GOAL", "OUT", "CORNER", "SAVED_HELD", "LOST")
         tail = 0.5 if terminal else 0.0
+        throw_at = None
+        if self.v8 and self.keeper and self.ball.owner == self.keeper.b.id:
+            # V8 distribution: the keeper rolls it out to the nearest free team-mate (presentation of
+            # the restart; the action's result is already decided).
+            tail, throw_at = 1.25, self.t + 0.6
         end = self.t + tail
         if self.frames and self.frames[-1][0] < round(self.t, 3) - 1e-6:
             end = max(end, self.next_frame)   # finish on the 10 Hz grid the renderers interpolate on
@@ -805,6 +861,15 @@ class Play:
                     body.tx, body.ty, body.intensity = body.x + body.vx * 0.35, body.y + body.vy * 0.35, 0.6
                 move(body, self.t)
             b = self.ball
+            if throw_at is not None and self.t >= throw_at and self.keeper and b.owner == self.keeper.b.id:
+                kb = self.keeper.b
+                mate = min(self.defenders, key=lambda d: dist(d.x, d.y, kb.x - 20 * self.s, kb.y), default=None)
+                if mate is not None:
+                    ang = math.atan2(mate.y - kb.y, mate.x - kb.x)
+                    b.owner, b.z, b.vz = None, 0.4, 1.5
+                    b.vx, b.vy = math.cos(ang) * 12.0, math.sin(ang) * 12.0
+                    self.cues.append(Cue(self.t, "THROW", kb))
+                throw_at = None
             if self.keeper and b.owner == self.keeper.b.id:
                 kb = self.keeper.b
                 b.x, b.y, b.z, b.vx, b.vy, b.vz = kb.x - 0.3, kb.y, 1.0, 0.0, 0.0, 0.0

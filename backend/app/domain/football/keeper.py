@@ -74,7 +74,8 @@ def seg_seg(p0, p1, q0, q1, samples: int = 6) -> tuple[float, float, float]:
 
 class Keeper:
     def __init__(self, body: Athlete, L: float, W: float, goal: float, goal_h: float, s: float, rng: random.Random,
-                 reaction_extra: float = 0.0) -> None:
+                 reaction_extra: float = 0.0, v8: bool = False) -> None:
+        self.v8 = v8
         self.b, self.L, self.W, self.goal, self.goal_h, self.s, self.rng = body, L, W, goal, goal_h, s, rng
         self.k = body.keeping / 100
         self.state = "POSITIONING"
@@ -96,6 +97,11 @@ class Keeper:
             progress = clamp((self.t - self.dive_t0) / 0.32, 0.25, 1.0)
             reach = (ARM_STANDING[0] + ARM_DIVING[0] * progress + (ARM_STANDING[1] + ARM_DIVING[1]) * k)
             z = {"low": 0.25, "mid": 0.85, "high": 1.75 + 0.25 * k}[self.dive_level]
+            if self.v8:
+                # V8: the hands start at chest height and get to the chosen height as the body
+                # falls/rises — a low ball near the post needs the whole body to go down first.
+                fall = {"low": 0.34, "mid": 0.18, "high": 0.14}[self.dive_level]
+                z = 1.15 + (z - 1.15) * clamp((self.t - self.dive_t0) / fall, 0.0, 1.0)
             hip = (b.x, b.y, max(0.3, z * 0.6))
             hand = (b.x + 0.15, b.y + self.dive_dir * reach, z)
             return hip, hand
@@ -169,6 +175,8 @@ class Keeper:
         tc, _, yc, zc = cross
         need = yc - b.y
         arm = ARM_STANDING[0] + ARM_STANDING[1] * self.k
+        if self.v8 and zc < 0.35:
+            arm = 0.45 + 0.15 * self.k
         top = TOP_REACH[0] + TOP_REACH[1] * self.k
         shuffle = (SHUFFLE_SPEED[0] + SHUFFLE_SPEED[1] * self.k) * max(0.0, tc - 0.12) * 0.75
         if abs(need) <= arm + shuffle and zc <= 1.85:
@@ -255,6 +263,8 @@ class Keeper:
             s = (plane - p0[0]) / (p1[0] - p0[0]) if p1[0] != p0[0] else 0.0
             yc, zc = p0[1] + (p1[1] - p0[1]) * s, p0[2] + (p1[2] - p0[2]) * s
             arm = ARM_STANDING[0] + ARM_STANDING[1] * self.k + HAND_RADIUS
+            if self.v8 and zc < 0.35:
+                arm = 0.45 + 0.15 * self.k + HAND_RADIUS   # on his feet, a ball at the grass is covered by the legs, not the arms
             top = (TOP_REACH[0] + TOP_REACH[1] * self.k) if self.state == "JUMP" else 1.95 + 0.15 * self.k
             if self.state in ("DOWN", "RISE"):
                 arm, top = 0.9, 0.45

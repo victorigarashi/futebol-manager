@@ -81,6 +81,7 @@ export class Avatar3D {
       if (t >= a.t0 && t <= a.until) return a;
     }
     for (const c of mine(["CONTROL"])) { const a = at(c, CLIPS.receive); if (t >= a.t0 && t <= a.until) return a; }
+    for (const c of mine(["THROW"])) { const a = at(c, CLIPS.gk_throw); if (t >= a.t0 && t <= a.until) return a; }
     if (p.keeper) {
       for (const c of mine(["SAVE", "DIVE", "CLAIM"])) {
         if (c.kind === "CLAIM" || (c.kind === "SAVE" && c.hold && !(c.dy ?? 0))) { const a = at(c, CLIPS.gk_catch, false, true); if (t >= a.t0) return a; continue; }

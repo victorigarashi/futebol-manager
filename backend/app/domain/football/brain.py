@@ -23,7 +23,9 @@ from app.domain.football.world import Athlete, BallState, clamp, dist
 
 
 class TeamBrain:
-    def __init__(self, bodies: list[Athlete], L: float, W: float, s: float, tactics: dict[str, str] | None, difficulty: str = "NORMAL") -> None:
+    def __init__(self, bodies: list[Athlete], L: float, W: float, s: float, tactics: dict[str, object] | None, difficulty: str = "NORMAL",
+                 v8: bool = False) -> None:
+        self.v8 = v8
         self.bodies, self.L, self.W, self.s = bodies, L, W, s
         self.attackers = [b for b in bodies if b.team == "A" and b.role != "GK"]
         self.defenders = [b for b in bodies if b.team == "D" and b.role != "GK"]
@@ -38,6 +40,14 @@ class TeamBrain:
         self.passer: str | None = None
         self.passer_until = 0.0
         self.react_until = 0.0     # defenders keep their previous intention until then (reaction)
+        # V8 tactical contract (highlights.HighlightMatch._tactics): roles, individual
+        # instructions, attacking mentality and cohesion. Absent keys = neutral behaviour.
+        self.roles: dict[str, str] = dict(t.get("roles") or {})
+        self.instr: dict[str, str] = dict(t.get("instructions") or {})
+        self.att_mentality = str(t.get("att_mentality", "BALANCED"))
+        self.att_cohesion = float(t.get("att_cohesion", 0.0) or 0.0)
+        self.def_cohesion = float(t.get("def_cohesion", 0.0) or 0.0)
+        self.third_man: str | None = None
 
     # ------------------------------------------------------------ helpers
     def openness(self, x: float, y: float) -> float:
@@ -88,8 +98,12 @@ class TeamBrain:
         mids = [a for a in free if a.role == "MF"]
         if len(mids) >= 3:
             safety = min(mids, key=lambda a: a.x)
+        if self.v8:
+            self._choose_third_man(ball, owner, receiver, free)
         for a in free:
             a.look = (bx, by)
+            if self.v8 and self._attack_v8(a, t, ball, owner, receiver, line, crossing):
+                continue
             if a.id == self.passer and t < self.passer_until:
                 # Pass and move: into the space ahead, away from the nearest defender.
                 nd = min(self.defenders, key=lambda d: dist(d.x, d.y, a.x, a.y), default=None)
@@ -145,8 +159,95 @@ class TeamBrain:
                     self._set(a, best[0], best[1], 0.9, 2.5)
                     continue
             # Everybody else keeps the shape, moving with the ball (the block travels together).
-            progress = max(0.0, bx - L * 0.45) * 0.55
+            push = 0.55 if not self.v8 else {"VERY_ATTACKING": 0.85, "ATTACKING": 0.7, "DEFENSIVE": 0.38, "VERY_DEFENSIVE": 0.25}.get(self.att_mentality, 0.55)
+            progress = max(0.0, bx - L * 0.45) * push
             self._set(a, a.ax + progress, a.ay + (by - a.ay) * 0.18, 0.7, 2.5)
+
+    # ------------------------------------------------------------ V8 tactical behaviours
+    def _choose_third_man(self, ball: BallState, owner: Athlete | None, receiver: Athlete | None, free: list[Athlete]) -> None:
+        """While a pass travels to a receiver, a THIRD player attacks the space beyond him
+        (the classic third-man run). Only if that space really exists."""
+        if owner is not None or receiver is None or ball.ground_speed < 3:
+            self.third_man = None
+            return
+        if self.third_man and any(a.id == self.third_man for a in free):
+            return
+        s = self.s
+        best, best_space = None, 6.0 * s ** 0.5
+        for a in free:
+            if a.id == self.passer or self.roles.get(a.id) in ("CB", "GK") or self.instr.get(a.id) == "HOLD":
+                continue
+            tx, ty = receiver.x + 11 * s, a.y + (receiver.y - a.y) * 0.3
+            space = self.openness(tx, ty)
+            if space > best_space and a.x > receiver.x - 14 * s:
+                best, best_space = a, space
+        self.third_man = best.id if best else None
+
+    def _attack_v8(self, a: Athlete, t: float, ball: BallState, owner: Athlete | None, receiver: Athlete | None, line: float, crossing: bool) -> bool:
+        L, W, s = self.L, self.W, self.s
+        role, code = self.roles.get(a.id, a.role), self.instr.get(a.id, "")
+        bx, by = ball.x, ball.y
+        if a.id == self.third_man and receiver is not None:
+            self._set(a, min(L - 7 * s, receiver.x + 11 * s), a.y + (receiver.y - a.y) * 0.3, 1.0, 1.5)
+            return True
+        carrier = owner or receiver
+        if role == "FB" and carrier is not None:
+            same_side = (a.ay < W / 2) == (carrier.y < W / 2)
+            wide_carrier = min(carrier.y, W - carrier.y) < W * 0.28
+            touch = 2.5 * s if a.ay < W / 2 else W - 2.5 * s
+            if code == "STAY_BACK":
+                self._set(a, min(a.ax, bx - 10 * s), a.ay, 0.7, 2.0)
+                return True
+            if same_side and wide_carrier and carrier.x > a.x - 4 * s and (code == "OVERLAP" or (code == "SUPPORT" and self.style == "WIDE")):
+                # Overlap: round the outside of the man on the ball, towards the byline.
+                self._set(a, min(L - 6 * s, carrier.x + 10 * s), touch, 1.0, 1.5)
+                return True
+            if same_side and code in ("SUPPORT", "OVERLAP"):
+                self._set(a, carrier.x - 6 * s, touch, 0.85, 2.0)
+                return True
+        if role == "ST":
+            behind = bx < line - 25 * s
+            if code == "TARGET" and behind:
+                # Pivot: comes short with his back to goal to hold it up and lay it off.
+                self._set(a, max(bx + 14 * s, line - 6 * s), a.ay + (by - a.ay) * 0.4, 0.85, 1.5)
+                return True
+            if code == "FALSE_9" and not crossing:
+                self._set(a, max(bx + 8 * s, line - 12 * s), W / 2 + (by - W / 2) * 0.3, 0.8, 1.5)
+                return True
+            if code == "IN_BEHIND":
+                self._set(a, min(L - 6 * s, line + 5 * s), a.ay, 1.0, 1.5)
+                return True
+        if role == "MF" and code == "HOLD" and not crossing:
+            self._set(a, bx - 14 * s, W / 2 + (by - W / 2) * 0.25, 0.7, 2.0)
+            return True
+        if role == "MF" and code == "ARRIVE" and bx > L - 40 * s:
+            self._set(a, L - 11 * s, W / 2 + (a.ay - W / 2) * 0.4, 1.0, 1.5)
+            return True
+        return False
+
+    def _defend_v8(self, d: Athlete, ball: BallState, owner: Athlete | None, line: float, defenders: list[Athlete]) -> bool:
+        L, W, s = self.L, self.W, self.s
+        role, code = self.roles.get(d.id, d.role), self.instr.get(d.id, "")
+        gx, gy = L, W / 2
+        bx, by = (owner.x, owner.y) if owner else (ball.x, ball.y)
+        if role == "CB" and code == "COVER":
+            self._set(d, min(L - 4 * s, line + 2.5 * s), gy + (by - gy) * 0.3, 0.9, 1.0)
+            return True
+        if role == "MF" and code == "HOLD":
+            # Screen in front of the box, between the ball and the goal.
+            dd = max(1.0, dist(bx, by, gx, gy))
+            self._set(d, max(line - 9 * s, bx + (gx - bx) / dd * 10 * s), by + (gy - by) * 0.5, 0.9, 1.0)
+            return True
+        if role == "MF" and owner is not None:
+            # Cover shadow: stand in the passing lane from the ball to the most dangerous free attacker.
+            marked = [x for x in self.attackers if x is not owner]
+            if marked:
+                target = min(marked, key=lambda x: dist(x.x, x.y, gx, gy) + dist(x.x, x.y, d.x, d.y) * 0.5)
+                if dist(target.x, target.y, d.x, d.y) < 16 * s ** 0.7:
+                    k = 0.45
+                    self._set(d, bx + (target.x - bx) * k, by + (target.y - by) * k, 0.92, 0.8)
+                    return True
+        return False
 
     def _defend(self, t: float, ball: BallState, owner: Athlete | None, skip: set[str]) -> None:
         L, W, s = self.L, self.W, self.s
@@ -174,8 +275,15 @@ class TeamBrain:
         danger = sorted((a for a in self.attackers if a is not owner), key=lambda a: dist(a.x, a.y, gx, gy))
         marked: set[str] = set()
         engage = {"HIGH": 1.3, "LOW": 3.2}.get(self.def_pressure, 2.0)
+        if self.v8:
+            if self.def_pressure == "LOW":
+                line = max(line, L - 24 * s) if bx < L - 30 * s else line   # low block: wait near the box
+            elif self.def_pressure == "HIGH":
+                line = min(line, max(L - 38 * s, bx + 7 * s))              # high line: squeeze the space
         for d in defenders:
             d.look = (bx, by)
+            if self.v8 and d.id not in (self.presser, self.second_presser, self.cover) and self._defend_v8(d, ball, owner, line, defenders):
+                continue
             if d.id == self.presser or d.id == self.second_presser:
                 # Jockey goal-side: close the space, do not dive in (the tackle is a separate decision).
                 dd = max(0.5, dist(bx, by, gx, gy))

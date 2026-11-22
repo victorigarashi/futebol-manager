@@ -27,6 +27,7 @@ import zlib
 from dataclasses import asdict, dataclass, field
 
 from app.domain import football
+from app.domain.cohesion import slot_role
 from app.domain.kits import select_kits
 from app.domain.match_engine import PlayerInput, TeamInput, derived_attributes
 
@@ -93,7 +94,7 @@ RECONNECT_GRACE = 30.0        # approved tolerance (validation 47)
 DECISION_CHOICES = (5, 10, 15, 20)
 ACTION_TYPES = ("PASS", "LOFT", "CARRY", "SHOT")
 KINDS = ("BUILDUP", "COUNTER", "WING", "CROSS", "THROUGH", "ONE_ON_ONE", "REBOUND", "FREE_KICK", "PENALTY", "CORNER", "OVERLOAD")
-ENGINES = ("v6", "v7")            # v6: original Pitch (kept intact); v7: app.domain.football (docs/v7)
+ENGINES = ("v6", "v7", "v8")      # v6: original Pitch (kept intact); v7/v8: app.domain.football (docs/v7, docs/v8)
 DIFFICULTIES = ("EASY", "NORMAL", "HARD")
 KIND_LABEL = {"BUILDUP": "Ataque trabalhado", "COUNTER": "Contra-ataque", "WING": "Jogada pela ponta",
               "CROSS": "Chegada à linha de fundo", "THROUGH": "Infiltração", "ONE_ON_ONE": "Cara a cara", "REBOUND": "Sobra na entrada da área",
@@ -191,7 +192,7 @@ def build_timeline(home: TeamInput, away: TeamInput, seed: int, ruleset: str, en
         if ruleset == "TRADITIONAL":
             weights["FREE_KICK"] = 0.8
             weights["PENALTY"] = 0.25
-        if engine == "v7":
+        if engine in ("v7", "v8"):
             weights["OVERLOAD"] = 1.2 + (0.8 if style in ("COUNTER", "DIRECT") else 0.0)
         for _ in range(count):
             kind = rng.choices(list(weights), list(weights.values()))[0]
@@ -1243,7 +1244,7 @@ class HighlightMatch:
         if right:
             return frames
         out = []
-        if self.engine == "v7":
+        if self.engine in ("v7", "v8"):
             # Layout v7: [t, bx, by, bz, (x, y, facing, act) per athlete]; facing turns by pi.
             for row in frames:
                 new = [row[0], round(1 - row[1], 4), round(1 - row[2], 4), row[3]]
@@ -1417,8 +1418,8 @@ class HighlightMatch:
         kind = str(row["kind"])
         bodies, ball, carrier = build_scenario("BUILDUP" if kind.startswith("DRILL_") or kind == "OVERLOAD" else kind, attack, defence, self.mode, rng)
         body_rows = [asdict(b) for b in bodies]
-        if self.engine == "v7":
-            body_rows, carrier = football.opening(body_rows, carrier, kind, HL_PITCH[self.mode], rng)
+        if self.engine in ("v7", "v8"):
+            body_rows, carrier = football.opening(body_rows, carrier, kind, HL_PITCH[self.mode], rng, self.engine)
             c = next(b for b in body_rows if b["id"] == carrier)
             ball = Ball(float(c["x"]) + 0.4 * math.cos(float(c["facing"])), float(c["y"]) + 0.4 * math.sin(float(c["facing"])))
         club = self.clubs[side]
@@ -1426,7 +1427,7 @@ class HighlightMatch:
         self.opportunity = {"id": f"{self.match_id}:O{int(row['index']) + 1:02d}", "index": int(row["index"]), "kind": kind,
                             "attacking": club, "defending": self.clubs[1 - side], "minute": self.minute, "status": "LIVE",
                             "right": self.attacks_right(side),
-                            "tactics": {"style": attack.tactics.style, "def_mentality": defence.tactics.mentality, "def_pressure": defence.tactics.pressure},
+                            "tactics": self._tactics(attack, defence),
                             "bodies": body_rows, "ball": asdict(ball), "carrier": carrier,
                             "actions": 0, "last": None, "opened_at": at, "assist_candidate": None, "result": None}
         self._event("CHANCE", club, self.minute, outcome=kind, reveal=at, extra={"label": KIND_LABEL.get(kind, kind)})
@@ -1435,6 +1436,26 @@ class HighlightMatch:
             self._to_decision(at)
         else:
             self._replay(at)
+
+    def _tactics(self, attack: TeamInput, defence: TeamInput) -> dict[str, object]:
+        """The tactical contract the engine consumes (docs/v8/TATICA.md). V6/V7 read only the
+        first three keys; V8 also uses roles, individual instructions, the attacking
+        mentality and the cohesion (familiarity) of each side. A future Tactical Engine fills
+        the same keys — no parallel tactical system."""
+        out: dict[str, object] = {"style": attack.tactics.style, "def_mentality": defence.tactics.mentality, "def_pressure": defence.tactics.pressure}
+        if self.engine != "v8":
+            return out
+        roles: dict[str, str] = {}
+        for team in (attack, defence):
+            lines: dict[float, int] = {}
+            for p in team.starters:
+                lines[p.slot_y] = lines.get(p.slot_y, 0) + 1
+            for p in team.starters:
+                roles[p.id] = slot_role(p.slot_position, p.slot_x, lines[p.slot_y]) if p.slot_position in ("DF",) else p.slot_position
+        out.update({"att_mentality": attack.tactics.mentality, "att_pressure": attack.tactics.pressure, "def_style": defence.tactics.style,
+                    "att_cohesion": round(attack.cohesion, 3), "def_cohesion": round(defence.cohesion, 3), "roles": roles,
+                    "instructions": {**dict(defence.instructions), **dict(attack.instructions)}})
+        return out
 
     def _decision_seconds_for(self, club: str) -> float | None:
         rival = self.clubs[1 - self.side_of(club)]
@@ -1466,7 +1487,7 @@ class HighlightMatch:
             choice = self._choose(opp, bodies, ball, rng)
             sequence.append(self._resolve(choice, "AI", at))
         total = sum(float(step["duration"]) for step in sequence)
-        gap = 0.25 if self.engine == "v7" else 0.6    # V7 replays flow (no long freeze between actions)
+        gap = 0.25 if self.engine in ("v7", "v8") else 0.6    # V7 replays flow (no long freeze between actions)
         self.state, self.state_until = "REPLAY", at + total + gap * len(sequence)
         opp["replay"] = sequence
         self.revision += 1
@@ -1480,8 +1501,9 @@ class HighlightMatch:
         self._execute(choice, reason, at)
 
     def _choose(self, opp: dict[str, object], bodies: list[Body], ball: Ball, rng: random.Random) -> dict[str, object]:
-        if self.engine == "v7":
-            return football.choose(opp["bodies"], str(opp["carrier"]), HL_PITCH[self.mode], int(opp["actions"]), str(opp["kind"]), rng, self.difficulty)
+        if self.engine in ("v7", "v8"):
+            return football.choose(opp["bodies"], str(opp["carrier"]), HL_PITCH[self.mode], int(opp["actions"]), str(opp["kind"]), rng, self.difficulty, self.engine,
+                                  opp.get("tactics"))
         return ai_action(bodies, ball, str(opp["carrier"]), self.mode, int(opp["actions"]), str(opp["kind"]), rng)
 
     # ------------------------------------------------------------ actions
@@ -1545,9 +1567,11 @@ class HighlightMatch:
         boost = min(0.12, 0.02 * int(opp["actions"]))  # the defence tightens as the move drags on
         pitch = Pitch(bodies, ball, self.mode, rng, boost, opp.get("tactics"))
         kind = str(choice["type"])
-        if self.engine == "v7":
+        if self.engine in ("v7", "v8"):
             result, after_rows, after_ball = football.resolve(opp["bodies"], opp["ball"], str(opp["carrier"]), kind, float(choice["x"]), float(choice["y"]),
-                                                              float(choice["power"]), HL_PITCH[self.mode], rng, boost, opp.get("tactics"), self.difficulty)
+                                                              float(choice["power"]), HL_PITCH[self.mode], rng, boost,
+                                                              {**dict(opp.get("tactics") or {}), "kind": opp["kind"]}, self.difficulty,
+                                                              self.engine)
             bodies = [Body(**{k: v for k, v in row.items() if k in Body.__dataclass_fields__}) for row in after_rows]
             ball = Ball(after_ball["x"], after_ball["y"])
             carrier = next(b for b in bodies if b.id == opp["carrier"])
@@ -1555,7 +1579,7 @@ class HighlightMatch:
             result = pitch.execute(carrier, kind, float(choice["x"]), float(choice["y"]), float(choice["power"]), None)
         club, rival = str(opp["attacking"]), str(opp["defending"])
         stats, minute = self.stats[club], float(opp["minute"])
-        duration = round(float(result.frames[-1][0]) + DT, 2) if self.engine == "v7" and result.frames else round(len(result.frames) * DT, 2)
+        duration = round(float(result.frames[-1][0]) + DT, 2) if self.engine in ("v7", "v8") and result.frames else round(len(result.frames) * DT, 2)
         reveal = at + duration
         by_id = {b.id: b for b in bodies}
         opp["actions"] = int(opp["actions"]) + 1
@@ -1616,7 +1640,7 @@ class HighlightMatch:
         step = {"by": by, "type": kind, "aim": {"x": round(ax, 4), "y": round(ay, 4)},
                 "power": round(float(choice["power"]), 3), "carrier": carrier.id, "outcome": result.outcome, "detail": result.detail,
                 "frames": self._world_frames(result.frames, right), "duration": duration, "starts_at": at,
-                "layout": "v7" if self.engine == "v7" else "v6",
+                "layout": self.engine if self.engine in ("v7", "v8") else "v6",
                 "receiver": result.receiver, "shooter": result.shooter, "post": result.post, "cues": result.cues}
         self.action_log.append({"opportunity": opp["id"], "action": int(opp["actions"]), "by": by, "type": kind,
                                 "x": round(float(choice["x"]), 3), "y": round(float(choice["y"]), 3), "power": step["power"], "at": round(at, 3),
@@ -1639,8 +1663,8 @@ class HighlightMatch:
             attack, defence = (home, away) if side == 0 else (away, home)
             bodies2, ball2, carrier2 = build_scenario("CORNER", attack, defence, self.mode, corner)
             rows2 = [asdict(b) for b in bodies2]
-            if self.engine == "v7":
-                rows2, carrier2 = football.opening(rows2, carrier2, "CORNER", HL_PITCH[self.mode], corner)
+            if self.engine in ("v7", "v8"):
+                rows2, carrier2 = football.opening(rows2, carrier2, "CORNER", HL_PITCH[self.mode], corner, self.engine)
             opp.update(bodies=rows2, ball=asdict(ball2), carrier=carrier2, kind="CORNER")
             if int(opp["actions"]) >= MAX_ACTIONS:
                 opp["status"], opp["result"] = "STALLED", "Escanteio afastado"
@@ -1692,7 +1716,7 @@ class HighlightMatch:
                 "half": 2 if self.half_time_done else 1,
                 "kits": self.kits or select_kits(self.clubs[0], self.clubs[1]),
                 "attacks_right": {self.clubs[0]: self.attacks_right(0), self.clubs[1]: self.attacks_right(1)},
-                "physics": football.physics_view(L / 105, PASS_ASSIST_ANGLE) if self.engine == "v7" else
+                "physics": football.physics_view(L / 105, PASS_ASSIST_ANGLE, self.engine) if self.engine in ("v7", "v8") else
                 {"pass": PASS_SPEED, "loft": LOFT_SPEED, "loft_range": LOFT_RANGE, "shot": SHOT_SPEED, "carry": CARRY_RANGE, "decel": GROUND_DECEL,
                  "assist_angle": PASS_ASSIST_ANGLE},
                 "engine": self.engine, "difficulty": self.difficulty,
