@@ -592,7 +592,7 @@ class SeasonService:
         if now < float(live["ends_at"]):
             return False
         self.advance_highlights(season, now)
-        if any(not session.finished for session in season.highlights.values()):
+        if not self._highlights_closed(season, now):
             return False
         for match_id in live["match_ids"]:
             engine, clock = season.engines.get(match_id), season.directors.get(match_id)
@@ -686,8 +686,8 @@ class SeasonService:
         if not live or self.clock() < live["ends_at"]:
             return False
         self.advance_highlights(season, self.clock())
-        if any(not session.finished for session in season.highlights.values()):
-            return False  # an interactive match is still being played
+        if not self._highlights_closed(season, self.clock()):
+            return False  # an interactive match is still being played (or showing its final whistle)
         # Synchronous commit under the caller's room lock, with no await points.
         ends_at = float(live["ends_at"])
         self.sync_live(room_id, ends_at)
@@ -1014,6 +1014,15 @@ class SeasonService:
         return view
 
     # ------------------------------------------------------------------ Modo Jogável (decisive moments)
+    # After the official final whistle every connected screen gets this long to show it
+    # ("FIM", whistle, final score) before the round is recorded and the post-game opens.
+    # The result is already fixed: the wait only changes WHEN it is written, never what.
+    FINAL_WHISTLE_SECONDS = 4.0
+
+    def _highlights_closed(self, season: RoomSeason, now: float) -> bool:
+        return all(session.finished and now >= float(session.finished_at or 0.0) + self.FINAL_WHISTLE_SECONDS
+                   for session in season.highlights.values())
+
     def advance_highlights(self, season: RoomSeason, now: float) -> None:
         """Server-driven: due transitions happen even when no client is connected."""
         for session in season.highlights.values():

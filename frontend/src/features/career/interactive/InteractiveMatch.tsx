@@ -360,6 +360,10 @@ export function InteractiveMatch({ roomId, clubCode, clubs, source: given, onExi
     drag.current = null;
     receiversRef.current = new Set();
     if (!chosen || !yourTurn) { setAim(null); r3d.current?.freeze(false); if (yourTurn) setFeedback("Arraste mais longe para indicar a direção e a força."); return; }
+    // The decision timer already ran out here: the server has (or is about to have) the AI's
+    // choice — say so instead of sending a gesture that can only be refused.
+    const dl = viewRef.current?.deadline;
+    if (dl && Date.now() / 1000 + offset > dl - 0.05) { setAim(null); r3d.current?.freeze(false); setFeedback("Tempo esgotado: a IA decidiu esta jogada."); void refresh(); return; }
     void submit(chosen);
   };
   useEffect(() => {

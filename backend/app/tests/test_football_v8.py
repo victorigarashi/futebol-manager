@@ -203,3 +203,41 @@ def test_every_v8_view_and_snapshot_is_json_serialisable():
         throws += '"THROW"' in json.dumps(match.to_dict())
         assert match.finished
     assert throws > 0, "no keeper restart happened: the regression was not exercised"
+
+
+def test_final_whistle_is_shown_before_the_round_is_recorded(monkeypatch):
+    """Regression (found in the 2-browser runs): the round used to be recorded in the same
+    tick the match finished, so no screen ever showed the final whistle. Now every client
+    sees FINISHED for FINAL_WHISTLE_SECONDS, then the result is recorded (unchanged)."""
+    monkeypatch.setattr(get_settings(), "gameplay_engine", "v8")
+    room = "whistle"
+    service, market, clubs, now = new_competition("DRAFT_KNOCKOUT", 4, {"execution_mode": "INTERACTIVE", "decision_seconds": 5}, room=room)
+    humans = set(clubs[:2])
+    season = service._season(room)
+    season.human_clubs = humans
+    for club in sorted(humans):
+        if service.preview(room, market, club).get("fixture"):
+            service.ready(room, club)
+    while not season.live_round:
+        service.advance(room, market, humans, 60)
+        if not season.live_round:
+            now[0] += 301
+            service.start_if_preparation_expired(room, market, humans, 300, 60)
+    sessions = list(season.highlights.values())
+    assert sessions
+    for _ in range(40000):
+        now[0] += 0.5
+        service.advance_highlights(season, now[0])
+        if all(x.finished for x in sessions):
+            break
+    assert all(x.finished for x in sessions)
+    whistle = max(float(x.finished_at) for x in sessions)
+    session = max(sessions, key=lambda x: float(x.finished_at))
+    club = next(c for c in session.clubs if c in humans)
+    now[0] = max(whistle + 1.0, float(season.live_round["ends_at"]) + 0.1)
+    if now[0] < whistle + service.FINAL_WHISTLE_SECONDS:
+        assert service.finish_due(room) is False
+        assert service.interactive_view(room, club)["state"] == "FINISHED"
+    now[0] = max(whistle + service.FINAL_WHISTLE_SECONDS + 0.5, float(season.live_round["ends_at"]) + 0.1)
+    assert service.finish_due(room) is True
+    assert all(x.match_id in season.matches and x.match_id not in season.highlights for x in sessions)

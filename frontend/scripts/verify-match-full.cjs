@@ -63,7 +63,10 @@ async function act(c, v) {
     const sx = cx + (dir * shift) / L;
     const pa = await c.page.evaluate(([px, py]) => window.__bmMatch.toClient(px, py), [sx, cy]);
     const pb = await c.page.evaluate(([px, py]) => window.__bmMatch.toClient(px, py), [sx + (ux / len) * dragM / L, cy + (uy / len) * dragM / W]);
-    if (pa && pb && pa[1] > 90 && pa[1] < 640 && pa[0] > 10 && pa[0] < 1270) { a = pa; b = pb; break; }
+    // Start the drag where the press really lands on the pitch input (not on the HUD/action bar).
+    const onPitch = pa && pb && pa[1] > 0 && pa[1] < 760 && pa[0] > 0 && pa[0] < 1280
+      && (await c.page.evaluate(([px, py]) => (document.elementFromPoint(px, py)?.className ?? "").includes("im-input"), pa));
+    if (onPitch) { a = pa; b = pb; break; }
   }
   if (!a) { c.misses += 1; return; }
   await c.page.keyboard.press(key);
@@ -217,6 +220,7 @@ const mean = (arr) => (arr.length ? arr.reduce((x, y) => x + y, 0) / arr.length 
     const realMatch = finishedAt ? (finishedAt - tStart) / 1000 : null;
     const report = {
       engine: fa?.engine, renderers: [A.exp, B.exp], real_match_seconds: realMatch, seconds_per_state: Object.fromEntries(Object.entries(timing).map(([k, v]) => [k, Math.round(v)])),
+      driver_misses: { [A.name]: A.misses, [B.name]: B.misses },
       driver: { [A.name]: { gestures: A.actions, mean_ms: Math.round(mean(A.gestures) ?? 0), total_s: Math.round(A.driverMs / 1000) }, [B.name]: { gestures: B.actions, mean_ms: Math.round(mean(B.gestures) ?? 0), total_s: Math.round(B.driverMs / 1000) } },
       action_latency_ms: { [A.name]: { p50: pct(A.latency, 50), p95: pct(A.latency, 95), n: A.latency.length }, [B.name]: { p50: pct(B.latency, 50), p95: pct(B.latency, 95), n: B.latency.length } },
       fps: { [A.name]: { p50: pct(A.fps, 50), p5: pct(A.fps, 5) }, [B.name]: { p50: pct(B.fps, 50), p5: pct(B.fps, 5) } },
