@@ -92,6 +92,8 @@ EXECUTE_TAIL_SECONDS = 0.2    # after the last frame of an action, before the ne
 CONNECTED_WINDOW = 6.0        # a client polling within this window counts as connected
 RECONNECT_GRACE = 30.0        # approved tolerance (validation 47)
 DECISION_CHOICES = (5, 10, 15, 20)
+DURATION_CHOICES = (60, 90, 120, 180)   # the room's approved match durations
+OPPORTUNITY_COST_SECONDS = 13.0         # mean real cost of one decisive moment (measured: tools/match_duration.py)
 ACTION_TYPES = ("PASS", "LOFT", "CARRY", "SHOT")
 KINDS = ("BUILDUP", "COUNTER", "WING", "CROSS", "THROUGH", "ONE_ON_ONE", "REBOUND", "FREE_KICK", "PENALTY", "CORNER", "OVERLOAD")
 ENGINES = ("v6", "v7", "v8")      # v6: original Pitch (kept intact); v7/v8: app.domain.football (docs/v7, docs/v8)
@@ -164,7 +166,7 @@ def team_strength(team: TeamInput) -> tuple[float, float, float]:
     return avg(attack), avg(defence), keeper
 
 
-def build_timeline(home: TeamInput, away: TeamInput, seed: int, ruleset: str, engine: str = "v6") -> list[dict[str, object]]:
+def build_timeline(home: TeamInput, away: TeamInput, seed: int, ruleset: str, engine: str = "v6", chance_factor: float = 1.0) -> list[dict[str, object]]:
     """Opportunities of the match: count per team and type follow attributes, tactics and cohesion.
 
     Never a fixed number per team and never forced equality: lambda depends on the
@@ -177,9 +179,12 @@ def build_timeline(home: TeamInput, away: TeamInput, seed: int, ruleset: str, en
         dfn, gk = strengths[1 - side][1], strengths[1 - side][2]
         mentality = {"ATTACKING": 1.15, "VERY_ATTACKING": 1.25, "DEFENSIVE": 0.85, "VERY_DEFENSIVE": 0.75}.get(team.tactics.mentality, 1.0)
         rate = 5.0 * math.exp((att - (dfn * 0.8 + gk * 0.2)) / 18) * mentality * (1 + 0.12 * team.cohesion)
+        # Competitive duration (docs/v8/DURACAO_PARTIDAS.md): a shorter match has proportionally
+        # fewer decisive moments; each one keeps exactly the same chances (no goal multiplier).
+        rate *= chance_factor
         count = 0
         # Poisson draw (Knuth), clamped to a playable range.
-        limit, product = math.exp(-_clamp(rate, 1.2, 8.0)), rng.random()
+        limit, product = math.exp(-_clamp(rate, 1.2 * chance_factor, 8.0)), rng.random()
         while product > limit:
             count += 1
             product *= rng.random()
@@ -1191,17 +1196,31 @@ class HighlightMatch:
     kits: dict[str, dict[str, object]] = field(default_factory=dict)   # official kit selection (both renderers)
     engine: str = "v6"                # gameplay engine this match started with (snapshots keep it)
     difficulty: str = "NORMAL"        # bot decision quality (Lab / friendlies); never attributes
+    # Duration (approved: A+C competitive, B friendlies/Lab). Defaults = the old behaviour.
+    duration_mode: str = "FREE"       # "FREE" (B: lasts what the coaches take) | "LIMITED" (A+C)
+    duration_seconds: int = 0         # the room's configured duration (60/90/120/180)
+    started_at: float = 0.0
+    limit_at: float | None = None     # C: server-controlled limit (kick-off + duration)
+    limit_reached: bool = False
+    clock_rate: float = 4.0           # A: game minutes per real second between opportunities
+    half_time_seconds: float = 6.0
+    outcome_pause: float = 1.8
+    chance_factor: float = 1.0
 
     # ------------------------------------------------------------ construction
     @classmethod
     def create(cls, match_id: str, mode: str, home: TeamInput, away: TeamInput, home_view: dict, away_view: dict,
                humans: list[str], seed: int, ruleset: str, decision_seconds: int, free_vs_bots: bool, now: float,
-               engine: str = "v6", difficulty: str = "NORMAL") -> HighlightMatch:
+               engine: str = "v6", difficulty: str = "NORMAL", duration_seconds: int = 0, limited: bool = False) -> HighlightMatch:
         match = cls(match_id, mode, [home.club_code, away.club_code], sorted(humans), seed, ruleset,
                     decision_seconds if decision_seconds in DECISION_CHOICES else 10, free_vs_bots, [home_view, away_view])
         match.engine = engine if engine in ENGINES else "v6"
         match.difficulty = difficulty if difficulty in DIFFICULTIES else "NORMAL"
-        match.timeline = build_timeline(home, away, seed, ruleset, match.engine)
+        match.started_at = now
+        match.clock_rate, match.half_time_seconds, match.outcome_pause = CLOCK_MINUTES_PER_SECOND, HALF_TIME_SECONDS, OUTCOME_PAUSE_SECONDS
+        if limited and duration_seconds in DURATION_CHOICES:
+            match._plan_duration(int(duration_seconds), now)
+        match.timeline = build_timeline(home, away, seed, ruleset, match.engine, match.chance_factor)
         match.kits = select_kits(home.club_code, away.club_code)
         match.clock_since = now
         for club in match.clubs:
@@ -1214,6 +1233,47 @@ class HighlightMatch:
                                                      "key_passes", "saves", "tackles", "interceptions", "dribbles", "losses"), 0)
         match.revision = 1
         return match
+
+    def _plan_duration(self, seconds: int, now: float) -> None:
+        """A (competitive): the configured duration drives the clock speed, the pauses and how many
+        decisive moments the match has; C: a server limit at kick-off + duration.
+        The chance of each opportunity is untouched — only how many there are and how fast the
+        time between them runs."""
+        self.duration_mode, self.duration_seconds = "LIMITED", seconds
+        self.limit_at = now + seconds
+        self.clock_rate = max(CLOCK_MINUTES_PER_SECOND, 90.0 / (0.2 * seconds))
+        self.half_time_seconds = _clamp(0.04 * seconds, 2.5, HALF_TIME_SECONDS)
+        self.outcome_pause = _clamp(seconds / 100.0, 1.0, OUTCOME_PAUSE_SECONDS)
+        available = seconds * 0.92 - 90.0 / self.clock_rate - self.half_time_seconds
+        self.chance_factor = round(_clamp(available / (10.0 * OPPORTUNITY_COST_SECONDS), 0.2, 1.0), 3)
+
+    def _due(self) -> float:
+        """Logical time of the next scheduled transition (inf when waiting for a person)."""
+        if self.state == "CLOCK":
+            return self.clock_since + (self._next_stop() - self.minute) / self.clock_rate
+        if self.state in ("HALF_TIME", "OUTCOME", "EXECUTING", "REPLAY"):
+            return float(self.state_until) if self.state_until is not None else math.inf
+        if self.state == "DECISION":
+            due = [x for x in (self.deadline, self.grace_until) if x is not None]
+            return min(due) if due else math.inf
+        return math.inf
+
+    def _apply_limit(self) -> str:
+        """C: the competitive time limit. Nothing already in play is cut: an action or a bot replay
+        finishes; a pending decision is taken by the contextual AI (the same one for both teams);
+        no new opportunity opens; the match ends at the next safe point."""
+        at = float(self.limit_at)
+        self.limit_reached = True
+        self.revision += 1
+        self._event("TIME_LIMIT", None, self.clock_minute(at), reveal=at)
+        if self.state == "CLOCK":
+            self.minute, self.state, self.finished_at = 90.0, "FINISHED", at
+        elif self.state == "HALF_TIME":
+            self.state_until = at
+        elif self.state == "DECISION":
+            self.grace_until = self.paused_left = None
+            self._auto(max(at, float(self.opportunity.get("decision_opened_at", at))), "TIME_LIMIT")
+        return "LIMIT"
 
     def teams(self) -> tuple[TeamInput, TeamInput]:
         from app.services.season_service import team_input_from_view  # local: avoid an import cycle
@@ -1293,7 +1353,7 @@ class HighlightMatch:
 
     def clock_minute(self, now: float) -> float:
         if self.state == "CLOCK":
-            return min(90.0, self.minute + max(0.0, now - self.clock_since) * CLOCK_MINUTES_PER_SECOND)
+            return min(90.0, self.minute + max(0.0, now - self.clock_since) * self.clock_rate)
         return self.minute
 
     # ------------------------------------------------------------ the state machine (logical time)
@@ -1311,9 +1371,16 @@ class HighlightMatch:
     def _next_transition(self, now: float) -> str | None:
         if self.state == "FINISHED":
             return None
+        if self.limit_at is not None and not self.limit_reached and self.limit_at <= now and self.limit_at <= self._due():
+            return self._apply_limit()
         if self.state == "CLOCK":
+            if self.limit_reached:
+                # Past the limit: no new decisive moment — full time at this safe point.
+                self.minute, self.state, self.finished_at = 90.0, "FINISHED", self.clock_since
+                self.revision += 1
+                return "FINISHED"
             target = self._next_stop()
-            at = self.clock_since + (target - self.minute) / CLOCK_MINUTES_PER_SECOND
+            at = self.clock_since + (target - self.minute) / self.clock_rate
             if at > now:
                 return None
             self.minute = target
@@ -1323,7 +1390,7 @@ class HighlightMatch:
                 return "FINISHED"
             if target >= 45.0 and not self.half_time_done and (self.cursor >= len(self.timeline) or float(self.timeline[self.cursor]["minute"]) >= 45):
                 self.half_time_done = True
-                self.state, self.state_until = "HALF_TIME", at + HALF_TIME_SECONDS
+                self.state, self.state_until = "HALF_TIME", at + self.half_time_seconds
                 self.revision += 1
                 return "HALF_TIME"
             if target >= 80 and not self.late_checked:
@@ -1348,7 +1415,7 @@ class HighlightMatch:
             if opp and opp["status"] == "LIVE" and self.state == "EXECUTING":
                 self._to_decision(at)
             else:
-                self.state, self.state_until = "OUTCOME", at + OUTCOME_PAUSE_SECONDS
+                self.state, self.state_until = "OUTCOME", at + self.outcome_pause
                 self.revision += 1
             return "PLAYED"
         if self.state == "DECISION":
@@ -1465,6 +1532,9 @@ class HighlightMatch:
 
     def _to_decision(self, at: float) -> None:
         club = str(self.opportunity["attacking"])
+        if self.limit_reached:
+            self._auto(at, "TIME_LIMIT")    # past the limit: the AI concludes the move (both teams alike)
+            return
         if not self._human_controls(club):
             # The coach is under AI control (left past the grace period): the AI plays on.
             self._auto(at, "AI_CONTROL")
@@ -1704,7 +1774,8 @@ class HighlightMatch:
             controller = "HUMAN" if self._human_controls(attacking) else "AI"
         cfg = HL_PITCH[self.mode]
         return {"match_id": self.match_id, "home": self.clubs[0], "away": self.clubs[1], "state": self.state, "revision": self.revision,
-                "minute": round(self.clock_minute(now), 2), "clock_rate": CLOCK_MINUTES_PER_SECOND if self.state == "CLOCK" else 0,
+                "minute": round(self.clock_minute(now), 2), "clock_rate": self.clock_rate if self.state == "CLOCK" else 0,
+                "duration": {"mode": self.duration_mode, "seconds": self.duration_seconds, "limit_at": self.limit_at, "limit_reached": self.limit_reached},
                 "score": {"home": score[0], "away": score[1]}, "server_now": now, "deadline": self.deadline,
                 "decision_seconds": self.decision_seconds, "state_until": self.state_until, "grace_until": self.grace_until,
                 "you": club if club in self.clubs else None, "your_turn": bool(opp and self.state == "DECISION" and club == opp["attacking"] and self._human_controls(str(club))),

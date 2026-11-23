@@ -416,6 +416,8 @@ export function InteractiveMatch({ roomId, clubCode, clubs, source: given, onExi
         <b className="im-bug__score" aria-live="polite">{view.score.home}<span>:</span>{view.score.away}</b>
         <div className={`im-bug__team im-bug__team--away ${you === view.away ? "is-you" : ""}`}><i className={`im-dir ${right[view.away] ? "is-right" : "is-left"}`} title={right[view.away] ? "ataca para a direita" : "ataca para a esquerda"} /><abbr title={club(view.away).name}>{view.away}</abbr><ClubCrest club={club(view.away)} size="sm" /></div>
         <time className="im-bug__clock">{view.state === "HALF_TIME" ? "INT" : view.state === "FINISHED" ? "FIM" : `${Math.min(90, Math.floor(view.minute))}′`}<small>{half}ºT</small></time>
+        {view.duration?.mode === "LIMITED" && view.duration.limit_at && view.state !== "FINISHED" && <span className={`im-limit ${view.duration.limit_reached ? "is-over" : ""}`} title={`Duração da partida: ${Math.round(view.duration.seconds / 60 * 10) / 10} min (definida na sala). Ao esgotar, nenhum lance novo começa; a IA conclui o lance em andamento.`}>
+          ⏱ {view.duration.limit_reached ? "0:00" : clockText(Math.max(0, view.duration.limit_at - now))}</span>}
       </header>
 
       <div className="im-tools">
@@ -437,6 +439,7 @@ export function InteractiveMatch({ roomId, clubCode, clubs, source: given, onExi
       {left !== null && view.state === "DECISION" && <div className={`im-timer ${left < 3 ? "is-low" : ""}`} aria-label={`${Math.ceil(left)} segundos para decidir`}><svg viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="18" r="15" /><circle cx="18" cy="18" r="15" style={{ strokeDashoffset: 94.2 * (1 - left / view.decision_seconds) }} /></svg><b>{Math.ceil(left)}</b></div>}
       {(offline || rivalAway) && <div className="im-banner im-banner--warn im-banner--low" role="status">{offline ? "Conexão perdida — reconectando… (sua jogada fica congelada por até 30 s)" : `O técnico do ${club(rival!).name} caiu. Aguardando até 30 s; depois a IA assume os ataques dele.`}</div>}
       {notice && <div className="im-banner im-banner--warn im-banner--low" role="status">{notice}</div>}
+      {view.duration?.limit_reached && view.state !== "FINISHED" && <div className="im-banner im-banner--warn im-banner--low" role="status">Tempo da partida esgotado: a IA conclui o lance em andamento e o jogo termina.</div>}
       {feedback && <div className="im-feedback" role="alert">{feedback}</div>}
       {toast && <div key={toast.id} className={`im-toast im-toast--${toast.tone}`} role="status">{toast.text}</div>}
       {r3dStatus === "loading" && <div className="im-loading3d" role="status">Preparando o estádio 3D…</div>}
@@ -525,4 +528,10 @@ function bannerText(view: InteractiveView, attackingName: string, left: number |
   }
   if (view.state === "OUTCOME") return opp.status === "GOAL" ? null : { title: opp.result ?? "Fim da jogada", tone: "end" };
   return null;
+}
+
+/** m:ss of the remaining competitive time. */
+function clockText(seconds: number): string {
+  const s = Math.ceil(seconds);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }

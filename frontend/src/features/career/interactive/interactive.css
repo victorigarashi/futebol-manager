@@ -160,3 +160,7 @@ body.im-open { overflow: hidden; }
   .im-actions button { min-height: 56px; }
   .im-chip { top: 114px; }   /* below the "Sua jogada" banner instead of under it */
 }
+
+/* Competitive duration (A+C): remaining match time, server-controlled */
+.im-limit { grid-column: 1 / -1; justify-self: center; margin-top: 12px; padding: 1px 8px; border-radius: 6px; background: rgb(5 7 11 / 80%); color: #e8eef5; font: 800 .72rem/1.4 Inter, system-ui, sans-serif; font-variant-numeric: tabular-nums; }
+.im-limit.is-over { color: #ffb4b4; }

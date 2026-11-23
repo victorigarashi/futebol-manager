@@ -48,6 +48,8 @@ export type InteractiveView = {
     /** V7 physics model: rolling resistance [constant m/s², drag 1/m] — the forecast integrates the same equation. */
     model?: "v7"; roll?: [number, number]; loft_angle?: [number, number] };
   engine?: "v6" | "v7" | "v8"; difficulty?: "EASY" | "NORMAL" | "HARD";
+  /** Match duration (A+C competitive: server limit; B: free, lasts what the coaches take). */
+  duration?: { mode: "FREE" | "LIMITED"; seconds: number; limit_at: number | null; limit_reached: boolean };
   events: MatchEvent[]; stats: Record<string, Record<string, number>>;
 };
 export type InteractiveActionPayload = { action_id: string; opportunity_id: string; revision: number; type: InteractiveActionType; x: number; y: number; power: number };
