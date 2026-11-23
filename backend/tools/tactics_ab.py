@@ -38,6 +38,9 @@ def run(variant_team, catalog, clubs, m, side_under_test: int):
     original = match._resolve
 
     def spy(choice, by, at):
+        before = match.opportunity
+        car = next((b for b in before["bodies"] if b["id"] == before["carrier"]), None) if before else None
+        start_x = car["x"] if car else None          # where the ball was struck from (before the action)
         step = original(choice, by, at)
         opp = match.opportunity
         mine_attacking = opp["attacking"] == team.club_code
@@ -56,9 +59,8 @@ def run(variant_team, catalog, clubs, m, side_under_test: int):
             if fbs:
                 rows["fb_advance"].append(max(b["x"] for b in fbs))
             acts[str(choice["type"])] += 1
-            car = next((b for b in bodies if b["id"] == step["carrier"]), None)
-            if choice["type"] in ("PASS", "LOFT") and car is not None and abs(float(choice["x"]) - car["x"]) > 25:
-                acts["long_pass"] += 1
+            if choice["type"] in ("PASS", "LOFT") and start_x is not None and float(choice["x"]) - start_x > 20:
+                acts["long_pass"] += 1      # forward pass of more than 20 m
         return step
 
     match._resolve = spy

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import math
 import random
+import statistics
 
 from app.domain.football.world import LOFT_RANGE, PASS_SPEED, Athlete, clamp, dist, pass_reach
 
@@ -90,7 +91,7 @@ def ai_choice(bodies: list[Athlete], carrier_id: str, cfg: dict[str, float], act
     # V8: the attacking style and mentality shape the choice (no bonus to any outcome).
     risk_w = 2.0 if not v8 else {"POSSESSION": 2.6, "SHORT_BUILDUP": 2.8, "DIRECT": 1.6, "COUNTER": 1.7, "WIDE": 2.0}.get(style, 2.0)
     through_bonus = 0.0 if not v8 else {"DIRECT": 0.5, "COUNTER": 0.6}.get(style, 0.0)
-    wide_bonus = 0.4 if v8 and style == "WIDE" else 0.0
+    wide_bonus = 0.8 if v8 and style == "WIDE" else 0.0
     shot_bias = 0.0 if not v8 else {"ATTACKING": 0.3, "VERY_ATTACKING": 0.5, "DEFENSIVE": -0.2, "VERY_DEFENSIVE": -0.35}.get(mentality, 0.0)
     L, W, goal = cfg["length"], cfg["width"], cfg["goal"]
     s = L / 105
@@ -163,6 +164,28 @@ def ai_choice(bodies: list[Athlete], carrier_id: str, cfg: dict[str, float], act
                 v2 = (sx - carrier.x) / s * 0.09 + min(space, 8) * 0.25 - risk2 * risk_w + 0.4 + through_bonus + rng.gauss(0, noise * 0.4)
                 p2 = power_for_pass(dist(carrier.x, carrier.y, sx, sy) + 3.0)
                 options.append((v2, {"type": "PASS", "x": sx, "y": sy, "power": round(p2, 3)}))
+    if v8 and style in ("DIRECT", "COUNTER") and carrier.x < L * 0.62:
+        # Long ball over the line for the most advanced forward (direct / counter style):
+        # into the space behind the defence, not to feet. Still has to beat the defenders' reach.
+        forwards = [m for m in mates if m.role == "ST"] or sorted(mates, key=lambda m: -m.x)[:1]
+        deepest = sorted((x.x for x in defenders), reverse=True)[:4]
+        line = statistics.mean(deepest) if deepest else L - 20 * s      # the back four's average depth
+        for f in forwards:
+            tx, ty = min(L - 10 * s, line + 6 * s), clamp(f.y + f.vy * 0.5, 6 * s, W - 6 * s)
+            flight = dist(carrier.x, carrier.y, tx, ty)
+            if flight < 22 * s or flight > 58 * s:
+                continue
+            race = f.time_to(tx, ty) - min((x.time_to(tx, ty) for x in defenders), default=9.0)
+            value = 0.9 + (tx - carrier.x) / s * 0.03 - max(0.0, race) * 0.5 + (0.7 if style == "DIRECT" else 0.4) + rng.gauss(0, noise * 0.4)
+            power = clamp((flight / s - LOFT_RANGE[0]) / LOFT_RANGE[1], 0.0, 1.0)
+            options.append((value, {"type": "LOFT", "x": tx, "y": ty, "power": round(power, 3)}))
+    if v8 and style == "WIDE" and carrier.x > L - 32 * s and min(carrier.y, W - carrier.y) < 16 * s:
+        # Wide play: from the flank in the final third the natural ball is the cross into the box.
+        for spot in ((L - 7 * s, W / 2 + (3 if carrier.y > W / 2 else -3) * s), (L - 9 * s, W / 2 - (4 if carrier.y > W / 2 else -4) * s)):
+            flight = dist(carrier.x, carrier.y, *spot)
+            power = clamp((flight / s - LOFT_RANGE[0]) / LOFT_RANGE[1], 0.0, 1.0)
+            near = min((dist(m.x, m.y, *spot) for m in mates), default=20.0)
+            options.append((1.6 - near * 0.08 + rng.gauss(0, noise * 0.35), {"type": "LOFT", "x": spot[0], "y": spot[1], "power": round(power, 3)}))
     # Carry / dribble: space ahead, or a 1v1 a good dribbler can attack.
     ahead = [x for x in defenders if x.x > carrier.x - 1 and abs(x.y - carrier.y) < 9 * s]
     space_ahead = min((dist(carrier.x, carrier.y, x.x, x.y) for x in ahead), default=30.0)
