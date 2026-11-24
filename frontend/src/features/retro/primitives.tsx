@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
+import { useConsoleScale } from "./useConsoleScale";
 import "./retro.css";
 
 /**
@@ -16,7 +17,8 @@ export function RetroStage({ view }: { view: StageView }) {
 }
 
 export function RetroFrame({ view, fit, top, nav, footer, children, label }: { view: StageView; fit?: boolean; top: ReactNode; nav?: ReactNode; footer?: ReactNode; children: ReactNode; label: string }) {
-  return <div className="rt">
+  const scale = useConsoleScale();
+  return <div className="rt" style={{ "--rt-zoom": scale.toFixed(4) } as CSSProperties}>
     <RetroStage view={view} />
     <div className={`rt-frame ${fit ? "rt-frame--fit" : ""}`}>
       {top}

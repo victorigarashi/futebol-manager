@@ -13,6 +13,7 @@ import { Connection, RetroFooter, RetroFrame, RetroNav, RetroSubNav } from "../r
 import { useTileNav } from "../retro/useTileNav";
 import { formatMoney } from "../../lib/format";
 import "./career-retro.css";
+import "../retro/skin.css";
 import { LineupBoard } from "./LineupBoard";
 import { SquadHub } from "./SquadHub";
 import { LiveMatchCenter } from "./live/LiveMatchCenter";
@@ -83,20 +84,31 @@ export function CareerShell({ roomId, room, isHost, clubCode, chrome }: { roomId
   const backToHub = useCallback(() => { if (tab !== "hub") setTab("hub"); }, [tab]);
   useTileNav(bodyRef, backToHub);
   const legacy = (node: ReactNode) => chrome ? <main className="app-shell app-shell--reference" id="top">{chrome.legacy}<div id="main-content" tabIndex={-1} />{chrome.error && <p className="feedback feedback--error" role="alert">{chrome.error}</p>}{node}</main> : <>{node}</>;
+  // Retro Career: live (technical mode), post-match, loading and recovery screens get the console
+  // frame; their components render untouched inside the skin. The interactive match keeps `legacy`
+  // (it runs full-screen over everything, body.im-open).
+  const framed = (node: ReactNode, label: string) => {
+    const own = clubs.data?.find((c) => c.code === clubCode) ?? { code: clubCode, name: clubCode, sort_order: 0 };
+    return <RetroFrame view="career" label={label}
+      top={<header className="rt-top"><div className="rt-plate"><span className="rt-plate__crest"><ClubCrest club={own} size="md" /></span><div className="rt-plate__text"><strong>{own.name}</strong><span>{room.name} · {label}</span></div></div>
+        {chrome && <div className="rt-plate rt-plate--right"><div className="rt-top__tools"><Connection state={chrome.connection} /><span className="rt-invite" title="Código de convite da sala">Convite <b>{room.code}</b></span><button type="button" className="rt-iconbtn" onClick={chrome.onHome}>Menu</button></div></div>}</header>}>
+      <div className="rt-skin rt-page cr-framed">{chrome?.error && <p className="rt-toast rt-toast--error" role="alert">{chrome.error}</p>}{node}</div>
+    </RetroFrame>;
+  };
   if (live.data?.live_round && live.data.recovering) {
-    return legacy(<div className="career career--live"><div className="panel-loading panel-loading--recovering" role="status"><b>Recuperando a partida…</b><span>O servidor foi reiniciado e está reconstruindo a rodada exatamente como estava (mesmos lances, placar e ordens). A transmissão volta sozinha em instantes.</span></div></div>);
+    return framed(<div className="career career--live"><div className="panel-loading panel-loading--recovering" role="status"><b>Recuperando a partida…</b><span>O servidor foi reiniciado e está reconstruindo a rodada exatamente como estava (mesmos lances, placar e ordens). A transmissão volta sozinha em instantes.</span></div></div>, "Recuperando a partida");
   }
   if (live.data?.live_round && live.data.interactive && clubList.length) {
     // Modo Jogável: the same round, the coach plays the decisive moments of his match.
     return legacy(<div className="career career--live"><InteractiveMatch roomId={roomId} clubCode={clubCode} clubs={clubList} /></div>);
   }
   if (live.data?.live_round && live.data.match && clubList.length) {
-    return legacy(<div className="career career--live"><LiveMatchCenter roomId={roomId} data={live.data} clubCode={clubCode} clubs={clubList} /></div>);
+    return framed(<div className="career career--live"><LiveMatchCenter roomId={roomId} data={live.data} clubCode={clubCode} clubs={clubList} /></div>, "Ao vivo");
   }
-  if (!data) return legacy(<div className="career"><div className="panel-loading" role="status">{season.error ? season.error.message : "Entrando no centro de treinamento…"}</div></div>);
+  if (!data) return framed(<div className="career"><div className="panel-loading" role="status">{season.error ? season.error.message : "Entrando no centro de treinamento…"}</div></div>, "Carregando");
   if (openMatch) {
     const roundNumber = data.matches.find((m) => m.id === openMatch)?.round_number;
-    return legacy(<div className="career"><PostMatch roomId={roomId} matchId={openMatch} clubCode={clubCode} clubs={clubList} table={data.table} previousTable={baseline.current} roundLabel={roundNumber && roundNumber <= 38 ? `RODADA ${roundNumber}` : "MATA-MATA"} onContinue={() => { writeLocal(`bm_ack_${roomId}_${openMatch}`, "1"); setOpenMatch(null); setTab("hub"); }} /></div>);
+    return framed(<div className="career"><PostMatch roomId={roomId} matchId={openMatch} clubCode={clubCode} clubs={clubList} table={data.table} previousTable={baseline.current} roundLabel={roundNumber && roundNumber <= 38 ? `RODADA ${roundNumber}` : "MATA-MATA"} onContinue={() => { writeLocal(`bm_ack_${roomId}_${openMatch}`, "1"); setOpenMatch(null); setTab("hub"); }} /></div>, "Pós-jogo");
   }
 
   const own = data.table.find((r) => r.club_code === clubCode);
@@ -121,7 +133,7 @@ export function CareerShell({ roomId, room, isHost, clubCode, chrome }: { roomId
   const ready = data.ready_clubs.includes(clubCode);
   const roundLabel = shortMode ? (data.next_round?.stage_name ?? "Torneio") : data.regular_season_complete ? (data.playoffs ? STAGES[data.playoffs.next_stage] ?? "Playoffs" : "Playoffs") : `Rodada ${data.current_round}`;
   const ownClub = club(clubCode);
-  const legacyPanel = (node: ReactNode) => <div className="career rt-legacy">{node}</div>;
+  const legacyPanel = (node: ReactNode) => <div className="career rt-skin rt-legacy">{node}</div>;
 
   return <RetroFrame view={area === "squad" ? "squad" : "career"} fit={area === "central" || area === "squad"} label={`Carreira: ${AREAS.find((a) => a.id === area)?.label}`}
     top={<header className="rt-top">

@@ -53,7 +53,7 @@ html .rt .rt-tile:focus-visible, html .rt .rt-nav button:focus-visible { outline
 @media (prefers-reduced-transparency: reduce) { .rt-stage__img { filter: blur(6px) saturate(.6) brightness(1.1); } }
 
 /* ------------------------------------------------------------------ frame */
-.rt-frame { display: grid; grid-template-rows: auto auto 1fr auto; min-height: 100dvh; padding: clamp(10px, 2.2vh, 28px) var(--rt-pad) 0; gap: clamp(8px, 1.4vh, 14px); }
+.rt-frame { display: grid; grid-template-rows: auto auto 1fr auto; min-height: 100dvh; padding: 16.9px var(--rt-pad) 0; gap: 10.8px; }
 .rt-frame--fit { height: 100dvh; min-height: 560px; }
 .rt-frame--fit > .rt-body { min-height: 0; }
 
@@ -99,8 +99,8 @@ html .rt .rt-tile:focus-visible, html .rt .rt-nav button:focus-visible { outline
 /* panels and tiles: rectangular, translucent ice, teal when focused */
 .rt-panel { position: relative; background: var(--rt-panel-a); padding: 18px 20px; min-width: 0; min-height: 0; overflow: hidden; }
 .rt-panel--flush { padding: 0; }
-.rt-h { margin: 0; font-family: var(--rt-display); font-weight: 600; font-size: clamp(22px, 2vw, 30px); line-height: 1; letter-spacing: .01em; text-transform: uppercase; }
-.rt-h--xl { font-size: clamp(30px, 3vw, 46px); }
+.rt-h { margin: 0; font-family: var(--rt-display); font-weight: 600; font-size: 27.3px; line-height: 1; letter-spacing: .01em; text-transform: uppercase; }
+.rt-h--xl { font-size: 41px; }
 .rt-sub { margin: 6px 0 0; font-size: 14px; color: var(--rt-ink-2); }
 .rt-kicker { margin: 0 0 6px; font-family: var(--rt-display); font-size: 15px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--rt-teal-ink); }
 
@@ -112,7 +112,7 @@ html .rt .rt-tile:focus-visible, html .rt .rt-nav button:focus-visible { outline
 .rt-tile[aria-disabled="true"] { cursor: not-allowed; background: rgba(220, 229, 234, .78); color: #6c7f89; }
 .rt-tile[aria-disabled="true"] .rt-tile__why { display: block; }
 .rt-tile__why { display: none; margin-top: auto; font-size: 13px; font-weight: 600; color: var(--rt-red); }
-.rt-tile__art { position: absolute; right: 14px; bottom: 10px; width: clamp(56px, 6vw, 96px); height: auto; color: currentColor; opacity: .22; pointer-events: none; }
+.rt-tile__art { position: absolute; right: 14px; bottom: 10px; width: 82px; height: auto; color: currentColor; opacity: .22; pointer-events: none; }
 .rt-tile--lime { background: var(--rt-lime); }
 .rt-tile--lime:hover { background: #dcec52; }
 .rt-tile__foot { margin-top: auto; display: flex; align-items: center; gap: 8px; width: 100%; }
@@ -131,7 +131,7 @@ html .rt .rt-tile:focus-visible, html .rt .rt-nav button:focus-visible { outline
 .rt-btn kbd { font-family: var(--rt-ui); font-size: 11px; padding: 2px 6px; border: 1px solid currentColor; opacity: .7; }
 
 /* footer: button hints sit on the background, only for shortcuts that work */
-.rt-footer { display: flex; align-items: center; gap: 22px; min-height: 44px; padding: 6px 0 clamp(8px, 1.6vh, 18px); color: #fff; font-size: 14px; font-weight: 600; text-shadow: 0 1px 3px rgba(0, 0, 0, .45); }
+.rt-footer { display: flex; align-items: center; gap: 22px; min-height: 44px; padding: 6px 0 12.3px; color: #fff; font-size: 14px; font-weight: 600; text-shadow: 0 1px 3px rgba(0, 0, 0, .45); }
 .rt-footer span { display: inline-flex; align-items: center; gap: 8px; }
 .rt-key { display: inline-grid; place-items: center; min-width: 26px; height: 26px; padding: 0 7px; background: rgba(30, 47, 58, .78); color: #fff; font-size: 12px; font-weight: 700; text-shadow: none; border-bottom: 2px solid rgba(0, 0, 0, .35); }
 .rt-footer__right { margin-left: auto; font-weight: 500; opacity: .9; }
@@ -160,4 +160,13 @@ html .rt .rt-tile:focus-visible, html .rt .rt-nav button:focus-visible { outline
   .rt-nav { grid-auto-columns: minmax(120px, 1fr); overflow-x: auto; scrollbar-width: none; }
   .rt-nav button { font-size: 18px; }
   .rt-footer { display: none; }
+}
+
+/* ---- Console scaling: the frame is laid out at 1366×768 and zoomed uniformly on larger
+   screens (text, panels and pitch grow together, like a console UI). Phones/tablets: 1. ---- */
+.rt-frame { zoom: var(--rt-zoom, 1); }
+@media (min-width: 1366px) {
+  .rt { --rt-pad: 57px; }
+  .rt-frame { min-height: calc(100dvh / var(--rt-zoom, 1)); padding-top: 17px; gap: 11px; }
+  .rt-frame--fit { height: calc(100dvh / var(--rt-zoom, 1)); }
 }
