@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { FACE_V0, FACE_V1, SHIRT_V, type Region } from "./body";
-export { BOOT_COLOURS, HAIR_COLOURS, SKIN_TONES } from "./palette";
+import { BOOT_COLOURS, HAIR_COLOURS, SKIN_TONES } from "./palette";
+export { BOOT_COLOURS, HAIR_COLOURS, SKIN_TONES };
 
 /**
  * One kit description shared by 3D and 2D (research prototype).

@@ -4,7 +4,7 @@ import { REGIONS, type Region } from "../athlete/body";
 import type { KitSpec, Pattern } from "../athlete/kit";
 import type { Pose } from "../athlete/rig";
 import { CLIPS, samplePose } from "../anim/clips";
-import { DIRECTIONS, SPRITE_ANIMS, SPRITE_REGIONS, type AtlasMeta, type SpriteRegion } from "./atlas";
+import { cellXY, DIRECTIONS, SPRITE_ANIMS, SPRITE_REGIONS, type AtlasMeta, type SpriteRegion } from "./atlas";
 
 // The 2D renderer needs only the atlas layout and the recolour (./atlas, no three.js);
 // the bake itself (WebGL, three.js) is loaded on demand.
