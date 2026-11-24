@@ -94,7 +94,8 @@ RECONNECT_GRACE = 30.0        # approved tolerance (validation 47)
 DECISION_CHOICES = (5, 10, 15, 20)
 DURATION_CHOICES = (60, 90, 120, 180)   # the room's approved match durations
 OPPORTUNITY_COST_SECONDS = 13.0
-MOMENT_TAIL_SECONDS = 7.0       # typical real time to play out the rest of a move once decisions stop         # mean real cost of one decisive moment (measured: tools/match_duration.py)
+MOMENT_TAIL_SECONDS = 7.0
+MIN_DECISION_SECONDS = 6.0      # a shortened decision timer never goes below this (time for a human gesture)       # typical real time to play out the rest of a move once decisions stop         # mean real cost of one decisive moment (measured: tools/match_duration.py)
 ACTION_TYPES = ("PASS", "LOFT", "CARRY", "SHOT")
 KINDS = ("BUILDUP", "COUNTER", "WING", "CROSS", "THROUGH", "ONE_ON_ONE", "REBOUND", "FREE_KICK", "PENALTY", "CORNER", "OVERLOAD")
 ENGINES = ("v6", "v7", "v8")      # v6: original Pitch (kept intact); v7/v8: app.domain.football (docs/v7, docs/v8)
@@ -1588,7 +1589,7 @@ class HighlightMatch:
             # The coach is under AI control (left past the grace period): the AI plays on.
             self._auto(at, "AI_CONTROL")
             return
-        if self.moment_until is not None and at >= self.moment_until - 2.0:
+        if self.moment_until is not None and at >= self.moment_until - MIN_DECISION_SECONDS / 2:
             # A: this moment has used its share of the duration — the contextual AI concludes it.
             self._auto(at, "TIME_BUDGET")
             return
@@ -1596,7 +1597,7 @@ class HighlightMatch:
         self.state = "DECISION"
         self.deadline = None if seconds is None else at + seconds
         if self.deadline is not None and self.moment_until is not None:
-            self.deadline = min(self.deadline, max(self.moment_until, at + 4.0))   # shown on the timer: predictable
+            self.deadline = min(self.deadline, max(self.moment_until, at + MIN_DECISION_SECONDS))   # shown on the timer: predictable
         self.opportunity["decision_opened_at"] = at
         self.state_until = None
         self.revision += 1
