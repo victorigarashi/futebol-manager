@@ -1,11 +1,18 @@
-import { type FormEvent, type KeyboardEvent, useRef, useState } from "react";
+import { type FormEvent, useCallback, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
-import type { GameMode, RoomState } from "../../lib/api";
-import { GAME_MODES, type ModeInfo, modeInfo } from "../../lib/gameModes";
-import "./home.css";
+import { api, type GameMode, type RoomState } from "../../lib/api";
+import { GAME_MODES, modeInfo } from "../../lib/gameModes";
+import { useSession } from "../../stores/session";
+import { ClubCrest } from "../../components/ClubCrest";
+import { Modal } from "../../components/Modal";
+import { ExperiencePicker } from "../career/interactive/ExperiencePicker";
+import { RetroFooter, RetroFrame, RetroNav, TileArt } from "../retro/primitives";
+import { useTileNav } from "../retro/useTileNav";
+import "./menu-retro.css";
 
 type PublicRoom = { id: string; name: string; mode: "FIVE_A_SIDE" | "ELEVEN_A_SIDE"; participant_count?: number; game_mode?: GameMode };
-type View = "menu" | "modes" | "join" | "history";
+type Tab = "home" | "play" | "online" | "custom";
 
 type Props = {
   displayName: string | null;
@@ -22,129 +29,106 @@ type Props = {
 };
 
 const PHASES: Record<string, string> = {
-  WAITING: "Aguardando técnicos", INITIAL_MARKET: "Mercado inicial", DRAFT: "Draft em andamento", PACK: "Abrindo pacotes",
-  SQUAD_MANAGEMENT: "Montando o time", SEASON_PREPARATION: "Em competição", TRANSFER_WINDOW: "Janela de transferências",
+  WAITING: "Aguardando técnicos", INITIAL_MARKET: "Mercado inicial", MARKET_SELECTION: "Confirmando contratações", MARKET_REASSIGNMENT: "Redistribuição", MARKET_REVIEW: "Apresentação do elenco",
+  DRAFT: "Draft em andamento", PACK: "Abrindo pacotes", SQUAD_MANAGEMENT: "Montando o time", SEASON_PREPARATION: "Em competição", TRANSFER_WINDOW: "Janela de transferências",
 };
 const fmt = (mode: "FIVE_A_SIDE" | "ELEVEN_A_SIDE") => (mode === "FIVE_A_SIDE" ? "5 × 5" : "11 × 11");
+const ART: Record<GameMode, "trophy" | "cards" | "bracket" | "survivor" | "pack"> = { TRADITIONAL: "trophy", DRAFT: "cards", DRAFT_KNOCKOUT: "bracket", SURVIVOR: "survivor", PACK: "pack" };
+const TABS: { id: Tab; label: string }[] = [{ id: "home", label: "Início" }, { id: "play", label: "Jogar" }, { id: "online", label: "Online" }, { id: "custom", label: "Personalizar" }];
 
-/** Main menu: continue, new game, join, history, settings — nothing else up front. */
+/**
+ * Main menu, console style: categories on a horizontal bar, a dominant tile for the most
+ * likely action and secondary tiles. Every tile is an existing action of the app; nothing
+ * is shown that the game cannot do.
+ */
 export function MainMenu(props: Props) {
-  const { displayName, myRooms, onJoinRoom, onEditProfile } = props;
-  const [view, setView] = useState<View>("menu");
+  const { displayName, myRooms, onJoinRoom, onEditProfile, onPickMode } = props;
+  const userId = useSession((s) => s.userId);
+  const [tab, setTab] = useState<Tab>("home");
+  const [experienceOpen, setExperienceOpen] = useState(false);
+  const body = useRef<HTMLDivElement>(null);
+  const back = useCallback(() => { if (tab !== "home") setTab("home"); }, [tab]);
+  useTileNav(body, back);
   const latest = myRooms[0];
-  const items: { id: string; label: string; hint: string; action: () => void; primary?: boolean }[] = [
-    ...(latest ? [{ id: "continue", label: "Continuar", hint: latest.name, action: () => onJoinRoom(latest.id), primary: true }] : []),
-    { id: "new", label: "Nova partida", hint: "Escolha um modo de jogo", action: () => setView("modes"), primary: !latest },
-    { id: "join", label: "Entrar numa sala", hint: "Com código ou salas abertas", action: () => setView("join") },
-    ...(myRooms.length > 1 ? [{ id: "history", label: "Minhas salas", hint: `${myRooms.length} salas`, action: () => setView("history") }] : []),
-    { id: "settings", label: "Configurações", hint: "Nome do técnico", action: onEditProfile },
-  ];
-  const list = useRef<HTMLUListElement>(null);
-  const onKey = (event: KeyboardEvent<HTMLUListElement>) => {
-    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
-    event.preventDefault();
-    const buttons = Array.from(list.current?.querySelectorAll<HTMLButtonElement>("button") ?? []);
-    const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
-    buttons[(index + (event.key === "ArrowDown" ? 1 : buttons.length - 1)) % buttons.length]?.focus();
-  };
 
-  return <main className="menu-shell" id="top">
-    <div className="menu-stadium" aria-hidden="true"><i className="menu-stadium__light menu-stadium__light--l" /><i className="menu-stadium__light menu-stadium__light--r" /><i className="menu-stadium__pitch" /></div>
-    <header className="menu-brand">
-      <span className="menu-brand__mark">BM</span>
-      <div><strong>Brasileirão Manager</strong><small>Edição Resenha</small></div>
-      <button type="button" className="menu-brand__coach" onClick={onEditProfile}>Técnico <b>{displayName || "—"}</b></button>
-    </header>
-
-    <div id="main-content" tabIndex={-1} />
-    {view === "menu" && <section className="menu-main">
-      <nav aria-label="Menu principal"><ul ref={list} className="menu-list" onKeyDown={onKey}>
-        {items.map((item) => <li key={item.id}><button type="button" className={item.primary ? "is-primary" : ""} onClick={item.action}><span>{item.label}</span><small>{item.hint}</small></button></li>)}
-      </ul></nav>
-      {latest ? <ContinueCard room={latest} onOpen={() => onJoinRoom(latest.id)} /> : <WelcomeCard onStart={() => setView("modes")} />}
-    </section>}
-
-    {view === "modes" && <ModeSelect onBack={() => setView("menu")} onPick={props.onPickMode} />}
-    {view === "join" && <JoinView {...props} onBack={() => setView("menu")} />}
-    {view === "history" && <section className="menu-panel"><BackButton onBack={() => setView("menu")} /><h1>Minhas salas</h1>
-      <ul className="menu-rooms">{myRooms.map((room) => <li key={room.id}><RoomLine room={room} /><button type="button" className="button-primary" onClick={() => onJoinRoom(room.id)}>Abrir</button></li>)}</ul>
-    </section>}
-  </main>;
-}
-
-function BackButton({ onBack }: { onBack: () => void }) {
-  return <button type="button" className="menu-back" onClick={onBack}>← Menu</button>;
-}
-
-function RoomLine({ room }: { room: RoomState }) {
-  const info = modeInfo(room.game_mode);
-  return <div className="menu-room"><i style={{ background: info.accent }} aria-hidden="true" /><div><strong>{room.name}</strong><span>{info.name} · {fmt(room.mode)} · {PHASES[room.phase] ?? "Em andamento"}</span></div></div>;
-}
-
-function ContinueCard({ room, onOpen }: { room: RoomState; onOpen: () => void }) {
-  const info = modeInfo(room.game_mode);
-  return <article className="menu-feature" style={{ ["--mode-accent" as string]: info.accent }}>
-    <p className="menu-feature__kicker">CONTINUAR · {info.name.toUpperCase()}</p>
-    <h1>{room.name}</h1>
-    <p>{PHASES[room.phase] ?? "Em andamento"} · {fmt(room.mode)} · {room.team_count} clubes</p>
-    <button type="button" className="button-primary menu-feature__cta" onClick={onOpen}>Entrar em campo <span aria-hidden="true">→</span></button>
-  </article>;
-}
-
-function WelcomeCard({ onStart }: { onStart: () => void }) {
-  return <article className="menu-feature">
-    <p className="menu-feature__kicker">BEM-VINDO AO VESTIÁRIO</p>
-    <h1>Seu clube.<br />Sua resenha.</h1>
-    <p>Carreira completa, Draft, mata-mata relâmpago, sobrevivência ou pacotes: escolha o jeito de jogar com os amigos.</p>
-    <button type="button" className="button-primary menu-feature__cta" onClick={onStart}>Começar <span aria-hidden="true">→</span></button>
-  </article>;
-}
-
-/** Large, distinct cards; the specific settings only appear after a mode is chosen. */
-export function ModeSelect({ onBack, onPick }: { onBack: () => void; onPick: (mode: GameMode) => void }) {
-  return <section className="menu-panel menu-modes" aria-labelledby="modes-title">
-    <BackButton onBack={onBack} />
-    <h1 id="modes-title">Escolha o modo</h1>
-    <div className="mode-grid">{GAME_MODES.map((mode) => <ModeCard key={mode.id} mode={mode} onPick={() => onPick(mode.id)} />)}</div>
-  </section>;
-}
-
-function ModeCard({ mode, onPick }: { mode: ModeInfo; onPick: () => void }) {
-  return <article className="mode-card" style={{ ["--mode-accent" as string]: mode.accent }}>
-    <ModeArt id={mode.id} />
-    <div className="mode-card__body">
-      <h2>{mode.name}</h2>
-      <p className="mode-card__tagline">{mode.tagline}</p>
-      <p>{mode.description}</p>
-      <dl><div><dt>Clubes</dt><dd>{mode.sizes.length > 4 ? `${mode.sizes[0]} a ${mode.sizes[mode.sizes.length - 1]}` : mode.sizes.join(", ")}</dd></div><div><dt>Duração</dt><dd>{mode.length}</dd></div><div><dt>Elencos</dt><dd>{mode.squads}</dd></div></dl>
-      <button type="button" className="button-primary" onClick={onPick}>Criar sala <span aria-hidden="true">→</span></button>
+  return <RetroFrame view="menu" fit label="Menu principal"
+    top={<header className="rt-top">
+      <div className="rt-plate"><span className="rt-brand">resenha<i>.</i></span><div className="rt-plate__text" style={{ marginLeft: 18 }}><strong>MENU PRINCIPAL</strong><span>Brasileirão Manager · Edição Resenha</span></div></div>
+      <div className="rt-plate rt-plate--right">
+        <div className="rt-stat"><small>Técnico</small><b>{displayName || "—"}</b></div>
+        {myRooms.length > 0 && <div className="rt-stat"><small>Suas salas</small><b>{myRooms.length}</b></div>}
+        <button type="button" className="rt-iconbtn" onClick={onEditProfile}>Editar perfil</button>
+      </div>
+    </header>}
+    nav={<RetroNav label="Categorias do menu" items={TABS} current={tab} onSelect={setTab} />}
+    footer={<RetroFooter hints={[{ key: "Enter", label: "Selecionar" }, ...(tab !== "home" ? [{ key: "Esc", label: "Voltar" }] : []), { key: "↑↓←→", label: "Navegar" }]} right="Futebol se joga junto. A resenha também." />}>
+    <div ref={body} className="mm" key={tab}>
+      {tab === "home" && <HomeTiles latest={latest} userId={userId} rooms={myRooms} onJoinRoom={onJoinRoom} onTab={setTab} onPickMode={onPickMode} />}
+      {tab === "play" && <div className="mm-modes">{GAME_MODES.map((mode) => <button key={mode.id} type="button" data-rt-tile className={`rt-tile mm-mode ${mode.id === "TRADITIONAL" ? "mm-mode--lead" : ""}`} onClick={() => onPickMode(mode.id)}>
+        <p className="rt-kicker">{mode.tagline}</p><h2 className="rt-h">{mode.name}</h2><p className="rt-sub">{mode.description}</p>
+        <dl className="mm-facts"><div><dt>Clubes</dt><dd>{mode.sizes.length > 4 ? `${mode.sizes[0]} a ${mode.sizes[mode.sizes.length - 1]}` : mode.sizes.join(", ")}</dd></div><div><dt>Duração</dt><dd>{mode.length}</dd></div><div><dt>Elencos</dt><dd>{mode.squads}</dd></div></dl>
+        <span className="mm-cta">Criar sala →</span><TileArt kind={ART[mode.id]} />
+      </button>)}</div>}
+      {tab === "online" && <OnlineTiles {...props} />}
+      {tab === "custom" && <div className="mm-custom">
+        <button type="button" data-rt-tile className="rt-tile mm-big" onClick={onEditProfile}><p className="rt-kicker">Perfil</p><h2 className="rt-h rt-h--xl">Nome do técnico</h2><p className="rt-sub">Como os amigos veem você nas salas, na classificação e nas notícias. Atual: <b>{displayName || "—"}</b>.</p><TileArt kind="whistle" /></button>
+        <button type="button" data-rt-tile className="rt-tile mm-big" onClick={() => setExperienceOpen(true)}><p className="rt-kicker">Modo Jogável</p><h2 className="rt-h rt-h--xl">Visual da partida</h2><p className="rt-sub">Escolha entre o 2D e o 3D e a qualidade gráfica deste aparelho. A escolha é só sua e não altera o resultado.</p><TileArt kind="pitch" /></button>
+      </div>}
     </div>
-  </article>;
+    {experienceOpen && <Modal className="rt-modal" titleId="experience-title" onClose={() => setExperienceOpen(false)}><h2 id="experience-title">Visual da partida</h2><ExperiencePicker /></Modal>}
+  </RetroFrame>;
 }
 
-/** Simple vector previews (own drawings, no third-party marks). */
-function ModeArt({ id }: { id: GameMode }) {
-  return <svg className="mode-card__art" viewBox="0 0 160 90" aria-hidden="true">
-    <rect x="1" y="1" width="158" height="88" rx="8" fill="none" stroke="currentColor" strokeOpacity=".25" />
-    {id === "TRADITIONAL" && <><path d="M48 70h64M60 70V52h40v18M70 52c0-14-10-14-10-26h40c0 12-10 12-10 26" fill="none" stroke="currentColor" strokeWidth="3" /><circle cx="80" cy="20" r="4" fill="currentColor" /></>}
-    {id === "DRAFT" && [0, 1, 2].map((i) => <rect key={i} x={38 + i * 30} y={22 - (i === 1 ? 6 : 0)} width="26" height="40" rx="4" fill="none" stroke="currentColor" strokeWidth={i === 1 ? 3 : 2} />)}
-    {id === "DRAFT_KNOCKOUT" && <path d="M20 20h22v20h22M20 60h22V40M64 40h20v10h22M20 80h0M64 60h20V50M106 50h34" fill="none" stroke="currentColor" strokeWidth="3" />}
-    {id === "SURVIVOR" && [0, 1, 2, 3, 4, 5].map((i) => <circle key={i} cx={30 + i * 20} cy="45" r={i < 4 ? 7 : 7} fill={i < 3 ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" opacity={i < 3 ? 1 : 0.35} />)}
-    {id === "PACK" && <><rect x="52" y="14" width="56" height="64" rx="6" fill="none" stroke="currentColor" strokeWidth="3" /><path d="M52 30h56M80 14v16" stroke="currentColor" strokeWidth="2" /><path d="M80 44l5 10h11l-9 7 3 11-10-6-10 6 3-11-9-7h11z" fill="currentColor" /></>}
-  </svg>;
+function HomeTiles({ latest, userId, rooms, onJoinRoom, onTab, onPickMode }: { latest?: RoomState; userId: string | null; rooms: RoomState[]; onJoinRoom: (id: string) => void; onTab: (t: Tab) => void; onPickMode: (m: GameMode) => void }) {
+  const mine = latest?.participants.find((p) => p.user_id === userId);
+  const clubCode = mine?.selected_club_code ?? undefined;
+  const info = latest ? modeInfo(latest.game_mode) : null;
+  const clubs = useQuery({ queryKey: ["clubs"], queryFn: () => api.clubs().then((r) => r.data), staleTime: Infinity });
+  const club = clubCode ? clubs.data?.find((c) => c.code === clubCode) ?? { code: clubCode, name: clubCode, sort_order: 0 } : null;
+  return <div className="mm-home">
+    {latest && info ? <button type="button" data-rt-tile className="rt-tile mm-hero" autoFocus onClick={() => onJoinRoom(latest.id)}>
+      <div className="mm-hero__art" aria-hidden="true" />
+      <div className="mm-hero__copy">
+        <p className="rt-kicker">Continuar · {info.name}</p>
+        <h2 className="rt-h rt-h--xl">Continuar carreira</h2>
+        <p className="rt-sub">Retorne à sua sala, onde ela parou.</p>
+      </div>
+      <div className="mm-hero__room">
+        {club && <ClubCrest club={club} size="lg" />}
+        <div><strong>{club ? club.name : latest.name}</strong>{club && <em>{latest.name}</em>}<span>{PHASES[latest.phase] ?? "Em andamento"} · {fmt(latest.mode)} · {latest.team_count} clubes</span></div>
+        <span className="rt-btn rt-btn--lime">Entrar em campo →</span>
+      </div>
+    </button> : <button type="button" data-rt-tile className="rt-tile mm-hero" autoFocus onClick={() => onPickMode("TRADITIONAL")}>
+      <div className="mm-hero__art" aria-hidden="true" />
+      <div className="mm-hero__copy"><p className="rt-kicker">Comece por aqui</p><h2 className="rt-h rt-h--xl">Nova carreira</h2><p className="rt-sub">Escolha um clube, monte o elenco no mercado e dispute o Brasileirão com os amigos.</p></div>
+      <div className="mm-hero__room"><span className="rt-btn rt-btn--lime">Criar sala →</span></div>
+    </button>}
+    <div className="mm-side">
+      {latest && <button type="button" data-rt-tile className="rt-tile" onClick={() => onPickMode("TRADITIONAL")}><h2 className="rt-h">Nova carreira</h2><p className="rt-sub">Monte sua equipe e crie uma nova sala</p><TileArt kind="trophy" /></button>}
+      <button type="button" data-rt-tile className="rt-tile" onClick={() => onTab("online")}><h2 className="rt-h">Jogar com amigos</h2><p className="rt-sub">Entre com um código ou numa sala aberta</p><TileArt kind="people" /></button>
+      <button type="button" data-rt-tile className="rt-tile" onClick={() => onPickMode("DRAFT")}><h2 className="rt-h">Draft</h2><p className="rt-sub">Três cartas por posição</p><TileArt kind="cards" /></button>
+      <button type="button" data-rt-tile className="rt-tile" onClick={() => onTab("play")}><h2 className="rt-h">Torneios e modos</h2><p className="rt-sub">Mata-mata, sobrevivência e pacotes</p><TileArt kind="bracket" /></button>
+      {rooms.length > 1 && <button type="button" data-rt-tile className="rt-tile" onClick={() => onTab("online")}><h2 className="rt-h">Minhas salas</h2><p className="rt-sub">{rooms.length} salas em andamento</p><TileArt kind="key" /></button>}
+    </div>
+  </div>;
 }
 
-function JoinView({ joinCode, joining, onCodeChange, onJoinCode, publicRooms, roomsLoading, onJoinRoom, onBack }: Props & { onBack: () => void }) {
-  return <section className="menu-panel"><BackButton onBack={onBack} /><h1>Entrar numa sala</h1>
-    <form className="menu-join" onSubmit={onJoinCode}>
-      <label htmlFor="join-code">Código da sala</label>
-      <div><input id="join-code" value={joinCode} maxLength={6} placeholder="ABC123" autoComplete="off" onChange={(event) => onCodeChange(event.target.value.toUpperCase())} required />
-        <button type="submit" className="button-primary" disabled={joining}>{joining ? "Entrando…" : "Entrar"}</button></div>
-    </form>
-    <h2 className="menu-subtitle">Salas abertas</h2>
-    {roomsLoading ? <p className="muted">Procurando salas…</p> : publicRooms?.length ? <ul className="menu-rooms">{publicRooms.map((room) => {
-      const info = modeInfo(room.game_mode);
-      return <li key={room.id}><div className="menu-room"><i style={{ background: info.accent }} aria-hidden="true" /><div><strong>{room.name}</strong><span>{info.name} · {fmt(room.mode)} · {room.participant_count ?? 0} técnicos</span></div></div><button type="button" className="button-secondary" onClick={() => onJoinRoom(room.id)}>Entrar</button></li>;
-    })}</ul> : <p className="muted">Nenhuma sala pública aberta agora. Crie a sua em “Nova partida”.</p>}
-  </section>;
+function OnlineTiles({ joinCode, joining, onCodeChange, onJoinCode, publicRooms, roomsLoading, onJoinRoom, myRooms }: Props) {
+  return <div className="mm-online">
+    <section className="rt-panel mm-join">
+      <p className="rt-kicker">Convite</p><h2 className="rt-h rt-h--xl">Entrar com código</h2>
+      <p className="rt-sub">Peça o código de 6 letras ao anfitrião da sala.</p>
+      <form onSubmit={onJoinCode}>
+        <label htmlFor="join-code" className="sr-only">Código da sala</label>
+        <input id="join-code" value={joinCode} maxLength={6} placeholder="ABC123" autoComplete="off" onChange={(event) => onCodeChange(event.target.value.toUpperCase())} required />
+        <button type="submit" className="rt-btn rt-btn--lime" disabled={joining}>{joining ? "Entrando…" : "Entrar"}</button>
+      </form>
+      {myRooms.length > 0 && <><h3 className="mm-subhead">Minhas salas</h3><ul className="mm-rooms">{myRooms.map((room) => <li key={room.id}><button type="button" data-rt-tile className="rt-tile mm-room" onClick={() => onJoinRoom(room.id)}><b>{room.name}</b><span>{modeInfo(room.game_mode).name} · {fmt(room.mode)} · {PHASES[room.phase] ?? "Em andamento"}</span></button></li>)}</ul></>}
+    </section>
+    <section className="rt-panel mm-public">
+      <p className="rt-kicker">Salas abertas</p><h2 className="rt-h rt-h--xl">Jogar online</h2>
+      {roomsLoading ? <p className="rt-sub">Procurando salas…</p> : publicRooms?.length ? <ul className="mm-rooms rt-scroll">{publicRooms.map((room) => <li key={room.id}><button type="button" data-rt-tile className="rt-tile mm-room" onClick={() => onJoinRoom(room.id)}><b>{room.name}</b><span>{modeInfo(room.game_mode).name} · {fmt(room.mode)} · {room.participant_count ?? 0} técnicos</span></button></li>)}</ul>
+        : <p className="rt-sub">Nenhuma sala pública aberta agora. Crie a sua em <b>Jogar</b>.</p>}
+    </section>
+  </div>;
 }

@@ -64,3 +64,14 @@ export function teamStrength(formation: Formation, assignments: Record<string, s
   const all = Object.values(sectors).flat();
   return { overall: avg(all), defense: avg([...sectors.GK, ...sectors.DF]), midfield: avg(sectors.MF), attack: avg(sectors.ST), improvised };
 }
+
+/** Perspective of the vertical pitch (presentation only: the official slot stays x/y). */
+export function project(x: number, y: number): { left: number; top: number; scale: number } {
+  const depth = y / 100;
+  const width = 0.76 + 0.24 * depth;
+  return { left: 50 + (x - 50) * width * 0.92, top: 3 + y * 0.9, scale: 0.86 + 0.14 * depth };
+}
+export function surname(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  return parts.length > 1 && parts[parts.length - 1].length <= 3 ? parts.slice(-2).join(" ") : parts[parts.length - 1];
+}

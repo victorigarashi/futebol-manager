@@ -1,4 +1,5 @@
 import { useEffect, useRef, type ReactNode } from "react";
+import "../features/retro/skin.css";
 
 export function Modal({ titleId, onClose, children, className = "", closeDisabled = false }: {
   titleId: string; onClose: () => void; children: ReactNode; className?: string; closeDisabled?: boolean;
@@ -36,7 +37,7 @@ export function Modal({ titleId, onClose, children, className = "", closeDisable
       if (previous?.isConnected) previous.focus();
     };
   }, []);
-  return <div className="dialog-backdrop" onMouseDown={(event) => {
+  return <div className="dialog-backdrop rt-skin" onMouseDown={(event) => {
     if (event.target === event.currentTarget && !closeDisabled) onClose();
   }}><section ref={dialog} className={`dialog ${className}`} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
     <button className="dialog__close" type="button" onClick={onClose} disabled={closeDisabled} aria-label="Fechar diálogo">×</button>

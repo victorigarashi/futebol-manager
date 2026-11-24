@@ -1,0 +1,32 @@
+/* Room phases (market, draft, pack, club choice) inside the console frame. */
+.rr-navrow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; align-items: stretch; }
+.rr-steps { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 4px; margin: 0; padding: 0; list-style: none; }
+.rr-steps li { display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 0 16px; background: var(--rt-panel-2a); color: var(--rt-ink-2); font: 600 19px/1 var(--rt-display); letter-spacing: .03em; text-transform: uppercase; }
+.rr-steps li span { display: grid; place-items: center; width: 26px; height: 26px; background: rgba(38, 57, 69, .12); font-size: 15px; }
+.rr-steps li.is-done { color: var(--rt-ink); }
+.rr-steps li.is-done span { background: var(--rt-teal-ink); color: #fff; }
+.rr-steps li[aria-current=step] { background: var(--rt-lime); color: var(--rt-ink); }
+.rr-steps li[aria-current=step] span { background: var(--rt-ink); color: #fff; }
+.rr-body { display: grid; align-content: start; gap: 8px; padding-bottom: 12px; }
+.rt-frame--fit .rr-body { height: 100%; }
+@media (max-width: 900px) {
+  .rr-navrow { grid-template-columns: minmax(0, 1fr); }
+  .rr-steps li { padding: 0 8px; font-size: 15px; }
+  .rr-steps li:not([aria-current=step]) { font-size: 0; gap: 0; }
+  .rr-steps li:not([aria-current=step]) span { font-size: 14px; }
+}
+
+/* Onboarding (new coach): stadium hero tile + name form, menu identity */
+.ob { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 6px; height: 100%; min-height: 0; }
+.ob-hero { display: flex; flex-direction: column; justify-content: flex-end; gap: 8px; padding: 28px 30px; background: linear-gradient(180deg, rgba(17, 118, 138, 0) 30%, rgba(17, 118, 138, .92)), url(/retro/stadium-menu.webp) center/cover; color: #fff; border: 8px solid var(--rt-lime); }
+.ob-hero .rt-kicker { color: var(--rt-lime); }
+.ob-hero h1 { margin: 0; color: #fff; font-size: 56px; line-height: .95; }
+.ob-hero h1 em { color: var(--rt-lime); font-style: normal; }
+.ob-hero ul { display: flex; gap: 6px; margin: 6px 0 0; padding: 0; list-style: none; }
+.ob-hero li { padding: 6px 12px; background: rgba(30, 47, 58, .8); font: 600 15px/1 var(--rt-display); letter-spacing: .05em; text-transform: uppercase; }
+.ob-form { display: flex; flex-direction: column; justify-content: center; gap: 12px; padding: 28px 30px; background: var(--rt-panel-a); }
+.ob-form label { font: 700 30px/1.05 var(--rt-display); text-transform: uppercase; color: var(--rt-ink); }
+.ob-form input { height: 54px; padding: 0 14px; font-size: 20px; }
+.ob-form .button-primary { min-height: 58px; font-size: 24px; text-align: left; padding: 0 18px; }
+.ob-form small { color: var(--rt-ink-2); }
+@media (max-width: 900px) { .ob { grid-template-columns: minmax(0, 1fr); height: auto; } .ob-hero { min-height: 280px; } .ob-hero h1 { font-size: 40px; } }

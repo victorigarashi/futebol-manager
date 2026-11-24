@@ -1,0 +1,245 @@
+{
+  "date": "2026-11-22T04:37:47.639Z",
+  "checks": [
+    {
+      "name": "[1366] Central sem rolagem da página",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1366] Ação principal visível sem rolar",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1366] Setas movem o foco entre os tiles",
+      "ok": true,
+      "detail": "story → rt-tile ch-squad"
+    },
+    {
+      "name": "[1366] Elenco abre a visão geral sem rolagem",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1366] Visão geral mostra os 11 titulares",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1366] Elenco sem rolagem da página",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1366] Campo mostra os 11 titulares",
+      "ok": true,
+      "detail": "11 vagas"
+    },
+    {
+      "name": "[1366] Nomes no campo sem sobreposição",
+      "ok": true,
+      "detail": "0 sobreposições"
+    },
+    {
+      "name": "[1366] Esc volta à Central",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1366] Menu mostra Continuar carreira com o clube",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1366] Menu sem rolagem da página",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1366] Aba Jogar lista os 5 modos reais",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1366] Esc volta ao Início do menu",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1366] Continuar volta à carreira",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1366] Sem erros no console",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1920] Central sem rolagem da página",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1920] Ação principal visível sem rolar",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1920] Setas movem o foco entre os tiles",
+      "ok": true,
+      "detail": "story → rt-tile ch-table"
+    },
+    {
+      "name": "[1920] Elenco abre a visão geral sem rolagem",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1920] Visão geral mostra os 11 titulares",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1920] Elenco sem rolagem da página",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1920] Campo mostra os 11 titulares",
+      "ok": true,
+      "detail": "11 vagas"
+    },
+    {
+      "name": "[1920] Nomes no campo sem sobreposição",
+      "ok": true,
+      "detail": "0 sobreposições"
+    },
+    {
+      "name": "[1920] Esc volta à Central",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1920] Menu mostra Continuar carreira com o clube",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1920] Menu sem rolagem da página",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1920] Aba Jogar lista os 5 modos reais",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1920] Esc volta ao Início do menu",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1920] Continuar volta à carreira",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1920] Sem erros no console",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Troca titular ↔ reserva salva e validada pelo servidor",
+      "ok": true,
+      "detail": "Meio-campista: Lucas Paquetá, overall efetivo 79 → Meio-campista: Andrew, overall efetivo 62, improvisado"
+    },
+    {
+      "name": "Celular: sem rolagem horizontal na Central",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Celular: sem rolagem horizontal na visão geral do elenco",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Celular: sem rolagem horizontal no Elenco",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Celular: nenhum titular cortado pelo painel",
+      "ok": true,
+      "detail": "0 cortados"
+    },
+    {
+      "name": "Celular: nomes no campo sem sobreposição",
+      "ok": true,
+      "detail": "0 sobreposições"
+    },
+    {
+      "name": "Celular: sem erros no console",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1366] Lobby sem rolagem da página",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1366] Lobby: iniciar visível sem rolar",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1366] Lobby lista os participantes reais",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1366] Lobby sem erros no console",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1920] Lobby sem rolagem da página",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1920] Lobby: iniciar visível sem rolar",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1920] Lobby lista os participantes reais",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1920] Lobby sem erros no console",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Celular: lobby sem rolagem horizontal",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[celular] Lobby lista os participantes reais",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[celular] Lobby sem erros no console",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

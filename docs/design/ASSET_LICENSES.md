@@ -38,3 +38,13 @@ Os assets do laboratório também são originais: o atleta em loft, o rig de 21 
 ## V8 Broadcast Visuals (branch feature/v8-broadcast-visuals)
 
 Tudo é gerado em código, em `render/stadium3d.ts`: gramado com faixas de corte, desgaste e marcações; torcida pintada em canvas como impostor por arquibancada; escadas, corrimões, muro azul-marinho com placas; céu em gradiente. As placas usam apenas marcas fictícias ("BRASILEIRÃO MANAGER", "RESENHA"). Não há fotos, logos reais, texturas de terceiros nem arquivos extraídos de jogos. As imagens de `references/` do pacote V8 serviram só de comparação visual e **não** foram copiadas para o repositório.
+
+## Retro Career (branch feature/retro-career-final)
+
+| Asset | Origem | Licença |
+|---|---|---|
+| Fundos de estádio `frontend/public/retro/stadium-{menu,career,squad}.webp` | Renderizados em código por `frontend/src/retro-tools/backdrop.ts` (Three.js), com `scripts/retro/render-backdrops.cjs` | Original do projeto. As placas são fictícias ("Resenha") |
+| Camisas do campo tático e ícones em traço dos tiles | SVG desenhado em código (`features/retro/primitives.tsx`) | Original do projeto. As cores vêm da paleta de clubes já existente (`clubColors.ts`) |
+| Fontes Barlow Condensed e Inter | Google Fonts, já carregadas pelo projeto | SIL Open Font License |
+
+Nenhuma captura do FIFA 14, do FIFA 16 ou de outro jogo foi usada como fundo ou como asset. As referências externas serviram apenas de estudo e não estão no repositório.

@@ -4,8 +4,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type Formation, type Squad, type SquadPlayer } from "../../lib/api";
 import { formatMoney } from "../../lib/format";
 import { ATTRIBUTE_LABEL, POSITION_LABEL, POSITION_NAME } from "./labels";
-import { autoPick, carryOver, fit, teamStrength } from "./lineup";
+import { autoPick, carryOver, fit, project, surname, teamStrength } from "./lineup";
 import { PlayerPhoto } from "../../components/PlayerPhoto";
+import { Shirt } from "../retro/primitives";
+import { clubColors } from "./clubColors";
+import "./squad-retro.css";
 
 type Pick = { kind: "slot"; id: string } | { kind: "player"; id: string } | null;
 
@@ -83,63 +86,104 @@ export function LineupBoard({ roomId, locked, onSaved }: { roomId: string; locke
     if (kind === "slot") swapSlots(id, slot); else putPlayer(slot, id);
     setPick(null);
   };
-  const inspected = inspect ? byId.get(inspect) : undefined;
+  // a player is always highlighted (console squad screens do the same): the best starter until the coach picks one
+  const bestStarter = formation.slots.map((slot) => byId.get(current.assignments[slot.id])).filter((p): p is SquadPlayer => Boolean(p)).sort((a, b) => b.overall - a.overall)[0];
+  const inspected = (inspect ? byId.get(inspect) : undefined) ?? bestStarter;
   const compared = compare ? byId.get(compare) : undefined;
 
-  return <section className="lineup" aria-label="Escalação">
-    <header className="lineup__bar">
-      <label className="field"><span>Formação</span><select value={current.formation} disabled={disabled} onChange={(event) => {
-        const next = data.formations.find((f) => f.code === event.target.value)!;
-        update(carryOver(next, current.assignments, formation, data.players), next.code); setPick(null);
-      }}>{data.formations.map((f) => <option key={f.code} value={f.code}>{f.code}</option>)}</select></label>
-      <div className="strength" aria-label="Força da equipe"><Meter label="Geral" value={strength.overall} big /><Meter label="Defesa" value={strength.defense} /><Meter label="Meio" value={strength.midfield} /><Meter label="Ataque" value={strength.attack} /></div>
-      <div className="lineup__actions">
-        <button type="button" className="btn btn--ghost" disabled={disabled} onClick={() => update(autoPick(formation, data.players))} title="Escolhe os melhores por posição">Escalação automática</button>
-        <button type="button" className="btn btn--ghost" disabled={!dirty || disabled} onClick={() => { setDraft(null); setPick(null); setNotice("Escolhas restauradas para a última escalação salva."); }}>Restaurar</button>
-        <button type="button" className="btn btn--primary" disabled={!dirty || !valid || disabled} onClick={() => save.mutate()}>{save.isPending ? "Validando…" : "Salvar escalação"}</button>
-      </div>
-    </header>
-    {locked && <p className="cm-toast cm-toast--warn" role="status">{locked}</p>}
-    {notice && <p className={`cm-toast ${notice.error ? "cm-toast--error" : ""}`} role={notice.error ? "alert" : "status"}>{notice.text}</p>}
-    {dirty && !notice && <p className="cm-toast cm-toast--info" role="status">Prancheta alterada — salve para o servidor validar.</p>}
-    {strength.improvised > 0 && <p className="cm-toast cm-toast--warn" role="status">{strength.improvised} jogador(es) fora de posição: rendem menos em campo.</p>}
-
-    <div className="lineup__grid">
-      <div className="formation-pitch" role="group" aria-label={`Campo com a formação ${formation.code}. Selecione um jogador e depois outra posição ou um reserva para trocar.`}>
-        <div className="formation-pitch__lines" aria-hidden="true"><i className="box box--top" /><i className="box box--bottom" /><i className="circle" /><i className="half" /></div>
+  const kit = clubColors(data.club_code);
+  const headPlayer = inspected;
+  return <section className="sq" aria-label="Escalação">
+    <div className="rt-panel sq-left">
+      <header className="sq-head">
+        {headPlayer ? <PlayerHead player={headPlayer} slotPosition={formation.slots.find((s) => current.assignments[s.id] === headPlayer.id)?.position} />
+          : <div className="sq-head__team"><p className="rt-kicker">Formação {formation.code}</p><h2 className="rt-h rt-h--xl">Titulares</h2><p className="rt-sub">Selecione um atleta para ver os detalhes. Depois, outra posição ou um reserva para trocar.</p></div>}
+      </header>
+      <div className="sq-pitch" role="group" aria-label={`Campo com a formação ${formation.code}. Selecione um jogador e depois outra posição ou um reserva para trocar.`}>
+        <PitchArt />
         {formation.slots.map((slot) => {
           const player = byId.get(current.assignments[slot.id]);
           const result = player ? fit(player, slot.position) : null;
           const active = pick?.kind === "slot" && pick.id === slot.id;
-          return <button type="button" key={slot.id} className={`slot slot--${result?.kind ?? "empty"} ${active ? "is-picked" : ""}`} style={{ left: `${slot.x}%`, top: `${slot.y}%` }}
+          const p = project(slot.x, slot.y);
+          return <button type="button" key={slot.id} className={`sq-slot sq-slot--${result?.kind ?? "empty"} ${active ? "is-picked" : ""} ${inspected && player?.id === inspected.id ? "is-inspected" : ""}`} style={{ left: `${p.left}%`, top: `${p.top}%`, ["--depth" as string]: p.scale }}
             draggable={!disabled && Boolean(player)} onDragStart={(event) => event.dataTransfer.setData("text/plain", `slot:${slot.id}`)} onDragOver={(event) => event.preventDefault()} onDrop={onDrop(slot.id)}
             onClick={() => choose({ kind: "slot", id: slot.id })} aria-pressed={active} aria-label={`${POSITION_NAME[slot.position]}: ${player ? `${player.name}, overall efetivo ${result?.rating}${result?.kind === "improvised" ? ", improvisado" : ""}` : "vaga em aberto"}`}>
-            <span className="slot__shirt">{result?.rating ?? "—"}</span>
-            <span className="slot__name">{player?.name.split(" ").slice(-1)[0] ?? "Vaga"}</span>
-            <span className="slot__pos">{POSITION_LABEL[slot.position]}{result?.kind === "improvised" ? " ⚠" : ""}</span>
+            <span className="sq-slot__ovr">{result?.rating ?? "—"}{result?.kind === "improvised" ? <i aria-hidden="true">!</i> : null}</span>
+            <Shirt primary={kit.primary} secondary={kit.secondary} keeper={slot.position === "GK"} label={player?.shirt_number ?? undefined} size={64} />
+            <span className="sq-slot__name">{player ? surname(player.name) : "Vaga"}</span>
+            <span className="sq-slot__bar" aria-hidden="true" />
           </button>;
         })}
       </div>
-
-      <aside className="bench-panel">
-        <h3>Reservas <small>{bench.length}</small></h3>
-        <p className="hint">{pick ? "Agora escolha com quem trocar." : "Toque em um titular e depois em um reserva (ou arraste)."}</p>
-        <ul className="bench-list">{bench.map((player) => {
+      <div className="sq-bench">
+        <div className="sq-bench__head"><h3 className="rt-h">Reservas <small>{bench.length}</small></h3><p className="rt-sub">{pick ? "Agora escolha com quem trocar." : "Toque em um titular e depois em um reserva (ou arraste)."}</p></div>
+        <ul className="sq-bench__list rt-scroll">{bench.map((player) => {
           const active = pick?.kind === "player" && pick.id === player.id;
           const target = pick?.kind === "slot" ? formation.slots.find((s) => s.id === pick.id) : undefined;
           const targetFit = target ? fit(player, target.position) : null;
-          return <li key={player.id}><button type="button" className={`bench-item ${active ? "is-picked" : ""}`} draggable={!disabled} onDragStart={(event) => event.dataTransfer.setData("text/plain", `player:${player.id}`)} onClick={() => choose({ kind: "player", id: player.id })} aria-pressed={active}>
-            <PlayerPhoto name={player.name} photoUrl={player.photo_url} size="xs" /><span className="pos">{POSITION_LABEL[player.position]}</span><b>{player.name}</b><span className="ovr">{player.overall}</span>
-            {targetFit && <small className={`fit fit--${targetFit.kind}`}>{targetFit.kind === "natural" ? "Posição ideal" : targetFit.kind === "secondary" ? "Posição secundária" : `Improvisado (${targetFit.rating})`}</small>}
+          return <li key={player.id}><button type="button" className={`sq-card ${active ? "is-picked" : ""} ${targetFit ? `fit-${targetFit.kind}` : ""}`} draggable={!disabled} onDragStart={(event) => event.dataTransfer.setData("text/plain", `player:${player.id}`)} onClick={() => choose({ kind: "player", id: player.id })} aria-pressed={active}>
+            <span className={`rt-pos rt-pos--${player.position}`}>{POSITION_LABEL[player.position]}</span><b className="sq-card__ovr">{player.overall}</b>
+            <PlayerPhoto name={player.name} photoUrl={player.photo_url} size="sm" />
+            <span className="sq-card__name">{surname(player.name)}</span>
+            {targetFit && <small className="sq-card__fit">{targetFit.kind === "natural" ? "Posição ideal" : targetFit.kind === "secondary" ? "Secundária" : `Improvisado ${targetFit.rating}`}</small>}
           </button></li>;
         })}</ul>
-      </aside>
-
-      <aside className="player-sheet" aria-live="polite">
-        {inspected ? <PlayerSheet player={inspected} other={compared} slotPosition={formation.slots.find((s) => current.assignments[s.id] === inspected.id)?.position} players={data.players} onCompare={setCompare} compareId={compare} /> : <div className="player-sheet__empty"><b>Ficha do atleta</b><p>Selecione um jogador para ver atributos, adequação à posição e comparar com outro atleta.</p></div>}
-      </aside>
+      </div>
     </div>
+
+    <aside className="rt-panel sq-right">
+      <div className="sq-form">
+        <div><p className="rt-kicker">Formação</p>
+          <label className="sq-select"><span className="sr-only">Formação</span><select value={current.formation} disabled={disabled} onChange={(event) => {
+            const next = data.formations.find((f) => f.code === event.target.value)!;
+            update(carryOver(next, current.assignments, formation, data.players), next.code); setPick(null);
+          }}>{data.formations.map((f) => <option key={f.code} value={f.code}>{f.code}</option>)}</select></label></div>
+        <div className="sq-strength" aria-label="Força da equipe"><Meter label="Geral" value={strength.overall} big /><Meter label="Defesa" value={strength.defense} /><Meter label="Meio" value={strength.midfield} /><Meter label="Ataque" value={strength.attack} /></div>
+      </div>
+      <div className="sq-actions">
+        <button type="button" className="rt-btn rt-btn--ghost" disabled={disabled} onClick={() => update(autoPick(formation, data.players))} title="Escolhe os melhores por posição">Automática</button>
+        <button type="button" className="rt-btn rt-btn--ghost" disabled={!dirty || disabled} onClick={() => { setDraft(null); setPick(null); setNotice("Escolhas restauradas para a última escalação salva."); }}>Restaurar</button>
+        <button type="button" className="rt-btn rt-btn--lime" disabled={!dirty || !valid || disabled} onClick={() => save.mutate()}>{save.isPending ? "Validando…" : "Salvar escalação"}</button>
+      </div>
+      <div className="sq-notices" aria-live="polite">
+        {locked && <p className="rt-toast rt-toast--warn" role="status">{locked}</p>}
+        {notice && <p className={`rt-toast ${notice.error ? "rt-toast--error" : "rt-toast--ok"}`} role={notice.error ? "alert" : "status"}>{notice.text}</p>}
+        {dirty && !notice && <p className="rt-toast" role="status">Prancheta alterada — salve para o servidor validar.</p>}
+        {strength.improvised > 0 && <p className="rt-toast rt-toast--warn" role="status">{strength.improvised} jogador(es) fora de posição: rendem menos em campo.</p>}
+      </div>
+      <div className="sq-sheet rt-scroll" aria-live="polite">
+        {inspected ? <PlayerSheet player={inspected} other={compared} slotPosition={formation.slots.find((s) => current.assignments[s.id] === inspected.id)?.position} players={data.players} onCompare={setCompare} compareId={compare} /> : <div className="sq-sheet__empty"><p className="rt-kicker">Ficha do atleta</p><p className="rt-sub">Selecione um jogador para ver atributos, adequação à posição e comparar com outro atleta.</p></div>}
+      </div>
+    </aside>
   </section>;
+}
+
+/** Pitch drawn in the same projection as the slots. */
+export function PitchArt() {
+  const P = (x: number, y: number) => { const p = project(x, y); return `${p.left},${p.top}`; };
+  const rect = (x0: number, y0: number, x1: number, y1: number) => `M${P(x0, y0)} L${P(x1, y0)} L${P(x1, y1)} L${P(x0, y1)} Z`;
+  const stripes = Array.from({ length: 10 }, (_, i) => i);
+  return <svg className="sq-pitch__art" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+    {stripes.map((i) => <path key={i} d={`M${P(-2, i * 10 - 2)} L${P(102, i * 10 - 2)} L${P(102, i * 10 + 8)} L${P(-2, i * 10 + 8)} Z`} fill={i % 2 ? "#3f8a45" : "#47964c"} />)}
+    <g fill="none" stroke="rgba(255,255,255,.75)" strokeWidth=".45" vectorEffect="non-scaling-stroke">
+      <path d={rect(-2, -2, 102, 102)} />
+      <path d={`M${P(-2, 50)} L${P(102, 50)}`} />
+      <path d={rect(25, -2, 75, 14)} /><path d={rect(38, -2, 62, 5)} />
+      <path d={rect(25, 86, 75, 102)} /><path d={rect(38, 95, 62, 102)} />
+      <ellipse cx="50" cy={project(50, 50).top} rx="9.5" ry="7" />
+    </g>
+  </svg>;
+}
+
+function PlayerHead({ player, slotPosition }: { player: SquadPlayer; slotPosition?: string }) {
+  const attributes = player.match_attributes ?? player.attributes ?? {};
+  const keys = player.position === "GK" ? ["keeping", "physical", "passing", "pace"] : ["pace", "shooting", "passing", "dribbling", "defending", "physical"];
+  const positionFit = slotPosition ? fit(player, slotPosition) : null;
+  return <div className="sq-head__player">
+    <div className="sq-head__card"><span className={`rt-pos rt-pos--${player.position}`}>{POSITION_LABEL[player.position]}</span><b className="sq-head__ovr">{positionFit?.rating ?? player.overall}</b><PlayerPhoto name={player.name} photoUrl={player.photo_url} size="md" /><strong>{player.name}</strong></div>
+    <ul className="sq-head__attrs">{keys.map((key) => <li key={key}><span>{ATTRIBUTE_LABEL[key]}</span><b>{attributes[key] ?? "—"}</b><i aria-hidden="true"><em style={{ width: `${attributes[key] ?? 0}%` }} /></i></li>)}</ul>
+  </div>;
 }
 
 function Meter({ label, value, big }: { label: string; value: number; big?: boolean }) {
