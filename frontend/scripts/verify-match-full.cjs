@@ -176,13 +176,18 @@ const mean = (arr) => (arr.length ? arr.reduce((x, y) => x + y, 0) / arr.length 
           const payload = { action_id: "dup-" + o.id, opportunity_id: o.id, revision: va.revision, type: "PASS", x: Math.min(1, Math.max(0, px + d * 0.12)), y: py, power: 0.35 };
           const send = () => A.page.evaluate(([base, room, p]) => fetch(`${base}/rooms/${room}/season/interactive/actions`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${localStorage.getItem("bm_session_token")}` }, body: JSON.stringify(p) }).then((r) => r.json()).catch((e) => ({ err: String(e) })), [API, state.room_id, payload]);
           const r1 = await send(), r2 = await send();
-          check("duplicate action id applied once (ACCEPTED then DUPLICATE)", r1?.data?.status === "ACCEPTED" && r2?.data?.status === "DUPLICATE", `${r1?.data?.status ?? JSON.stringify(r1).slice(0, 120)} / ${r2?.data?.status ?? JSON.stringify(r2).slice(0, 120)}`);
+          if (r1?.detail && /desatualizado|decisão aberta/i.test(String(r1.detail))) {
+            dupSent = false;   // the decision moved on between reading and sending (test race): try at the next one
+          } else {
+            check("duplicate action id applied once (ACCEPTED then DUPLICATE)", r1?.data?.status === "ACCEPTED" && r2?.data?.status === "DUPLICATE", `${r1?.data?.status ?? JSON.stringify(r1).slice(0, 120)} / ${r2?.data?.status ?? JSON.stringify(r2).slice(0, 120)}`);
+          }
         }
         for (const [c, v] of [[A, va], [B, vb]]) if (v.your_turn) await act(c, v);
       }
       await sleep(250);
     }
     const fa = final.A, fb = final.B;
+    check("competitive duration shown and enforced by the server", Boolean(fa?.duration?.mode === "LIMITED" && fa?.duration?.seconds), JSON.stringify(fa?.duration ?? null));
     check("final whistle on both screens (official state FINISHED)", fa?.state === "FINISHED" && fb?.state === "FINISHED", `${fa?.state} ${fa?.minute?.toFixed?.(1)}' / ${fb?.state} ${fb?.minute?.toFixed?.(1)}'`);
     check(`same official score on ${A.exp} and ${B.exp}`, Boolean(fa && fb && fa.score.home === fb.score.home && fa.score.away === fb.score.away), JSON.stringify(fa?.score));
     check("no divergence during the match", mismatches === 0, `${mismatches} in ${syncs} synchronised polls`);
