@@ -93,7 +93,8 @@ CONNECTED_WINDOW = 6.0        # a client polling within this window counts as co
 RECONNECT_GRACE = 30.0        # approved tolerance (validation 47)
 DECISION_CHOICES = (5, 10, 15, 20)
 DURATION_CHOICES = (60, 90, 120, 180)   # the room's approved match durations
-OPPORTUNITY_COST_SECONDS = 13.0         # mean real cost of one decisive moment (measured: tools/match_duration.py)
+OPPORTUNITY_COST_SECONDS = 13.0
+MOMENT_TAIL_SECONDS = 7.0       # typical real time to play out the rest of a move once decisions stop         # mean real cost of one decisive moment (measured: tools/match_duration.py)
 ACTION_TYPES = ("PASS", "LOFT", "CARRY", "SHOT")
 KINDS = ("BUILDUP", "COUNTER", "WING", "CROSS", "THROUGH", "ONE_ON_ONE", "REBOUND", "FREE_KICK", "PENALTY", "CORNER", "OVERLOAD")
 ENGINES = ("v6", "v7", "v8")      # v6: original Pitch (kept intact); v7/v8: app.domain.football (docs/v7, docs/v8)
@@ -1206,6 +1207,13 @@ class HighlightMatch:
     half_time_seconds: float = 6.0
     outcome_pause: float = 1.8
     chance_factor: float = 1.0
+    # A, adaptive: the real cost of each decisive moment is measured as the match goes (people take
+    # longer than bots) and the rest of the match is re-planned after every moment.
+    paced_cost: float = 0.0           # real seconds spent in decisive moments so far
+    paced_count: int = 0
+    opened_at: float | None = None
+    paced_dropped: int = 0
+    moment_until: float | None = None  # A: this moment's equal share of the remaining duration
 
     # ------------------------------------------------------------ construction
     @classmethod
@@ -1246,6 +1254,32 @@ class HighlightMatch:
         self.outcome_pause = _clamp(seconds / 100.0, 1.0, OUTCOME_PAUSE_SECONDS)
         available = seconds * 0.92 - 90.0 / self.clock_rate - self.half_time_seconds
         self.chance_factor = round(_clamp(available / (10.0 * OPPORTUNITY_COST_SECONDS), 0.2, 1.0), 3)
+
+    def _repace(self, at: float) -> None:
+        """A, adaptive (after each decisive moment, at a safe point between moments): fit what is
+        left of the match into what is left of the duration. The clock between moments runs
+        faster when needed and the upcoming moments that no longer fit are dropped — an unbiased
+        seeded draw, so each team keeps its share in expectation. The chance of each moment that
+        IS played is untouched; the C limit stays as the safety net."""
+        if self.limit_at is None or self.limit_reached:
+            return
+        remaining = float(self.limit_at) - at
+        minutes_left = max(0.0, 90.0 - self.minute)
+        prior = OPPORTUNITY_COST_SECONDS
+        cost = (prior * 2 + self.paced_cost) / (2 + self.paced_count)        # measured, smoothed by the plan's estimate
+        if remaining > 0 and minutes_left > 0:
+            self.clock_rate = _clamp(minutes_left / (0.2 * remaining), self.clock_rate, 30.0)
+        clock_time = minutes_left / self.clock_rate if self.clock_rate else 0.0
+        half_left = 0.0 if self.half_time_done else self.half_time_seconds
+        budget = remaining * 0.92 - clock_time - half_left
+        upcoming = list(range(self.cursor, len(self.timeline)))
+        keep = max(0, int(budget // cost)) if budget > 0 else 0
+        if len(upcoming) <= keep:
+            return
+        rng = random.Random(f"{self.seed}:pace:{self.cursor}:{self.paced_count}")
+        drop = set(rng.sample(upcoming, len(upcoming) - keep))
+        self.timeline = [row for i, row in enumerate(self.timeline) if i not in drop]
+        self.paced_dropped += len(drop)
 
     def _due(self) -> float:
         """Logical time of the next scheduled transition (inf when waiting for a person)."""
@@ -1404,7 +1438,12 @@ class HighlightMatch:
             if self.state_until is None or self.state_until > now:
                 return None
             at = self.state_until
+            if self.state == "OUTCOME" and self.opened_at is not None:
+                self.paced_cost += at - self.opened_at
+                self.paced_count += 1
+                self.opened_at = None
             self.state, self.state_until, self.opportunity, self.clock_since = "CLOCK", None, None, at
+            self._repace(at)
             self.revision += 1
             return "RESUME"
         if self.state in ("EXECUTING", "REPLAY"):
@@ -1476,6 +1515,16 @@ class HighlightMatch:
                 row["index"] = index
 
     def _open(self, at: float) -> None:
+        self.opened_at = at
+        self.moment_until = None
+        if self.limit_at is not None and not self.limit_reached:
+            # Each decisive moment gets an equal share of what is left (same rule for both teams).
+            minutes_left = max(0.0, 90.0 - self.minute)
+            spare = float(self.limit_at) - at - minutes_left / self.clock_rate - (0.0 if self.half_time_done else self.half_time_seconds)
+            moments = max(1, len(self.timeline) - self.cursor)
+            # Reserve the move's tail (the AI-played rest of the move and the result banner) inside the share.
+            tail = MOMENT_TAIL_SECONDS + self.outcome_pause
+            self.moment_until = at + max(OPPORTUNITY_COST_SECONDS - tail, spare * 0.92 / moments - tail)
         row = self.timeline[self.cursor]
         self.cursor += 1
         side = int(row["side"])
@@ -1539,9 +1588,15 @@ class HighlightMatch:
             # The coach is under AI control (left past the grace period): the AI plays on.
             self._auto(at, "AI_CONTROL")
             return
+        if self.moment_until is not None and at >= self.moment_until - 2.0:
+            # A: this moment has used its share of the duration — the contextual AI concludes it.
+            self._auto(at, "TIME_BUDGET")
+            return
         seconds = self._decision_seconds_for(club)
         self.state = "DECISION"
         self.deadline = None if seconds is None else at + seconds
+        if self.deadline is not None and self.moment_until is not None:
+            self.deadline = min(self.deadline, max(self.moment_until, at + 4.0))   # shown on the timer: predictable
         self.opportunity["decision_opened_at"] = at
         self.state_until = None
         self.revision += 1

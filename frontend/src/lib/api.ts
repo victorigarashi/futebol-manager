@@ -20,7 +20,7 @@ export type InteractiveActionType = "PASS" | "LOFT" | "CARRY" | "SHOT";
  * (facing in radians in pitch metres; act = action state code, see render/presentation.ts).
  */
 export type InteractiveFrame = number[];
-export type InteractiveStep = { by: "HUMAN" | "AI" | "TIMEOUT" | "AI_TAKEOVER" | "AI_CONTROL"; type: InteractiveActionType; aim: { x: number; y: number }; power: number; carrier: string; outcome: string; detail: string; frames: InteractiveFrame[]; duration: number; starts_at: number; receiver: string | null;
+export type InteractiveStep = { by: "HUMAN" | "AI" | "TIMEOUT" | "AI_TAKEOVER" | "AI_CONTROL" | "TIME_LIMIT" | "TIME_BUDGET"; type: InteractiveActionType; aim: { x: number; y: number }; power: number; carrier: string; outcome: string; detail: string; frames: InteractiveFrame[]; duration: number; starts_at: number; receiver: string | null;
   shooter?: string | null; post?: boolean; layout?: "v6" | "v7" | "v8";
   /** Timed moments of the action (seconds from its start) for animation and sound: KICK, CONTROL, SAVE, POST, GOAL, TACKLE, HEADER, DIVE… */
   cues?: InteractiveCue[] };

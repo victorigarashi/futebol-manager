@@ -37,7 +37,7 @@ async def acceptance_lifespan(application):
         room = await room_manager.create(user_id=identities[0][0].id, display_name="Vitão", name="Mata-mata da Resenha", mode="ELEVEN_A_SIDE",
                                          initial_budget_cents=10_000_000_000, max_human_participants=2, privacy="PRIVATE", team_count=4,
                                          initial_market_duration_seconds=120, round_preparation_duration_seconds=60, withdrawal_penalty_percent=5,
-                                         match_duration_seconds=60, game_mode="DRAFT_KNOCKOUT")
+                                         match_duration_seconds=int(os.environ.get("ACCEPTANCE_MATCH_SECONDS", "60")), game_mode="DRAFT_KNOCKOUT")
         room_id = room["id"]
         await room_manager.join(room_id, identities[1][0].id, identities[1][0].display_name)
         state = room_manager._room(room_id)

@@ -64,7 +64,7 @@ def test_no_human_gesture_is_accepted_after_the_limit_and_the_ai_concludes_for_b
     assert match.finished
     for a in match.action_log:
         if a["at"] > 60.0 + 1e-6:
-            assert a["by"] in ("TIME_LIMIT", "AI"), a
+            assert a["by"] in ("TIME_LIMIT", "TIME_BUDGET", "AI"), a
     assert concluded is not None
 
 
@@ -73,3 +73,21 @@ def test_free_duration_is_unchanged_behaviour():
     a.advance(1e6)
     b.advance(1e6)
     assert a.finished and not a.limit_reached and a.score == b.score
+
+
+@pytest.mark.parametrize("seconds", DURATION_CHOICES)
+def test_adaptive_pacing_keeps_the_limit_at_the_end_of_the_match(seconds):
+    """People take longer than bots: the match is re-planned after every moment and a moment that
+    used its share is concluded by the AI, so the limit (if it fires at all) only fires late —
+    never a match cut at minute 20."""
+    for index in range(3):
+        match = _limited(seconds, humans=True, index=index)
+        now = 0.0
+        while not match.finished and now < 2000:
+            now += 0.25
+            for club in match.clubs:
+                match.seen(club, now)
+            match.advance(now)          # the worst case: every decision waits for its timer
+        limit = next((e["minute"] for e in match.events if e["kind"] == "TIME_LIMIT"), None)
+        assert limit is None or limit >= 60, (seconds, index, limit)
+        assert match.finished_at - seconds < 25

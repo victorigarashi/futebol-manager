@@ -30,6 +30,24 @@ async function open(browser, token, exp, name) {
     // FPS probe: frames per second of the page (sampled by the driver).
     let frames = 0; window.__fps = { frames: 0, t0: performance.now() };
     const tick = () => { frames += 1; window.__fps.frames = frames; requestAnimationFrame(tick); }; requestAnimationFrame(tick);
+    // What THIS screen rendered, sampled in the page every 100 ms (independent of how slow the driver is):
+    // every official state transition, the moment FINISHED was on screen, and when the post-game opened.
+    window.__seen = { states: [], finished: null, postmatch: null, matchId: null, events: {} };
+    setInterval(() => {
+      const v = window.__bmMatch && window.__bmMatch.view && window.__bmMatch.view();
+      const S = window.__seen, now = Date.now();
+      if (v && v.match_id && v.state && v.state !== "NONE") {
+        S.matchId = S.matchId || v.match_id;
+        const last = S.states[S.states.length - 1];
+        if (v.match_id === S.matchId && (!last || last.state !== v.state)) S.states.push({ state: v.state, at: now, minute: v.minute });
+        if (v.match_id === S.matchId) for (const e of v.events || []) S.events[e.event_id] = JSON.stringify([e.kind, e.team, e.minute, e.player_id, e.outcome]);
+        if (v.match_id === S.matchId && v.state === "FINISHED" && !S.finished) {
+          const dom = document.querySelector(".im-root, .im-stage, .im-hud") !== null;
+          S.finished = { at: now, minute: v.minute, score: v.score, duration: v.duration, matchScreenMounted: dom };
+        }
+      }
+      if (!S.postmatch && document.querySelector(".postmatch")) S.postmatch = { at: now };
+    }, 100);
   }, [token, state.room_id, exp]);
   const page = await context.newPage();
   const c = { page, context, name, exp, actions: 0, rejected: 0, errors: [], latency: [], fps: [], heap: [], driverMs: 0, gestures: [], misses: 0 };
@@ -40,6 +58,7 @@ async function open(browser, token, exp, name) {
   return c;
 }
 const view = (c) => c.page.evaluate(() => (window.__bmMatch ? window.__bmMatch.view() : null)).catch(() => null);
+const seen = (c) => c.page.evaluate(() => window.__seen).catch(() => null);
 
 async function act(c, v) {
   const t0 = Date.now();
@@ -104,8 +123,10 @@ const mean = (arr) => (arr.length ? arr.reduce((x, y) => x + y, 0) / arr.length 
   let duplicateConflict = 0;
   try {
     for (const c of [A, B]) {
-      await c.page.waitForSelector(".career-head", { timeout: 30000 });
-      await c.page.locator(".career-head__cta button").click();
+      // Central: the next-match button (retro layout .cr-cta; classic layout .career-head__cta).
+      const cta = c.page.locator(".cr-cta, .career-head__cta button").first();
+      await cta.waitFor({ state: "visible", timeout: 30000 });
+      await cta.click();
       await c.page.waitForSelector(".matchup", { timeout: 30000 });
       await c.page.getByRole("button", { name: "Confirmar equipe" }).click();
     }
@@ -132,6 +153,11 @@ const mean = (arr) => (arr.length ? arr.reduce((x, y) => x + y, 0) / arr.length 
       }
       if (now - lastSample > 4000) { lastSample = now; await sample(A); await sample(B); }
       if ((!va || va.state === "FINISHED") && (!vb || vb.state === "FINISHED") && (final.A?.state === "FINISHED" || final.B?.state === "FINISHED")) { finishedAt = Date.now(); break; }
+      // The match screen closed before this (slow) loop sampled the whistle: the pages' own record decides.
+      if (matchId && !va && !vb) {
+        const [sa, sb] = await Promise.all([seen(A), seen(B)]);
+        if (sa?.finished || sb?.finished) { finishedAt = Date.now(); break; }
+      }
       if (va && vb) {
         if (va.revision === vb.revision) { syncs += 1; if (va.score.home !== vb.score.home || va.score.away !== vb.score.away) mismatches += 1; }
         if (va.your_turn && vb.your_turn) mismatches += 1;
@@ -174,7 +200,8 @@ const mean = (arr) => (arr.length ? arr.reduce((x, y) => x + y, 0) / arr.length 
           const o = va.opportunity, ci = o.roster.findIndex((r) => r.id === o.carrier), d = o.right === false ? -1 : 1;
           const [px, py] = o.positions[ci];
           const payload = { action_id: "dup-" + o.id, opportunity_id: o.id, revision: va.revision, type: "PASS", x: Math.min(1, Math.max(0, px + d * 0.12)), y: py, power: 0.35 };
-          const send = () => A.page.evaluate(([base, room, p]) => fetch(`${base}/rooms/${room}/season/interactive/actions`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${localStorage.getItem("bm_session_token")}` }, body: JSON.stringify(p) }).then((r) => r.json()).catch((e) => ({ err: String(e) })), [API, state.room_id, payload]);
+          const token = await A.page.evaluate(() => localStorage.getItem("bm_session_token"));
+          const send = () => fetch(`${API}/rooms/${state.room_id}/season/interactive/actions`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify(payload) }).then((r) => r.json()).catch((e) => ({ err: String(e) }));
           const r1 = await send(), r2 = await send();
           if (r1?.detail && /desatualizado|decisão aberta/i.test(String(r1.detail))) {
             dupSent = false;   // the decision moved on between reading and sending (test race): try at the next one
@@ -186,11 +213,24 @@ const mean = (arr) => (arr.length ? arr.reduce((x, y) => x + y, 0) / arr.length 
       }
       await sleep(250);
     }
-    const fa = final.A, fb = final.B;
+    // Final state as each screen rendered it (in-page record), falling back to the driver's last poll.
+    const [seenA, seenB] = [await seen(A), await seen(B)];
+    const fa = seenA?.finished ? { ...final.A, ...seenA.finished, state: "FINISHED" } : final.A;
+    const fb = seenB?.finished ? { ...final.B, ...seenB.finished, state: "FINISHED" } : final.B;
     check("competitive duration shown and enforced by the server", Boolean(fa?.duration?.mode === "LIMITED" && fa?.duration?.seconds), JSON.stringify(fa?.duration ?? null));
     check("final whistle on both screens (official state FINISHED)", fa?.state === "FINISHED" && fb?.state === "FINISHED", `${fa?.state} ${fa?.minute?.toFixed?.(1)}' / ${fb?.state} ${fb?.minute?.toFixed?.(1)}'`);
+    for (const [c, S] of [[A, seenA], [B, seenB]]) {
+      const shown = S?.finished && S?.postmatch ? (S.postmatch.at - S.finished.at) / 1000 : null;
+      check(`${c.exp} (${c.name}) shows the final whistle before the post-game`, Boolean(S?.finished && (!S.postmatch || S.postmatch.at > S.finished.at)),
+        `FINISHED on screen ${shown === null ? "?" : shown.toFixed(1)} s before the post-game; states ${(S?.states ?? []).map((x) => x.state).filter((x, i, a) => a.indexOf(x) === i).join(">")}`);
+    }
+    fs.writeFileSync(path.join(out, "estados-na-tela.json"), JSON.stringify({ A: seenA, B: seenB }, null, 1));
     check(`same official score on ${A.exp} and ${B.exp}`, Boolean(fa && fb && fa.score.home === fb.score.home && fa.score.away === fb.score.away), JSON.stringify(fa?.score));
     check("no divergence during the match", mismatches === 0, `${mismatches} in ${syncs} synchronised polls`);
+    for (const S of [seenA, seenB]) for (const [id, k] of Object.entries(S?.events ?? {})) {
+      if (events.has(id) && events.get(id) !== k) duplicateConflict += 1;
+      events.set(id, k);
+    }
     const goalsSeen = [...events.values()].filter((k) => JSON.parse(k)[0] === "GOAL").length;
     check("every event recorded exactly once (ids stable, goals = score)", duplicateConflict === 0 && (!fa || goalsSeen === fa.score.home + fa.score.away),
       `${events.size} events, ${goalsSeen} goals, conflicts ${duplicateConflict}`);
@@ -217,7 +257,9 @@ const mean = (arr) => (arr.length ? arr.reduce((x, y) => x + y, 0) / arr.length 
     check("next round released (final drawn by the server)", Boolean(finalTie), finalTie ? `${finalTie.high} × ${finalTie.low}` : "no final");
     for (const c of [A, B]) {
       await c.page.getByRole("button", { name: /Continuar carreira/ }).click().catch(() => {});
-      const back = await c.page.waitForSelector(".career-head", { timeout: 30000 }).then(() => true).catch(() => false);
+      // Central (retro: top bar with the CENTRAL tab active; classic: .career-head), post-game closed.
+      const back = await c.page.locator(".cr-cta, .career-head").first().waitFor({ state: "visible", timeout: 30000 })
+        .then(async () => !(await c.page.locator(".postmatch").isVisible().catch(() => false))).catch(() => false);
       check(`${c.name} back to the career centre`, back);
       await c.page.screenshot({ path: path.join(out, `central-${c.name}.png`) });
     }

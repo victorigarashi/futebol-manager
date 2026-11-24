@@ -20,7 +20,7 @@ from app.domain.highlights import HL_PITCH, HighlightMatch  # noqa: E402
 from app.services.lab_service import _team  # noqa: E402
 from app.services.season_service import team_input_view  # noqa: E402
 
-PROFILES = {"bots": None, "humanos rápidos (1 s)": 1.0, "humanos deixam o tempo esgotar": 99.0}
+PROFILES = {"bots": None, "humanos rápidos (1 s)": 1.0, "humanos lentos (5 s)": 5.0, "humanos deixam o tempo esgotar": 99.0}
 
 
 def play(engine, mode, m, duration, think, catalog, clubs):
@@ -52,7 +52,9 @@ def play(engine, mode, m, duration, think, catalog, clubs):
         now += dt
     chances = sum(match.stats[c]["chances"] for c in match.clubs)
     by_limit = sum(1 for a in match.action_log if a["by"] == "TIME_LIMIT")
-    return {"real": match.finished_at, "chances": chances, "goals": sum(match.score), "limit": match.limit_reached, "by_limit": by_limit}
+    limit_minute = next((e["minute"] for e in match.events if e["kind"] == "TIME_LIMIT"), None)
+    return {"real": match.finished_at, "chances": chances, "goals": sum(match.score), "limit": match.limit_reached, "by_limit": by_limit,
+            "limit_minute": limit_minute, "dropped": match.paced_dropped}
 
 
 def main(n=8, engine="v8"):
@@ -70,7 +72,9 @@ def main(n=8, engine="v8"):
                        "overrun_max_s": round(max(0.0, max(real) - duration), 1) if duration else None,
                        "chances_per_match": round(chances / n, 2), "goals_per_chance": round(sum(r["goals"] for r in res) / max(1, chances), 3),
                        "goals_per_match": round(sum(r["goals"] for r in res) / n, 2),
-                       "hit_limit": f"{sum(r['limit'] for r in res)}/{n}", "decisions_by_limit": sum(r["by_limit"] for r in res)}
+                       "hit_limit": f"{sum(r['limit'] for r in res)}/{n}", "decisions_by_limit": sum(r["by_limit"] for r in res),
+                       "limit_minute_min": min((r["limit_minute"] for r in res if r["limit_minute"] is not None), default=None),
+                       "moments_dropped_per_match": round(sum(r["dropped"] for r in res) / n, 2)}
                 rows.append(row)
                 print(json.dumps(row, ensure_ascii=False), flush=True)
     return rows

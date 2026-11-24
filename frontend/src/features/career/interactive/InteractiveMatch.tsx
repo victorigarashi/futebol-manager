@@ -523,6 +523,8 @@ function bannerText(view: InteractiveView, attackingName: string, left: number |
   if (view.state === "EXECUTING") {
     const step = opp.last;
     if (step?.by === "TIMEOUT") return { title: "Tempo esgotado: a IA jogou por você", tone: "play" };
+    if (step?.by === "TIME_BUDGET") return { title: "Tempo do lance esgotado: a IA concluiu a jogada", tone: "play" };
+    if (step?.by === "TIME_LIMIT") return { title: "Tempo da partida esgotado: a IA concluiu a jogada", tone: "play" };
     if (step?.by === "AI_TAKEOVER" || step?.by === "AI_CONTROL") return { title: "IA no controle", tone: "play" };
     return null;
   }
