@@ -179,3 +179,8 @@ html body .rt-skin .wizard__steps li.is-done span { background: var(--rt-teal-in
 html body .rt-skin .wizard__steps li[aria-current="step"] button { background: var(--rt-lime); color: var(--rt-ink); }
 html body .rt-skin .wizard__steps li[aria-current="step"] span { background: var(--rt-ink); color: #fff; }
 html body .dialog-backdrop.rt-skin .dialog:has(.wizard__steps) { width: min(980px, calc(100vw - 32px)); max-width: none; }
+@media (max-width: 640px) {
+  html body .rt-skin .market-summary strong { font-size: 19px; white-space: nowrap; }
+  html body .rt-skin .market-timer strong { font-size: 44px; }
+  html body .rt-skin .market-page__header h1 { font-size: 30px; }
+}
