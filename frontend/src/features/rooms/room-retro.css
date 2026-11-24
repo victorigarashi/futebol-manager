@@ -30,3 +30,8 @@
 .ob-form .button-primary { min-height: 58px; font-size: 24px; text-align: left; padding: 0 18px; }
 .ob-form small { color: var(--rt-ink-2); }
 @media (max-width: 900px) { .ob { grid-template-columns: minmax(0, 1fr); height: auto; } .ob-hero { min-height: 280px; } .ob-hero h1 { font-size: 40px; } }
+@media (max-width: 900px) {
+  .rr-steps { display: flex; gap: 4px; }
+  .rr-steps li { flex: 0 0 auto; }
+  .rr-steps li[aria-current=step] { flex: 1 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+}
