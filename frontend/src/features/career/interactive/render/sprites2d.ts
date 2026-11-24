@@ -1,5 +1,6 @@
-import { HAIR_COLOURS, SKIN_TONES, BOOT_COLOURS, type Pattern } from "../../../../football/athlete/kit";
-import { bakeAtlas, cellXY, directionIndex, paletteFor, recolour, type AtlasMeta } from "../../../../football/sprites/bake";
+import type { Pattern } from "../../../../football/athlete/kit";
+import { BOOT_COLOURS, HAIR_COLOURS, SKIN_TONES } from "../../../../football/athlete/palette";
+import { cellXY, directionIndex, paletteFor, recolour, type AtlasMeta } from "../../../../football/sprites/atlas";
 import type { Geometry } from "../gesture";
 import { hashOf, VISUAL } from "./config";
 import { ACT, type ScenePlayer } from "./presentation";
@@ -56,9 +57,10 @@ function bank(pattern: Pattern): Bank | null {
     // Fallback: bake it here from the 3D athlete (needs WebGL; a few seconds).
     loadStatic(pattern).then((b2) => banks.set(pattern, b2)).catch(() => {
       queue.push(() => {
-        bakeAtlas({ cell: 64, elevationDeg: 56, pattern, outline: true, posterize: 6, onProgress: (k) => { progress[pattern] = k; } })
+        import("../../../../football/sprites/bake").then(({ bakeAtlas }) => bakeAtlas({ cell: 64, elevationDeg: 56, pattern, outline: true, posterize: 6, onProgress: (k) => { progress[pattern] = k; } })
           .then(({ canvas, meta }) => banks.set(pattern, { atlas: canvas, meta }))
-          .catch(() => banks.set(pattern, "failed"));
+          .catch(() => banks.set(pattern, "failed")))
+          .catch(() => banks.set(pattern, "failed"));     // bake module unavailable (offline): vector sprites
       });
       pump();
     });

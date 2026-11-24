@@ -4,6 +4,11 @@ import { REGIONS, type Region } from "../athlete/body";
 import type { KitSpec, Pattern } from "../athlete/kit";
 import type { Pose } from "../athlete/rig";
 import { CLIPS, samplePose } from "../anim/clips";
+import { DIRECTIONS, SPRITE_ANIMS, SPRITE_REGIONS, type AtlasMeta, type SpriteRegion } from "./atlas";
+
+// The 2D renderer needs only the atlas layout and the recolour (./atlas, no three.js);
+// the bake itself (WebGL, three.js) is loaded on demand.
+export * from "./atlas";
 
 /**
  * Sprite pipeline (research prototype):
@@ -15,32 +20,10 @@ import { CLIPS, samplePose } from "../anim/clips";
  * Kit patterns survive: the mask pass renders the shirt texture with ID colours, so stripes,
  * hoops etc. become the "secondary" region. One atlas per pattern family.
  */
-export const SPRITE_REGIONS = ["skin", "primary", "secondary", "shorts", "socks", "boots", "hair", "gloves", "dark"] as const;
-export type SpriteRegion = typeof SPRITE_REGIONS[number];
 const ID_COLOURS = ["#ff0000", "#00ff00", "#0000ff", "#ffff00", "#ff00ff", "#00ffff", "#ff8000", "#8000ff", "#000000"];
 const BODY_TO_SPRITE: Record<Region, SpriteRegion> = {
   skin: "skin", shirt: "primary", trim: "secondary", shorts: "shorts", shortsTrim: "secondary", socks: "socks", sockTrim: "secondary",
   boots: "boots", sole: "dark", hair: "hair", eye: "dark", brow: "hair", lips: "skin", gloves: "gloves",
-};
-export const DIRECTIONS = ["S", "SE", "E", "NE", "N", "NW", "W", "SW"] as const;
-export type AnimSpec = { name: string; clip: string; frames: number; fps: number; from?: number; to?: number; keeper?: boolean; roll?: boolean };
-export const SPRITE_ANIMS: AnimSpec[] = [
-  { name: "idle", clip: "idle", frames: 4, fps: 4 },
-  { name: "run", clip: "run", frames: 8, fps: 12 },
-  { name: "sprint", clip: "sprint", frames: 8, fps: 16 },
-  { name: "dribble", clip: "dribble", frames: 8, fps: 12 },
-  { name: "pass", clip: "pass_short", frames: 6, fps: 12 },
-  { name: "shot", clip: "shot", frames: 8, fps: 14 },
-  { name: "receive", clip: "receive", frames: 6, fps: 10 },
-  { name: "header", clip: "header", frames: 8, fps: 12 },
-  { name: "celebrate", clip: "celebrate", frames: 8, fps: 8 },
-  { name: "gk_ready", clip: "gk_ready", frames: 4, fps: 6, keeper: true },
-  { name: "gk_dive", clip: "gk_dive_low", frames: 8, fps: 12, keeper: true, roll: true, from: 0.1, to: 0.95 },
-];
-export type AtlasMeta = {
-  cell: number; cols: number; rows: number; blocks: number; elevationDeg: number; metresPerCell: number; anchor: [number, number];
-  directions: readonly string[]; anims: { name: string; frames: number; fps: number; row0: number; contactFrame: number | null }[];
-  regions: readonly string[]; bakeMs: number; pattern: Pattern;
 };
 export type BakeOptions = { cell: number; elevationDeg: number; pattern: Pattern; outline: boolean; posterize: number; onProgress?: (k: number) => void };
 
@@ -165,11 +148,6 @@ export async function bakeAtlas(opts: BakeOptions): Promise<{ canvas: HTMLCanvas
   return { canvas: atlas, meta: { cell: C, cols, rows: totalRows, blocks, elevationDeg: opts.elevationDeg, metresPerCell: metres, anchor, directions: DIRECTIONS, anims: metaAnims, regions: SPRITE_REGIONS, bakeMs: Math.round(performance.now() - t0), pattern: opts.pattern } };
 }
 
-/** Pixel position of (row, frame) in the atlas (rows are reflowed into `blocks` columns of `cols` frames). */
-export function cellXY(m: { cell: number; cols: number; blocks: number }, row: number, frame: number): [number, number] {
-  return [((row % m.blocks) * m.cols + frame) * m.cell, Math.floor(row / m.blocks) * m.cell];
-}
-
 function nearestCovered(img: ImageData, C: number, i: number): number {
   const x = i % C, y = Math.floor(i / C);
   for (let r = 1; r <= 2; r += 1) for (let dy = -r; dy <= r; dy += 1) for (let dx = -r; dx <= r; dx += 1) {
@@ -181,43 +159,3 @@ function nearestCovered(img: ImageData, C: number, i: number): number {
   return -1;
 }
 
-export type SpritePalette = Record<SpriteRegion, string>;
-/** Recolour the mask atlas for one kit/look (one pass over the pixels; done once per team). */
-export function recolour(atlas: HTMLCanvasElement, pal: SpritePalette, outline = true): HTMLCanvasElement {
-  const out = document.createElement("canvas");
-  out.width = atlas.width; out.height = atlas.height;
-  const src = atlas.getContext("2d", { willReadFrequently: true })!.getImageData(0, 0, atlas.width, atlas.height);
-  const dst = new ImageData(atlas.width, atlas.height);
-  const cols = SPRITE_REGIONS.map((r) => new THREE.Color(pal[r])).map((c) => [c.r * 255, c.g * 255, c.b * 255]);
-  const W = atlas.width;
-  for (let i = 0; i < src.data.length; i += 4) {
-    const a = src.data[i + 3];
-    if (!a) continue;
-    const id = Math.max(0, Math.min(cols.length - 1, Math.round((src.data[i + 1] - 10) / 20)));
-    const s = src.data[i] / 255;
-    const k = 0.25 + s * 0.95;   // keep some colour in the shadows
-    dst.data[i] = Math.min(255, cols[id][0] * k); dst.data[i + 1] = Math.min(255, cols[id][1] * k); dst.data[i + 2] = Math.min(255, cols[id][2] * k); dst.data[i + 3] = a;
-  }
-  if (outline) {
-    // 1 px dark outline around the silhouette (sprite readability on grass)
-    const alpha = new Uint8Array(src.data.length / 4);
-    for (let i = 0; i < alpha.length; i += 1) alpha[i] = src.data[i * 4 + 3];
-    for (let i = 0; i < alpha.length; i += 1) {
-      if (alpha[i] >= 128) continue;
-      const x = i % W;
-      const n = (alpha[i - 1] >= 128 && x > 0) || (alpha[i + 1] >= 128 && x < W - 1) || alpha[i - W] >= 128 || alpha[i + W] >= 128;
-      if (n) { dst.data[i * 4] = 18; dst.data[i * 4 + 1] = 22; dst.data[i * 4 + 2] = 20; dst.data[i * 4 + 3] = 170; }
-    }
-  }
-  out.getContext("2d")!.putImageData(dst, 0, 0);
-  return out;
-}
-
-export function paletteFor(kit: KitSpec, skin: string, hair: string, boots: string, keeper = false): SpritePalette {
-  return { skin, primary: kit.primary, secondary: kit.secondary, shorts: kit.shorts, socks: kit.socks, boots, hair, gloves: keeper ? "#f4f4f4" : skin, dark: "#1a1a1a" };
-}
-/** Direction index (0 = S/facing camera) from a screen-space velocity (x right, y down). */
-export function directionIndex(vx: number, vy: number): number {
-  const a = Math.atan2(vx, vy);   // 0 = moving down the screen (towards the camera)
-  return ((Math.round(a / (Math.PI / 4)) % 8) + 8) % 8;
-}

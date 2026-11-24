@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { FACE_V0, FACE_V1, SHIRT_V, type Region } from "./body";
+export { BOOT_COLOURS, HAIR_COLOURS, SKIN_TONES } from "./palette";
 
 /**
  * One kit description shared by 3D and 2D (research prototype).
@@ -14,9 +15,6 @@ export type Pattern = "plain" | "hoops" | "stripes" | "sash" | "halves";
 export type KitSpec = { primary: string; secondary: string; pattern: Pattern; shorts: string; socks: string; number: number; numberColor: string };
 export type Cosmetic = { skin: string; hair: string; hairStyle: number; boots: string; build: number };
 
-export const SKIN_TONES = ["#f1c9a5", "#e3b08a", "#c98f63", "#a86d44", "#8a5531", "#6a3f23", "#4e2d19"];
-export const HAIR_COLOURS = ["#17100b", "#2a1a10", "#4a2e16", "#6e4424", "#b98d55", "#0e0e0e"];
-export const BOOT_COLOURS = ["#111111", "#f4f4f4", "#ff6a00", "#1f6bff", "#e3007c", "#d7ff3a"];
 
 export const KIT_HOME: KitSpec = { primary: "#d81f26", secondary: "#111111", pattern: "stripes", shorts: "#111111", socks: "#111111", number: 10, numberColor: "#ffffff" };
 export const KIT_AWAY: KitSpec = { primary: "#f2f2f2", secondary: "#1d3f8f", pattern: "sash", shorts: "#1d3f8f", socks: "#f2f2f2", number: 9, numberColor: "#1d3f8f" };
