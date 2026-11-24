@@ -1,0 +1,154 @@
+[
+ {
+  "engine": "v6",
+  "mode": "FIVE_A_SIDE",
+  "matches": 30,
+  "goals_per_match": 3.2,
+  "funnel_per_opportunity": {
+   "progressed_10m": 0.512,
+   "final_third": 0.918,
+   "shooting_zone": 0.704,
+   "shot": 0.543,
+   "on_target": 0.491,
+   "goal": 0.293
+  },
+  "opportunities_per_match": 10.93,
+  "end_reasons": {
+   "GOAL": 0.293,
+   "LOST:INTERCEPT": 0.18,
+   "LOST:TACKLE": 0.134,
+   "LOST:HEADER": 0.119,
+   "LOST:SAVE": 0.095,
+   "OUT": 0.076,
+   "SAVED_HELD": 0.04,
+   "STALLED": 0.037,
+   "LOST:CLAIM": 0.027
+  },
+  "actions_per_match": {
+   "PASS": 19.7,
+   "LOFT": 6.3,
+   "CARRY": 4.33,
+   "SHOT": 7.03
+  },
+  "pass_completion_controlled": 0.862,
+  "cues_per_match": {
+   "BLOCK": 0.1,
+   "CARRY": 4.33,
+   "CLAIM": 0.3,
+   "CONTROL": 24.03,
+   "DEFLECT": 3.93,
+   "DIVE": 0.57,
+   "DRIBBLE": 4.37,
+   "GOAL": 3.2,
+   "HEADER": 2.63,
+   "INTERCEPT": 1.97,
+   "KICK": 33.03,
+   "OUT": 0.93,
+   "POST": 1.07,
+   "SAVE": 2.5,
+   "TACKLE": 1.47,
+   "TOUCH": 0.67
+  }
+ },
+ {
+  "engine": "v7",
+  "mode": "FIVE_A_SIDE",
+  "matches": 30,
+  "goals_per_match": 1.47,
+  "funnel_per_opportunity": {
+   "progressed_10m": 0.683,
+   "final_third": 0.96,
+   "shooting_zone": 0.774,
+   "shot": 0.5,
+   "on_target": 0.36,
+   "goal": 0.134
+  },
+  "opportunities_per_match": 10.93,
+  "end_reasons": {
+   "LOST:INTERCEPT": 0.28,
+   "OUT": 0.162,
+   "LOST:HEADER": 0.162,
+   "LOST:TACKLE": 0.152,
+   "GOAL": 0.134,
+   "SAVED_HELD": 0.104,
+   "LOST:CLAIM": 0.003,
+   "STALLED": 0.003
+  },
+  "actions_per_match": {
+   "PASS": 13.27,
+   "LOFT": 2.37,
+   "CARRY": 5.07,
+   "SHOT": 6.5
+  },
+  "pass_completion_controlled": 0.62,
+  "cues_per_match": {
+   "BAR": 0.17,
+   "BLOCK": 1.47,
+   "CARRY": 5.07,
+   "CLAIM": 0.03,
+   "CONTROL": 14.57,
+   "DEFLECT": 6.0,
+   "DIVE": 4.07,
+   "DRIBBLE": 8.03,
+   "GOAL": 1.47,
+   "HEADER": 2.7,
+   "INTERCEPT": 3.07,
+   "KICK": 22.13,
+   "OUT": 1.97,
+   "POST": 0.37,
+   "SAVE": 2.93,
+   "TACKLE": 2.6,
+   "TOUCH": 1.77
+  }
+ },
+ {
+  "engine": "v8",
+  "mode": "FIVE_A_SIDE",
+  "matches": 30,
+  "goals_per_match": 1.8,
+  "funnel_per_opportunity": {
+   "progressed_10m": 0.699,
+   "final_third": 0.972,
+   "shooting_zone": 0.794,
+   "shot": 0.525,
+   "on_target": 0.377,
+   "goal": 0.166
+  },
+  "opportunities_per_match": 10.87,
+  "end_reasons": {
+   "LOST:INTERCEPT": 0.267,
+   "OUT": 0.169,
+   "GOAL": 0.166,
+   "LOST:TACKLE": 0.156,
+   "LOST:HEADER": 0.141,
+   "SAVED_HELD": 0.089,
+   "STALLED": 0.012
+  },
+  "actions_per_match": {
+   "PASS": 12.8,
+   "LOFT": 2.73,
+   "CARRY": 6.37,
+   "SHOT": 6.23
+  },
+  "pass_completion_controlled": 0.624,
+  "cues_per_match": {
+   "BAR": 0.4,
+   "BLOCK": 1.17,
+   "CARRY": 6.37,
+   "CONTROL": 14.57,
+   "DEFLECT": 5.37,
+   "DIVE": 4.47,
+   "DRIBBLE": 8.03,
+   "GOAL": 1.8,
+   "HEADER": 3.57,
+   "INTERCEPT": 2.9,
+   "KICK": 21.77,
+   "OUT": 2.07,
+   "POST": 0.47,
+   "SAVE": 2.33,
+   "TACKLE": 2.93,
+   "THROW": 0.97,
+   "TOUCH": 2.07
+  }
+ }
+]

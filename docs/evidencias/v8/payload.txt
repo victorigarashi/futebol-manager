@@ -1,0 +1,2 @@
+ELEVE v6: full view during plays p50 38.5 KB (max 49.5), between plays 6.7 KB, gzip p50 7.9 KB, snapshot 26 KB
+ELEVE v7: full view during plays p50 56.0 KB (max 108.0), between plays 5.1 KB, gzip p50 13.3 KB, snapshot 22 KB

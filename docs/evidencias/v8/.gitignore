@@ -1,0 +1,3 @@
+# Vídeos e capturas brutas dos testes ficam só na máquina local (centenas de MB)
+*.webm
+multiplayer*/
