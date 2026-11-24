@@ -16,6 +16,7 @@ import "./career-retro.css";
 import "../retro/skin.css";
 import { LineupBoard } from "./LineupBoard";
 import { SquadHub } from "./SquadHub";
+import { CareerSettings } from "./CareerSettings";
 import { LiveMatchCenter } from "./live/LiveMatchCenter";
 import { InteractiveMatch } from "./interactive/InteractiveMatch";
 import { PostMatch } from "./PostMatch";
@@ -29,12 +30,12 @@ import { isShortMode } from "../../lib/gameModes";
 import "./career.css";
 import { useLiveStream, useSocketOnline } from "./live/useLiveStream";
 
-type CareerArea = "central" | "squad" | "market" | "competition" | "club";
+type CareerArea = "central" | "squad" | "market" | "competition" | "club" | "settings";
 const AREAS: { id: CareerArea; label: string; icon: string }[] = [
-  { id: "central", label: "Central", icon: "◆" }, { id: "squad", label: "Elenco", icon: "▦" }, { id: "market", label: "Mercado", icon: "⇄" }, { id: "competition", label: "Competições", icon: "▤" }, { id: "club", label: "Clube", icon: "★" },
+  { id: "central", label: "Central", icon: "◆" }, { id: "squad", label: "Elenco", icon: "▦" }, { id: "market", label: "Mercado", icon: "⇄" }, { id: "competition", label: "Competições", icon: "▤" }, { id: "club", label: "Clube", icon: "★" }, { id: "settings", label: "Configurações", icon: "⚙" },
 ];
-const AREA_DEFAULT: Record<CareerArea, CareerTab> = { central: "hub", squad: "roster", market: "market", competition: "season", club: "stats" };
-const AREA_FOR: Record<CareerTab, CareerArea> = { hub: "central", next: "central", roster: "squad", squad: "squad", tactics: "squad", market: "market", season: "competition", table: "competition", cup: "competition", stats: "club", news: "club", trophies: "club" };
+const AREA_DEFAULT: Record<CareerArea, CareerTab> = { central: "hub", squad: "roster", market: "market", competition: "season", club: "stats", settings: "settings" };
+const AREA_FOR: Record<CareerTab, CareerArea> = { hub: "central", next: "central", roster: "squad", squad: "squad", tactics: "squad", market: "market", season: "competition", table: "competition", cup: "competition", stats: "club", news: "club", trophies: "club", settings: "settings" };
 const STAGES: Record<string, string> = { QUARTERFINALS: "quartas de final", SEMIFINALS: "semifinais", FINAL: "final", COMPLETE: "temporada encerrada" };
 
 /** What the lobby hands to the career: the legacy chrome (kept for live/post-match screens) and room-level actions. */
@@ -135,7 +136,7 @@ export function CareerShell({ roomId, room, isHost, clubCode, chrome }: { roomId
   const ownClub = club(clubCode);
   const legacyPanel = (node: ReactNode) => <div className="career rt-skin rt-legacy">{node}</div>;
 
-  return <RetroFrame view={area === "squad" ? "squad" : "career"} fit={area === "central" || area === "squad"} label={`Carreira: ${AREAS.find((a) => a.id === area)?.label}`}
+  return <RetroFrame view={area === "squad" ? "squad" : "career"} fit={area === "central" || area === "squad" || area === "settings"} label={`Carreira: ${AREAS.find((a) => a.id === area)?.label}`}
     top={<header className="rt-top">
       <div className="rt-plate"><span className="rt-plate__crest"><ClubCrest club={ownClub} size="md" /></span><div className="rt-plate__text"><strong>{ownClub.name}</strong><span>{manager ? `Técnico ${manager}` : "Seu clube"} · {room.name}</span></div></div>
       <div className="rt-plate rt-plate--right">
@@ -155,6 +156,7 @@ export function CareerShell({ roomId, room, isHost, clubCode, chrome }: { roomId
       {actionError && <p className="rt-toast rt-toast--error" role="alert">{actionError.message}</p>}
       {tab === "next" ? legacyPanel(<PreMatch roomId={roomId} room={room} season={data} clubCode={clubCode} clubs={clubList} onGo={goTo} isHost={isHost} />) : <>
       {area === "central" && <CentralHub roomId={roomId} room={room} season={data} clubCode={clubCode} clubs={clubList} onGo={goTo} onOpenMatch={setOpenMatch} />}
+      {area === "settings" && <CareerSettings room={room} isHost={isHost} onEditProfile={chrome?.onEditProfile} />}
       {area === "squad" && <section className="cr-squad"><RetroSubNav label="Seções do elenco" items={subTabs} current={tab} onSelect={goTo} />{tab === "roster" ? <SquadHub roomId={roomId} shortMode={shortMode} onGo={goTo} /> : tab === "squad" ? <LineupBoard roomId={roomId} locked={locked} /> : legacyPanel(<><TacticsBoard roomId={roomId} locked={locked} /><CohesionPanel roomId={roomId} locked={locked} /></>)}</section>}
       {area === "market" && !shortMode && legacyPanel(<section className="market-tab">{data.transfer_window_open ? <>
         {isHost && <div className="host-bar"><p>Você é o anfitrião: encerre a janela quando todos terminarem as negociações.</p><button type="button" className="btn btn--primary" disabled={closeWindow.isPending} onClick={() => closeWindow.mutate()}>{closeWindow.isPending ? "Encerrando…" : "Encerrar janela e seguir →"}</button></div>}

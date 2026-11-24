@@ -104,3 +104,8 @@ html body .rt .lb .participant-card { grid-template-areas: none; grid-auto-flow:
 html body .rt .lb .participant-card > :first-child { grid-column: 1; grid-row: 1; }
 html body .rt .lb .participant-card > div { grid-column: 2; grid-row: 1; }
 html body .rt .lb .participant-card > small { grid-column: 3; grid-row: 1; justify-self: end; }
+
+/* Configurações (career) reuses the lobby columns; the start action is not relevant here */
+html body .rt .cs .league-summary > .button-primary, html body .rt .cs .league-summary__reason, html body .rt .cs .league-summary__line { display: none; }
+.cs-profile { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.cs-gap { margin-top: 14px !important; }
