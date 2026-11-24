@@ -21,6 +21,19 @@ import math
 
 from app.domain.football.world import Athlete, BallState, clamp, dist
 
+# V8 collective shape per attacking style (not a multiplier on outcomes: WHERE the players go).
+#   supports: how many show close to the ball and at what distance (m)
+#   runners:  how many attack the space behind the defensive line at the same time
+#   width:    "touchline" (wingers stay on the line, high), "normal", "narrow" (they come inside)
+#   advance:  how fast the block follows the ball up the pitch
+STYLE_SHAPE: dict[str, dict[str, object]] = {
+    "POSSESSION":    {"supports": 3, "show": (6.0, 10.0), "runners": 0, "width": "narrow", "advance": 0.8, "st_link": True, "box_early": False},
+    "SHORT_BUILDUP": {"supports": 3, "show": (5.0, 8.0), "runners": 0, "width": "narrow", "advance": 0.7, "st_link": True, "box_early": False},
+    "DIRECT":        {"supports": 1, "show": (12.0, 18.0), "runners": 2, "width": "normal", "advance": 1.3, "st_link": False, "box_early": False},
+    "COUNTER":       {"supports": 1, "show": (12.0, 16.0), "runners": 3, "width": "normal", "advance": 1.5, "st_link": False, "box_early": False},
+    "WIDE":          {"supports": 2, "show": (10.0, 14.0), "runners": 1, "width": "touchline", "advance": 1.0, "st_link": False, "box_early": True},
+}
+
 
 class TeamBrain:
     def __init__(self, bodies: list[Athlete], L: float, W: float, s: float, tactics: dict[str, object] | None, difficulty: str = "NORMAL",
@@ -89,11 +102,22 @@ class TeamBrain:
         bx, by = ball.x, ball.y
         line = self.last_line()
         free = [a for a in self.attackers if a.id not in skip and a is not owner and a is not receiver]
+        shape = STYLE_SHAPE.get(self.style, STYLE_SHAPE["POSSESSION"]) if self.v8 else None
         crossing = (bx > L - 26 * s and min(by, W - by) < 15 * s) or (ball.z > 1.0 and ball.vx > 0 and bx > L - 45 * s)
-        # Close supports: the two nearest non-strikers show for the ball at open angles.
-        near = sorted((a for a in free if a.role != "ST"), key=lambda a: dist(a.x, a.y, bx, by))[:2]
+        if shape and shape["box_early"] and bx > L - 36 * s and min(by, W - by) < 18 * s:
+            crossing = True     # wide play: the box is occupied as soon as the ball reaches the flank of the final third
+        # Close supports: the nearest non-strikers show for the ball at open angles.
+        n_support = int(shape["supports"]) if shape else 2
+        near = sorted((a for a in free if a.role != "ST"), key=lambda a: dist(a.x, a.y, bx, by))[:n_support]
         taken: list[tuple[float, float]] = []
         show = (8.0, 12.0) if self.style in ("POSSESSION", "SHORT_BUILDUP") else (10.0, 15.0)
+        if shape:
+            show = shape["show"]
+        runners: set[str] = set()
+        if shape and int(shape["runners"]) > 0 and not crossing:
+            # Runs in behind: strikers first, then the most advanced others (never the supports).
+            cands = sorted((a for a in free if a not in near), key=lambda a: (a.role != "ST", -a.x))
+            runners = {a.id for a in cands[: int(shape["runners"])]}
         safety = None
         mids = [a for a in free if a.role == "MF"]
         if len(mids) >= 3:
@@ -110,6 +134,13 @@ class TeamBrain:
                 side = 1 if nd is None or nd.y < a.y else -1
                 self._set(a, min(a.x + 10 * s, L - 7 * s), a.y + side * 3 * s, 1.0, 2.0)
                 continue
+            if a.id in runners:
+                # Attack the space behind the line through the open channel (counter: flat-out sprint).
+                lanes = [W / 2 + k * 9 * s for k in (-2, -1, 0, 1, 2)]
+                ty = max(lanes, key=lambda y: self.openness(line + 4 * s, y) - abs(y - a.y) * 0.05)
+                tx = clamp(line + (6 if self.style == "COUNTER" else 4) * s, a.x - 2 * s, L - 6 * s)
+                self._set(a, tx, ty, 1.0, 2.0)
+                continue
             if crossing and a.role in ("ST", "MF") and a is not safety:
                 # Attack the box: near post, far post, penalty spot (by who is closest).
                 near_side = 1 if by > W / 2 else -1
@@ -117,6 +148,10 @@ class TeamBrain:
                 spot = min((sp for sp in spots if sp not in taken), key=lambda sp: dist(a.x, a.y, *sp), default=spots[-1])
                 taken.append(spot)
                 self._set(a, spot[0], spot[1], 1.0)
+                continue
+            if a.role == "ST" and shape and shape["st_link"]:
+                # Possession: the striker comes short between the lines to link play (a wall to bounce off).
+                self._set(a, clamp(min(line - 3 * s, bx + 13 * s), a.ax - 10 * s, L - 8 * s), a.ay + (by - a.ay) * 0.3, 0.8, 1.5)
                 continue
             if a.role == "ST":
                 # Depth: on the last defender's shoulder; runs in behind when the carrier can play forward.
@@ -138,6 +173,8 @@ class TeamBrain:
                 ty = (2.5 * s) if a.ay < W / 2 else W - 2.5 * s
                 if self.style != "WIDE":
                     ty = a.ay
+                if shape and shape["width"] == "narrow":
+                    ty = a.ay + (W / 2 - a.ay) * 0.3      # possession: wide men tuck in to make passing triangles
                 self._set(a, tx, ty, 0.85, 2.0)
                 continue
             if a in near:
@@ -160,8 +197,8 @@ class TeamBrain:
                     continue
             # Everybody else keeps the shape, moving with the ball (the block travels together).
             push = 0.55 if not self.v8 else {"VERY_ATTACKING": 0.85, "ATTACKING": 0.7, "DEFENSIVE": 0.38, "VERY_DEFENSIVE": 0.25}.get(self.att_mentality, 0.55)
-            progress = max(0.0, bx - L * 0.45) * push
-            self._set(a, a.ax + progress, a.ay + (by - a.ay) * 0.18, 0.7, 2.5)
+            progress = max(0.0, bx - L * 0.45) * push * (float(shape["advance"]) if shape else 1.0)
+            self._set(a, a.ax + progress, a.ay + (by - a.ay) * 0.18, 0.95 if shape and float(shape["advance"]) > 1.2 else 0.7, 2.5)
 
     # ------------------------------------------------------------ V8 tactical behaviours
     def _choose_third_man(self, ball: BallState, owner: Athlete | None, receiver: Athlete | None, free: list[Athlete]) -> None:
@@ -198,7 +235,7 @@ class TeamBrain:
             if code == "STAY_BACK":
                 self._set(a, min(a.ax, bx - 10 * s), a.ay, 0.7, 2.0)
                 return True
-            if same_side and wide_carrier and carrier.x > a.x - 4 * s and (code == "OVERLAP" or (code == "SUPPORT" and self.style == "WIDE")):
+            if same_side and wide_carrier and carrier.x > a.x - 4 * s and (code == "OVERLAP" or (code != "STAY_BACK" and self.style == "WIDE")):
                 # Overlap: round the outside of the man on the ball, towards the byline.
                 self._set(a, min(L - 6 * s, carrier.x + 10 * s), touch, 1.0, 1.5)
                 return True

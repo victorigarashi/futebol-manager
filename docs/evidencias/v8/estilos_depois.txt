@@ -1,0 +1,4 @@
+POSSESSION {"pass_len": 17.8, "passes_per_ch": 2.29, "supports": 2.26, "runners": 0.35, "width": 14.1, "flank_share": 0.37, "crosses": 0.67, "long_balls": 0.43, "carries": 3.3, "chance_s": 7.6, "matches": 30}
+DIRECT {"pass_len": 21.3, "passes_per_ch": 2.14, "supports": 1.63, "runners": 0.69, "width": 15.22, "flank_share": 0.35, "crosses": 1.87, "long_balls": 1.2, "carries": 1.1, "chance_s": 6.8, "matches": 30}
+COUNTER {"pass_len": 22.7, "passes_per_ch": 2.17, "supports": 1.83, "runners": 0.94, "width": 15.14, "flank_share": 0.34, "crosses": 1.77, "long_balls": 1.63, "carries": 1.33, "chance_s": 7.1, "matches": 30}
+WIDE {"pass_len": 21.5, "passes_per_ch": 1.85, "supports": 1.31, "runners": 1.0, "width": 15.84, "flank_share": 0.52, "crosses": 1.57, "long_balls": 0.6, "carries": 2.47, "chance_s": 6.9, "matches": 30}
