@@ -24,6 +24,15 @@
 | PES inalcançável com a flag desligada; com ela ligada, recusa toda operação | CONFIRMADO | `test_pes2013_is_unreachable...`, `test_engines_endpoint_lists_pes2013_as_disabled` | — | — |
 | Jogadores personalizados convivendo com reais | BLOQUEADO | o projeto não tem jogadores criados pelo usuário | Funcionalidade de produto inexistente | Definir se ela entra no produto. |
 
+## Fase 2 — preparação (concluída; diagnóstico em `01-fase2-diagnostico.md`)
+
+| Requisito | Estado | Evidência | Bloqueio | Próximo experimento |
+|---|---|---|---|---|
+| `PESRuntimeBridge` desacoplada | CONFIRMADO (interface e implementação "indisponível") | `frontend/src/features/external-engines/pes/bridge.ts`; `bridge.test.ts` | — | Implementação real com iframe depois do E1 |
+| Isolamento do runtime (outra origem, só máquina local, mensagens validadas) | CONFIRMADO (regras) | `protocol.ts`; testes de origem e de mensagens | — | E1 |
+| Inventário estático dos arquivos do runtime | CONFIRMADO em arquivos sintéticos | `backend/tools/pes_runtime_inventory.py`; `test_pes_runtime_inventory.py` | Falta rodar nos arquivos reais | Itens 1–4 da lista de arquivos |
+| Plano de testes Corinthians × São Paulo | PRONTO | `01-fase2-diagnostico.md`, seção 5 | B9 (personalizados) bloqueado pelo produto | — |
+
 ## Fases 2 a 5 — runtime PES
 
 | Requisito | Estado | Evidência | Bloqueio | Próximo experimento |
