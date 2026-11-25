@@ -4,6 +4,7 @@ import { ApiError, type Club, type InteractiveActionType, type InteractiveView }
 import { ClubCrest } from "../../../components/ClubCrest";
 import { clubColors, matchKits } from "../clubColors";
 import { aimFromDrag, attackDir, fromScreen, predictTarget, toScreen, type Aim, type Geometry } from "./gesture";
+import { adjustPower, aimAtMate, initialAim, mates, POWER_STEP, retype, rotateAim } from "./keyboardAim";
 import { roomSource, type MatchSource } from "./source";
 import { buildScene, crossedCues, type Scene } from "./render/presentation";
 import { drawScene2D, geometryFor, playRegion, type Kit, type Overlay } from "./render/renderer2d";
@@ -366,13 +367,55 @@ export function InteractiveMatch({ roomId, clubCode, clubs, source: given, onExi
     if (dl && Date.now() / 1000 + offset > dl - 0.05) { setAim(null); r3d.current?.freeze(false); setFeedback("Tempo esgotado: a IA decidiu esta jogada."); void refresh(); return; }
     void submit(chosen);
   };
+  // Keyboard play (no mouse needed): arrows aim, Tab picks a team-mate, Enter/Space plays.
+  // The handler lives in a ref so it always sees the current view, aim and mode.
+  const mateIndex = useRef(-1);
+  const keyHandler = useRef<(event: KeyboardEvent) => void>(() => {});
+  keyHandler.current = (event: KeyboardEvent) => {
+    matchSound.unlock();
+    const target = event.target as HTMLElement | null;
+    if (target && (target.tagName === "INPUT" || target.tagName === "SELECT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
+    if (event.key === "Escape") { cancel(); setCelebration(null); mateIndex.current = -1; return; }
+    const v = viewRef.current, from = carrierPos();
+    const turn = yourTurnRef.current && !!v?.opportunity && !!from && !pendingRef.current;
+    const picked = TYPE_KEYS[event.key];
+    if (picked) {
+      setMode(picked);
+      if (turn && aimRef.current) setAim(retype(v!, from!, aimRef.current, picked));
+      return;
+    }
+    if (!turn || drag.current) return;
+    const keys = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Tab", "Enter", " "];
+    if (!keys.includes(event.key)) return;
+    event.preventDefault();
+    if (!aimRef.current && r3d.current) { r3d.current.settle(v!, sceneRef.current, NO_OVERLAY); r3d.current.freeze(true); }
+    if (event.key === "Enter" || event.key === " ") {
+      const chosen = aimRef.current;
+      if (!chosen) { const first = initialAim(v!, from!, mode); setAim(first); receiversRef.current = receiversFor(v!, from!, first); return; }
+      const dl = v!.deadline;
+      if (dl && Date.now() / 1000 + offset > dl - 0.05) { setAim(null); r3d.current?.freeze(false); setFeedback("Tempo esgotado: a IA decidiu esta jogada."); void refresh(); return; }
+      mateIndex.current = -1;
+      receiversRef.current = new Set();
+      void submit(chosen);
+      return;
+    }
+    let next = aimRef.current ?? initialAim(v!, from!, mode);
+    if (event.key === "ArrowLeft") next = rotateAim(v!, from!, next, -1, mode);
+    else if (event.key === "ArrowRight") next = rotateAim(v!, from!, next, 1, mode);
+    else if (event.key === "ArrowUp") next = adjustPower(v!, from!, next, POWER_STEP, mode);
+    else if (event.key === "ArrowDown") next = adjustPower(v!, from!, next, -POWER_STEP, mode);
+    else if (event.key === "Tab") {
+      const list = mates(v!, from!);
+      if (list.length) {
+        mateIndex.current = ((mateIndex.current + (event.shiftKey ? -1 : 1)) % list.length + list.length) % list.length;
+        next = aimAtMate(v!, from!, list[mateIndex.current].at, mode);
+      }
+    }
+    setAim(next);
+    receiversRef.current = receiversFor(v!, from!, next);
+  };
   useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      matchSound.unlock();
-      if (event.key === "Escape") { cancel(); setCelebration(null); }
-      const picked = TYPE_KEYS[event.key];
-      if (picked) setMode(picked);
-    };
+    const onKey = (event: KeyboardEvent) => keyHandler.current(event);
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
@@ -460,7 +503,8 @@ export function InteractiveMatch({ roomId, clubCode, clubs, source: given, onExi
         {view.state === "FINISHED" && <p className="im-help">Fim de jogo. O resultado já está registrado; a rodada termina quando os outros jogos acabarem.</p>}
         <dl className="im-stats">{statRow(view, "Chances", "chances")}{statRow(view, "Chutes", "shots")}{statRow(view, "No gol", "shots_on_target")}{statRow(view, "Passes certos", "passes_completed")}{statRow(view, "Defesas", "saves")}{statRow(view, "Desarmes", "tackles")}</dl>
         <ol className="im-events" aria-label="Lances">{[...view.events].reverse().slice(0, 14).map((e) => <li key={e.event_id} className={`im-ev im-ev--${e.kind.toLowerCase()}`}><b>{e.minute}′</b> {eventLabel(e.kind, e.outcome)} <span>{e.player_name ?? (e.kind === "CHANCE" ? club(e.team ?? "").name : "")}</span></li>)}</ol>
-        <p className="im-help">Arraste no campo: direção do gesto = direção da bola; tamanho do gesto = força. A seta e a linha são uma previsão: o passe pode sair torto sob pressão, e a defesa e o goleiro reagem sozinhos.</p>
+        <p className="im-help im-keys">Teclado: ← → miram, ↑ ↓ força, Tab escolhe um companheiro, 1–5 tipo de ação, Enter ou Espaço executa, Esc cancela.</p>
+        <p className="im-help">Ou arraste no campo: direção do gesto = direção da bola; tamanho do gesto = força. A seta e a linha são uma previsão: o passe pode sair torto sob pressão, e a defesa e o goleiro reagem sozinhos.</p>
       </aside>
     </div>
   </section>;
