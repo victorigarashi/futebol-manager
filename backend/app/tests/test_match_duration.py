@@ -75,6 +75,34 @@ def test_free_duration_is_unchanged_behaviour():
     assert a.finished and not a.limit_reached and a.score == b.score
 
 
+def test_time_budget_never_takes_over_before_the_second_human_action():
+    """A short match may pace a long move, but not immediately after the first pass."""
+    match = _limited(60, humans=True)
+    now = 0.0
+    while match.state != "DECISION" and now < 60:
+        now += 0.25
+        for club in match.clubs:
+            match.seen(club, now)
+        match.advance(now)
+    assert match.state == "DECISION" and match.opportunity is not None
+
+    attacking = str(match.opportunity["attacking"])
+    match.seen(attacking, now)
+    match.moment_until = now - 1.0   # this moment has already spent its pacing share
+    match.opportunity["actions"] = 1
+    match._to_decision(now)
+
+    assert match.state == "DECISION"
+    assert match.deadline is not None and match.deadline >= now + 6.0
+    assert not any(action["by"] == "TIME_BUDGET" for action in match.action_log)
+
+    # After two human actions, pacing may safely conclude the remainder of the move.
+    match.opportunity["actions"] = 2
+    match._to_decision(now + 0.1)
+    assert match.state == "EXECUTING"
+    assert match.action_log[-1]["by"] == "TIME_BUDGET"
+
+
 @pytest.mark.parametrize("seconds", DURATION_CHOICES)
 def test_adaptive_pacing_keeps_the_limit_at_the_end_of_the_match(seconds):
     """People take longer than bots: the match is re-planned after every moment and a moment that

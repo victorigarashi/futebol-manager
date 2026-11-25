@@ -38,6 +38,7 @@ from app.domain.match_engine import PlayerInput, TeamInput, derived_attributes
 DT = 0.1                      # physics step (s); frames are recorded every step (10 Hz). Results never depend on the client's FPS.
 MAX_ACTION_SECONDS = 7.0      # an action that has not resolved by then is settled by proximity
 MAX_ACTIONS = 8               # anti-infinite-attack guard: after 8 actions the next control ends it
+MIN_HUMAN_ACTIONS = 2         # a live human attack keeps at least two decisions before pacing may take over
 # Ball
 GROUND_DECEL = 5.0            # m/s² rolling friction for passes and carries
 SHOT_DECEL = 1.5
@@ -1589,8 +1590,15 @@ class HighlightMatch:
             # The coach is under AI control (left past the grace period): the AI plays on.
             self._auto(at, "AI_CONTROL")
             return
-        if self.moment_until is not None and at >= self.moment_until - MIN_DECISION_SECONDS / 2:
+        if (
+            self.moment_until is not None
+            and at >= self.moment_until - MIN_DECISION_SECONDS / 2
+            and int(self.opportunity.get("actions", 0)) >= MIN_HUMAN_ACTIONS
+        ):
             # A: this moment has used its share of the duration — the contextual AI concludes it.
+            # Never take the ball after the coach's first gesture: one completed pass must still
+            # open a second decision so a one-two or an immediate finish remains playable.  The
+            # hard match limit above remains authoritative and may still end an expired match.
             self._auto(at, "TIME_BUDGET")
             return
         seconds = self._decision_seconds_for(club)
