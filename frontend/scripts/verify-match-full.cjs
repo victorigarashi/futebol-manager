@@ -60,7 +60,26 @@ async function open(browser, token, exp, name) {
 const view = (c) => c.page.evaluate(() => (window.__bmMatch ? window.__bmMatch.view() : null)).catch(() => null);
 const seen = (c) => c.page.evaluate(() => window.__seen).catch(() => null);
 
+/** Keyboard only (no mouse on the pitch): Tab aims at a team-mate (power computed to reach him)
+ * and Enter plays it; near goal, 5 = shot, arrows up for power, Enter. */
+async function actKeyboard(c, v) {
+  const t0 = Date.now();
+  const o = v.opportunity, L = v.pitch.length;
+  const dir = o.right === false ? -1 : 1;
+  const ci = o.roster.findIndex((r) => r.id === o.carrier);
+  const x = o.positions[ci][0] * L, goalX = dir > 0 ? L : 0;
+  const keys = Math.abs(goalX - x) < 24 || o.actions >= 3 ? ["5", "ArrowUp", "ArrowUp", "ArrowUp", "Enter"] : ["2", "Tab", "Enter"];
+  for (const k of keys) { await c.page.keyboard.press(k); await sleep(60); }
+  c.actions += 1;
+  c.driverMs += Date.now() - t0;
+  c.gestures.push(Date.now() - t0);
+  await sleep(250);
+  const feedback = await c.page.locator(".im-feedback").innerText().catch(() => "");
+  if (feedback) { c.rejected += 1; log(c.name, "feedback:", feedback); }
+}
+
 async function act(c, v) {
+  if (process.env.KEYBOARD) return actKeyboard(c, v);
   const t0 = Date.now();
   const o = v.opportunity, L = v.pitch.length, W = v.pitch.width;
   const dir = o.right === false ? -1 : 1;
@@ -195,7 +214,7 @@ const mean = (arr) => (arr.length ? arr.reduce((x, y) => x + y, 0) / arr.length 
           check("coach offline during his attack resumes the same decision", Boolean(back && back.opportunity?.id === opp && (back.state === "DECISION" || back.state === "EXECUTING")), `${opp} → ${back?.opportunity?.id} ${back?.state}`);
         }
         // Duplicate action id: the second copy must never apply (server idempotency).
-        if (!dupSent && va.your_turn && va.opportunity) {
+        if (!dupSent && va.your_turn && va.opportunity && A.actions > 0) {   // after A has played once himself
           dupSent = true;
           const o = va.opportunity, ci = o.roster.findIndex((r) => r.id === o.carrier), d = o.right === false ? -1 : 1;
           const [px, py] = o.positions[ci];
@@ -207,6 +226,8 @@ const mean = (arr) => (arr.length ? arr.reduce((x, y) => x + y, 0) / arr.length 
             dupSent = false;   // the decision moved on between reading and sending (test race): try at the next one
           } else {
             check("duplicate action id applied once (ACCEPTED then DUPLICATE)", r1?.data?.status === "ACCEPTED" && r2?.data?.status === "DUPLICATE", `${r1?.data?.status ?? JSON.stringify(r1).slice(0, 120)} / ${r2?.data?.status ?? JSON.stringify(r2).slice(0, 120)}`);
+            await sleep(250);
+            continue;   // the probe just played A's decision: the views read above are stale
           }
         }
         for (const [c, v] of [[A, va], [B, vb]]) if (v.your_turn) await act(c, v);
@@ -262,6 +283,21 @@ const mean = (arr) => (arr.length ? arr.reduce((x, y) => x + y, 0) / arr.length 
         .then(async () => !(await c.page.locator(".postmatch").isVisible().catch(() => false))).catch(() => false);
       check(`${c.name} back to the career centre`, back);
       await c.page.screenshot({ path: path.join(out, `central-${c.name}.png`) });
+    }
+    // ---- squad cases (Corinthians x São Paulo acceptance): the official contract of THIS match
+    if (state.squad_cases && state.squad_cases.home) {
+      const sc = state.squad_cases;
+      const payload = await api(`/rooms/${state.room_id}/season/matches/${matchId}/payload`);
+      const home = payload?.home, away = payload?.away;
+      const inTeam = (team, id) => [...(team?.starters ?? []), ...(team?.bench ?? [])].find((p) => p.player_id === id);
+      check(`match contract: ${sc.home} home, ${sc.away} away`, home?.club_code === sc.home && away?.club_code === sc.away, `${home?.club_code} x ${away?.club_code}`);
+      const bought = inTeam(home, sc.bought_from_away);
+      check(`player bought from ${sc.away} plays for ${sc.home}`, Boolean(bought) && !inTeam(away, sc.bought_from_away), bought ? `${bought.name} (${bought.is_starter ? "titular" : "reserva"})` : "ausente");
+      const custom = inTeam(home, sc.custom_player);
+      check("created player in the contract with his own attributes", Boolean(custom && custom.origin === "CUSTOM" && custom.stats.attributes.pace === 88 && custom.stats.estimated_keys.length === 0),
+        custom ? `${custom.name} ${custom.origin} ovr ${custom.stats.overall} ${custom.is_starter ? "titular" : "reserva"}` : "ausente");
+      check("contract checksum present (sha256)", /^sha256:[0-9a-f]{64}$/.test(payload?.checksum ?? ""), payload?.checksum?.slice(0, 20));
+      fs.writeFileSync(path.join(out, "contrato-partida.json"), JSON.stringify(payload, null, 1));
     }
     // ---- timing report
     const realMatch = finishedAt ? (finishedAt - tStart) / 1000 : null;

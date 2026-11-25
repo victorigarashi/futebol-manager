@@ -1,0 +1,68 @@
+{
+  "engine": "v6",
+  "renderers": [
+    "2D",
+    "3D"
+  ],
+  "real_match_seconds": 108.449,
+  "seconds_per_state": {
+    "EXECUTING": 4,
+    "OUTCOME": 1,
+    "CLOCK": 19,
+    "DECISION": 81,
+    "HALF_TIME": 3
+  },
+  "driver_misses": {
+    "A-2D": 0,
+    "B-3D": 0
+  },
+  "driver": {
+    "A-2D": {
+      "gestures": 1,
+      "mean_ms": 4143,
+      "total_s": 4
+    },
+    "B-3D": {
+      "gestures": 1,
+      "mean_ms": 4394,
+      "total_s": 4
+    }
+  },
+  "action_latency_ms": {
+    "A-2D": {
+      "p50": null,
+      "p95": null,
+      "n": 0
+    },
+    "B-3D": {
+      "p50": null,
+      "p95": null,
+      "n": 0
+    }
+  },
+  "fps": {
+    "A-2D": {
+      "p50": 3.4838189565818265,
+      "p5": -78.0678214198585
+    },
+    "B-3D": {
+      "p50": 4.381980441404371,
+      "p5": 3.541300780237814
+    }
+  },
+  "heap_mb": {
+    "A-2D": 39,
+    "B-3D": 40
+  },
+  "post_game_s": {
+    "A-2D": {
+      "ok": true,
+      "s": 2.832
+    },
+    "B-3D": {
+      "ok": true,
+      "s": 0.006
+    }
+  },
+  "note": "Automated run, headless Chrome with SwiftShader (software rendering): FPS here is NOT a real-hardware measurement."
+}

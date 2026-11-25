@@ -1,0 +1,137 @@
+[
+  {
+    "name": "both coaches enter the same interactive match",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "switch 2D→3D mid-match keeps the state",
+    "ok": true,
+    "detail": "rev 7 → 7"
+  },
+  {
+    "name": "duplicate action id applied once (ACCEPTED then DUPLICATE)",
+    "ok": true,
+    "detail": "ACCEPTED / DUPLICATE"
+  },
+  {
+    "name": "reload right after a goal keeps score and clock",
+    "ok": true,
+    "detail": "2:0 45.0' → 2:0 45.0'"
+  },
+  {
+    "name": "coach offline during his attack resumes the same decision",
+    "ok": true,
+    "detail": "tn-sf-1:O05 → tn-sf-1:O05 DECISION"
+  },
+  {
+    "name": "competitive duration shown and enforced by the server",
+    "ok": true,
+    "detail": "{\"mode\":\"LIMITED\",\"seconds\":120,\"limit_at\":1795571767.4286118,\"limit_reached\":false}"
+  },
+  {
+    "name": "final whistle on both screens (official state FINISHED)",
+    "ok": true,
+    "detail": "FINISHED 90.0' / FINISHED 90.0'"
+  },
+  {
+    "name": "2D (A-2D) shows the final whistle before the post-game",
+    "ok": true,
+    "detail": "FINISHED on screen ? s before the post-game; states HALF_TIME>CLOCK>DECISION>EXECUTING>OUTCOME>FINISHED"
+  },
+  {
+    "name": "3D (B-3D) shows the final whistle before the post-game",
+    "ok": true,
+    "detail": "FINISHED on screen ? s before the post-game; states CLOCK>EXECUTING>OUTCOME>DECISION>HALF_TIME>FINISHED"
+  },
+  {
+    "name": "same official score on 2D and 3D",
+    "ok": true,
+    "detail": "{\"home\":2,\"away\":0}"
+  },
+  {
+    "name": "no divergence during the match",
+    "ok": true,
+    "detail": "0 in 40 synchronised polls"
+  },
+  {
+    "name": "every event recorded exactly once (ids stable, goals = score)",
+    "ok": true,
+    "detail": "18 events, 2 goals, conflicts 0"
+  },
+  {
+    "name": "both coaches played their own attacks",
+    "ok": true,
+    "detail": "2D: 1 (0 recusados), 3D: 1 (0 recusados)"
+  },
+  {
+    "name": "2D (A-2D) leaves the match into the post-game screen",
+    "ok": true,
+    "detail": "2.8 s after the whistle"
+  },
+  {
+    "name": "A-2D post-game shows the official score and statistics",
+    "ok": true,
+    "detail": "2–0 vs 2–0"
+  },
+  {
+    "name": "3D (B-3D) leaves the match into the post-game screen",
+    "ok": true,
+    "detail": "0.0 s after the whistle"
+  },
+  {
+    "name": "B-3D post-game shows the official score and statistics",
+    "ok": true,
+    "detail": "2–0 vs 2–0"
+  },
+  {
+    "name": "result recorded in the competition",
+    "ok": true,
+    "detail": "{\"tie\":[\"COR\",\"SAO\"],\"winner\":\"COR\"}"
+  },
+  {
+    "name": "next round released (final drawn by the server)",
+    "ok": true,
+    "detail": "COR × PAL"
+  },
+  {
+    "name": "A-2D back to the career centre",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "B-3D back to the career centre",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "match contract: COR home, SAO away",
+    "ok": true,
+    "detail": "COR x SAO"
+  },
+  {
+    "name": "player bought from SAO plays for COR",
+    "ok": true,
+    "detail": "Pablo Maia (reserva)"
+  },
+  {
+    "name": "created player in the contract with his own attributes",
+    "ok": true,
+    "detail": "Zé da Resenha CUSTOM ovr 79 titular"
+  },
+  {
+    "name": "contract checksum present (sha256)",
+    "ok": true,
+    "detail": "sha256:eb96df081fd37"
+  },
+  {
+    "name": "no page errors (A-2D)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "no page errors (B-3D)",
+    "ok": true,
+    "detail": ""
+  }
+]

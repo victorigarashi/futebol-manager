@@ -1,0 +1,254 @@
+{
+ "A": {
+  "states": [
+   {
+    "state": "HALF_TIME",
+    "at": 1795571713279,
+    "minute": 45
+   },
+   {
+    "state": "CLOCK",
+    "at": 1795571715437,
+    "minute": 45.77
+   },
+   {
+    "state": "DECISION",
+    "at": 1795571717943,
+    "minute": 58.1
+   },
+   {
+    "state": "EXECUTING",
+    "at": 1795571730036,
+    "minute": 58.1
+   },
+   {
+    "state": "OUTCOME",
+    "at": 1795571731436,
+    "minute": 58.1
+   },
+   {
+    "state": "CLOCK",
+    "at": 1795571732536,
+    "minute": 58.21
+   },
+   {
+    "state": "DECISION",
+    "at": 1795571736836,
+    "minute": 81
+   },
+   {
+    "state": "EXECUTING",
+    "at": 1795571746736,
+    "minute": 81
+   },
+   {
+    "state": "OUTCOME",
+    "at": 1795571750636,
+    "minute": 81
+   },
+   {
+    "state": "CLOCK",
+    "at": 1795571751736,
+    "minute": 81.96
+   },
+   {
+    "state": "FINISHED",
+    "at": 1795571753436,
+    "minute": 90
+   }
+  ],
+  "finished": {
+   "at": 1795571753436,
+   "minute": 90,
+   "score": {
+    "home": 2,
+    "away": 0
+   },
+   "duration": {
+    "mode": "LIMITED",
+    "seconds": 120,
+    "limit_at": 1795571767.4286118,
+    "limit_reached": false
+   },
+   "matchScreenMounted": true
+  },
+  "postmatch": null,
+  "matchId": "tn-sf-1",
+  "events": {
+   "tn-sf-1:H0001": "[\"CHANCE\",\"COR\",5,null,\"CROSS\"]",
+   "tn-sf-1:H0002": "[\"SHOT\",\"COR\",5,\"FCM-267629\",\"ON_TARGET\"]",
+   "tn-sf-1:H0003": "[\"SAVE\",\"SAO\",5,\"BR26-055\",\"SAVE\"]",
+   "tn-sf-1:H0004": "[\"INTERCEPTION\",\"SAO\",5,\"FCM-234835\",\"WON\"]",
+   "tn-sf-1:H0005": "[\"CHANCE\",\"COR\",22,null,\"THROUGH\"]",
+   "tn-sf-1:H0006": "[\"SHOT\",\"COR\",22,\"BR26-052\",\"GOAL\"]",
+   "tn-sf-1:H0007": "[\"GOAL\",\"COR\",22,\"BR26-052\",\"GOAL\"]",
+   "tn-sf-1:H0008": "[\"CHANCE\",\"COR\",22,null,\"WING\"]",
+   "tn-sf-1:H0009": "[\"SHOT\",\"COR\",22,\"FCM-83933\",\"ON_TARGET\"]",
+   "tn-sf-1:H0010": "[\"SAVE\",\"SAO\",22,\"BR26-055\",\"SAVE\"]",
+   "tn-sf-1:H0011": "[\"SHOT\",\"COR\",22,\"BR26-052\",\"GOAL\"]",
+   "tn-sf-1:H0012": "[\"GOAL\",\"COR\",22,\"BR26-052\",\"GOAL\"]",
+   "tn-sf-1:H0013": "[\"CHANCE\",\"SAO\",59,null,\"BUILDUP\"]",
+   "tn-sf-1:H0014": "[\"INTERCEPTION\",\"COR\",59,\"FCM-203299\",\"WON\"]",
+   "tn-sf-1:H0015": "[\"CHANCE\",\"SAO\",81,null,\"CROSS\"]",
+   "tn-sf-1:H0016": "[\"SHOT\",\"SAO\",81,\"BR26-061\",\"ON_TARGET\"]",
+   "tn-sf-1:H0017": "[\"SAVE\",\"COR\",81,\"BR26-039\",\"SAVE\"]",
+   "tn-sf-1:H0018": "[\"INTERCEPTION\",\"COR\",81,\"BR26-043\",\"WON\"]"
+  }
+ },
+ "B": {
+  "states": [
+   {
+    "state": "CLOCK",
+    "at": 1795571654915,
+    "minute": 0
+   },
+   {
+    "state": "EXECUTING",
+    "at": 1795571656124,
+    "minute": 4.4
+   },
+   {
+    "state": "OUTCOME",
+    "at": 1795571658506,
+    "minute": 4.4
+   },
+   {
+    "state": "CLOCK",
+    "at": 1795571660006,
+    "minute": 5.54
+   },
+   {
+    "state": "DECISION",
+    "at": 1795571664006,
+    "minute": 21.4
+   },
+   {
+    "state": "EXECUTING",
+    "at": 1795571678207,
+    "minute": 21.4
+   },
+   {
+    "state": "OUTCOME",
+    "at": 1795571682206,
+    "minute": 21.4
+   },
+   {
+    "state": "CLOCK",
+    "at": 1795571683206,
+    "minute": 21.88
+   },
+   {
+    "state": "DECISION",
+    "at": 1795571683612,
+    "minute": 21.9
+   },
+   {
+    "state": "EXECUTING",
+    "at": 1795571693207,
+    "minute": 21.9
+   },
+   {
+    "state": "OUTCOME",
+    "at": 1795571705406,
+    "minute": 21.9
+   },
+   {
+    "state": "CLOCK",
+    "at": 1795571706506,
+    "minute": 22.61
+   },
+   {
+    "state": "HALF_TIME",
+    "at": 1795571710706,
+    "minute": 45
+   },
+   {
+    "state": "CLOCK",
+    "at": 1795571715406,
+    "minute": 45.94
+   },
+   {
+    "state": "DECISION",
+    "at": 1795571717908,
+    "minute": 58.1
+   },
+   {
+    "state": "EXECUTING",
+    "at": 1795571730006,
+    "minute": 58.1
+   },
+   {
+    "state": "OUTCOME",
+    "at": 1795571731806,
+    "minute": 58.1
+   },
+   {
+    "state": "CLOCK",
+    "at": 1795571733206,
+    "minute": 61.81
+   },
+   {
+    "state": "DECISION",
+    "at": 1795571736706,
+    "minute": 81
+   },
+   {
+    "state": "EXECUTING",
+    "at": 1795571746706,
+    "minute": 81
+   },
+   {
+    "state": "OUTCOME",
+    "at": 1795571750606,
+    "minute": 81
+   },
+   {
+    "state": "CLOCK",
+    "at": 1795571751606,
+    "minute": 81.69
+   },
+   {
+    "state": "FINISHED",
+    "at": 1795571753406,
+    "minute": 90
+   }
+  ],
+  "finished": {
+   "at": 1795571753406,
+   "minute": 90,
+   "score": {
+    "home": 2,
+    "away": 0
+   },
+   "duration": {
+    "mode": "LIMITED",
+    "seconds": 120,
+    "limit_at": 1795571767.4286118,
+    "limit_reached": false
+   },
+   "matchScreenMounted": true
+  },
+  "postmatch": null,
+  "matchId": "tn-sf-1",
+  "events": {
+   "tn-sf-1:H0001": "[\"CHANCE\",\"COR\",5,null,\"CROSS\"]",
+   "tn-sf-1:H0002": "[\"SHOT\",\"COR\",5,\"FCM-267629\",\"ON_TARGET\"]",
+   "tn-sf-1:H0003": "[\"SAVE\",\"SAO\",5,\"BR26-055\",\"SAVE\"]",
+   "tn-sf-1:H0004": "[\"INTERCEPTION\",\"SAO\",5,\"FCM-234835\",\"WON\"]",
+   "tn-sf-1:H0005": "[\"CHANCE\",\"COR\",22,null,\"THROUGH\"]",
+   "tn-sf-1:H0006": "[\"SHOT\",\"COR\",22,\"BR26-052\",\"GOAL\"]",
+   "tn-sf-1:H0007": "[\"GOAL\",\"COR\",22,\"BR26-052\",\"GOAL\"]",
+   "tn-sf-1:H0008": "[\"CHANCE\",\"COR\",22,null,\"WING\"]",
+   "tn-sf-1:H0009": "[\"SHOT\",\"COR\",22,\"FCM-83933\",\"ON_TARGET\"]",
+   "tn-sf-1:H0010": "[\"SAVE\",\"SAO\",22,\"BR26-055\",\"SAVE\"]",
+   "tn-sf-1:H0011": "[\"SHOT\",\"COR\",22,\"BR26-052\",\"GOAL\"]",
+   "tn-sf-1:H0012": "[\"GOAL\",\"COR\",22,\"BR26-052\",\"GOAL\"]",
+   "tn-sf-1:H0013": "[\"CHANCE\",\"SAO\",59,null,\"BUILDUP\"]",
+   "tn-sf-1:H0014": "[\"INTERCEPTION\",\"COR\",59,\"FCM-203299\",\"WON\"]",
+   "tn-sf-1:H0015": "[\"CHANCE\",\"SAO\",81,null,\"CROSS\"]",
+   "tn-sf-1:H0016": "[\"SHOT\",\"SAO\",81,\"BR26-061\",\"ON_TARGET\"]",
+   "tn-sf-1:H0017": "[\"SAVE\",\"COR\",81,\"BR26-039\",\"SAVE\"]",
+   "tn-sf-1:H0018": "[\"INTERCEPTION\",\"COR\",81,\"BR26-043\",\"WON\"]"
+  }
+ }
+}

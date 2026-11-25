@@ -15,16 +15,21 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from app.api.routes import market_service, room_manager, season_service
+from app.api.routes import market_service, room_manager, season_service, transfer_service
 from app.core.config import get_settings
 from app.domain.catalog import load_catalog
+from app.domain.custom_players import CustomPlayerSpec
 from app.domain.market import InitialMarket
 from app.main import app, lifespan
 from app.services.auth import issue_guest_token
 from app.services.market_service import MarketSession
 from app.tests.fixtures.market_catalog import complete_test_market
 
-CLUBS = ("FLA", "PAL", "REM", "MIR")  # strength order: FLA/PAL pot 1, REM/MIR pot 2
+CLUBS = tuple(os.environ.get("ACCEPTANCE_CLUBS", "FLA,PAL,REM,MIR").split(","))   # default: FLA/PAL pot 1, REM/MIR pot 2
+# Optional: force the humans' semi-final ("COR,SAO" = Corinthians hosts São Paulo) and prepare the
+# squad cases of the Corinthians x São Paulo acceptance (a created player, a player bought from SAO).
+PAIR = tuple(os.environ.get("ACCEPTANCE_PAIR", "").split(",")) if os.environ.get("ACCEPTANCE_PAIR") else None
+SQUAD_CASES = os.environ.get("ACCEPTANCE_SQUAD_CASES") == "1"
 
 
 @asynccontextmanager
@@ -47,8 +52,27 @@ async def acceptance_lifespan(application):
         season_service.create(room_id, market, rules={"game_mode": "DRAFT_KNOCKOUT", "execution_mode": "INTERACTIVE", "decision_seconds": 10, "ruleset": "ARCADE"})
         season = season_service._season(room_id)
         # Put both humans in the same semi-final (one of them will be eliminated).
-        semi = sorted(season.knockout.ties.values(), key=lambda t: t.order)[0]
+        semis = sorted(season.knockout.ties.values(), key=lambda t: t.order)
+        semi = semis[0]
+        if PAIR:
+            others = [c for c in CLUBS if c not in PAIR]
+            semi.high, semi.low = PAIR
+            semis[1].high, semis[1].low = others
         humans = (semi.high, semi.low)
+        cases = {}
+        if SQUAD_CASES:
+            home, away = humans
+            # A player bought from the away club (a completed transfer): he must play for home.
+            bought = next(p for p in market.teams[away].roster if market.catalog[p].position == "MF")
+            sold = next(p for p in market.teams[home].roster if market.catalog[p].position == "MF")
+            market.teams[away].roster[market.teams[away].roster.index(bought)] = sold
+            market.teams[home].roster[market.teams[home].roster.index(sold)] = bought
+            # A created player, through the real service (pre-season: no match played yet).
+            replaced = max((p for p in market.teams[home].roster if market.catalog[p].position == "ST"), key=lambda p: -market.catalog[p].overall)
+            spec = CustomPlayerSpec(name="Zé da Resenha", position="ST",
+                                    attributes={"pace": 88, "shooting": 82, "passing": 60, "dribbling": 80, "defending": 35, "physical": 70})
+            created = await transfer_service.create_custom_player(room_id, home, spec, replaced, "acceptance-custom-1")
+            cases = {"bought_from_away": bought, "custom_player": created["player"]["id"], "home": home, "away": away}
         for (identity, _), club in zip(identities, humans, strict=True):
             state.participants[identity.id].selected_club_code = club
         for club in CLUBS:
@@ -58,7 +82,7 @@ async def acceptance_lifespan(application):
         state.phase = "SEASON_PREPARATION"
         path = Path(os.environ.get("INTERACTIVE_ACCEPTANCE_STATE", "/tmp/brasileirao-interactive.json"))
         path.touch(mode=0o600, exist_ok=True)
-        path.write_text(json.dumps({"room_id": room_id, "tokens": [token for _, token in identities], "clubs": list(humans)}))
+        path.write_text(json.dumps({"room_id": room_id, "tokens": [token for _, token in identities], "clubs": list(humans), "squad_cases": cases}))
         yield
 
 

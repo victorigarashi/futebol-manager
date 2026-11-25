@@ -1,0 +1,3 @@
+# Vídeos e logs brutos dos testes ficam só na máquina local
+*.webm
+api.log

@@ -1,0 +1,978 @@
+{
+ "schema_version": 1,
+ "match_id": "tn-sf-1",
+ "mode": "ELEVEN_A_SIDE",
+ "competition": "TOURNAMENT",
+ "seed": 100913158,
+ "home": {
+  "side": "HOME",
+  "club_code": "COR",
+  "formation_code": "4-3-3",
+  "starters": [
+   {
+    "player_id": "BR26-039",
+    "name": "Hugo Souza",
+    "origin": "CATALOG",
+    "natural_position": "GK",
+    "slot_position": "GK",
+    "slot_x": 50,
+    "slot_y": 89,
+    "shirt_number": 1,
+    "is_starter": true,
+    "stats": {
+     "overall": 79,
+     "attributes": {
+      "pace": 51,
+      "shooting": 32,
+      "passing": 56,
+      "dribbling": 43,
+      "defending": 33,
+      "physical": 70,
+      "gk_diving": 76,
+      "gk_handling": 80,
+      "gk_reflexes": 81,
+      "gk_positioning": 80
+     },
+     "estimated_keys": [],
+     "provenance": "CATALOG"
+    }
+   },
+   {
+    "player_id": "BR26-042",
+    "name": "Matheuzinho",
+    "origin": "CATALOG",
+    "natural_position": "DF",
+    "slot_position": "DF",
+    "slot_x": 20,
+    "slot_y": 70,
+    "shirt_number": 2,
+    "is_starter": true,
+    "stats": {
+     "overall": 76,
+     "attributes": {
+      "pace": 78,
+      "shooting": 49,
+      "passing": 68,
+      "dribbling": 67,
+      "defending": 72,
+      "physical": 74
+     },
+     "estimated_keys": [],
+     "provenance": "CATALOG"
+    }
+   },
+   {
+    "player_id": "BR26-043",
+    "name": "Matheus Bidu",
+    "origin": "CATALOG",
+    "natural_position": "DF",
+    "slot_position": "DF",
+    "slot_x": 40,
+    "slot_y": 70,
+    "shirt_number": 3,
+    "is_starter": true,
+    "stats": {
+     "overall": 75,
+     "attributes": {
+      "pace": 73,
+      "shooting": 52,
+      "passing": 67,
+      "dribbling": 68,
+      "defending": 75,
+      "physical": 72
+     },
+     "estimated_keys": [],
+     "provenance": "CATALOG"
+    }
+   },
+   {
+    "player_id": "BR26-045",
+    "name": "Gustavo Henrique",
+    "origin": "CATALOG",
+    "natural_position": "DF",
+    "slot_position": "DF",
+    "slot_x": 60,
+    "slot_y": 70,
+    "shirt_number": 4,
+    "is_starter": true,
+    "stats": {
+     "overall": 75,
+     "attributes": {
+      "pace": 69,
+      "shooting": 44,
+      "passing": 66,
+      "dribbling": 59,
+      "defending": 79,
+      "physical": 74
+     },
+     "estimated_keys": [],
+     "provenance": "CATALOG"
+    }
+   },
+   {
+    "player_id": "FCM-201305",
+    "name": "Gabriel Paulista",
+    "origin": "CATALOG",
+    "natural_position": "DF",
+    "slot_position": "DF",
+    "slot_x": 80,
+    "slot_y": 70,
+    "shirt_number": 5,
+    "is_starter": true,
+    "stats": {
+     "overall": 75,
+     "attributes": {
+      "pace": 71,
+      "shooting": 47,
+      "passing": 67,
+      "dribbling": 63,
+      "defending": 78,
+      "physical": 77
+     },
+     "estimated_keys": [
+      "pace",
+      "shooting",
+      "passing",
+      "dribbling",
+      "defending",
+      "physical"
+     ],
+     "provenance": "ESTIMATED"
+    }
+   },
+   {
+    "player_id": "FCM-267629",
+    "name": "Rodrigo Garro",
+    "origin": "CATALOG",
+    "natural_position": "MF",
+    "slot_position": "MF",
+    "slot_x": 25,
+    "slot_y": 44,
+    "shirt_number": 6,
+    "is_starter": true,
+    "stats": {
+     "overall": 78,
+     "attributes": {
+      "pace": 75,
+      "shooting": 70,
+      "passing": 81,
+      "dribbling": 79,
+      "defending": 70,
+      "physical": 74
+     },
+     "estimated_keys": [
+      "pace",
+      "shooting",
+      "passing",
+      "dribbling",
+      "defending",
+      "physical"
+     ],
+     "provenance": "ESTIMATED"
+    }
+   },
+   {
+    "player_id": "FCM-83933",
+    "name": "Breno Bidon",
+    "origin": "CATALOG",
+    "natural_position": "MF",
+    "slot_position": "MF",
+    "slot_x": 50,
+    "slot_y": 44,
+    "shirt_number": 7,
+    "is_starter": true,
+    "stats": {
+     "overall": 77,
+     "attributes": {
+      "pace": 74,
+      "shooting": 69,
+      "passing": 80,
+      "dribbling": 78,
+      "defending": 69,
+      "physical": 73
+     },
+     "estimated_keys": [
+      "pace",
+      "shooting",
+      "passing",
+      "dribbling",
+      "defending",
+      "physical"
+     ],
+     "provenance": "ESTIMATED"
+    }
+   },
+   {
+    "player_id": "FCM-203299",
+    "name": "André Carrillo",
+    "origin": "CATALOG",
+    "natural_position": "MF",
+    "slot_position": "MF",
+    "slot_x": 75,
+    "slot_y": 44,
+    "shirt_number": 8,
+    "is_starter": true,
+    "stats": {
+     "overall": 75,
+     "attributes": {
+      "pace": 72,
+      "shooting": 67,
+      "passing": 78,
+      "dribbling": 76,
+      "defending": 67,
+      "physical": 71
+     },
+     "estimated_keys": [
+      "pace",
+      "shooting",
+      "passing",
+      "dribbling",
+      "defending",
+      "physical"
+     ],
+     "provenance": "ESTIMATED"
+    }
+   },
+   {
+    "player_id": "CUS-uV7DVzLE-COR-01",
+    "name": "Zé da Resenha",
+    "origin": "CUSTOM",
+    "natural_position": "ST",
+    "slot_position": "ST",
+    "slot_x": 25,
+    "slot_y": 18,
+    "shirt_number": 9,
+    "is_starter": true,
+    "stats": {
+     "overall": 79,
+     "attributes": {
+      "pace": 88,
+      "shooting": 82,
+      "passing": 60,
+      "dribbling": 80,
+      "defending": 35,
+      "physical": 70
+     },
+     "estimated_keys": [],
+     "provenance": "CATALOG"
+    }
+   },
+   {
+    "player_id": "BR26-052",
+    "name": "Yuri Alberto",
+    "origin": "CATALOG",
+    "natural_position": "ST",
+    "slot_position": "ST",
+    "slot_x": 50,
+    "slot_y": 18,
+    "shirt_number": 10,
+    "is_starter": true,
+    "stats": {
+     "overall": 78,
+     "attributes": {
+      "pace": 73,
+      "shooting": 79,
+      "passing": 70,
+      "dribbling": 78,
+      "defending": 39,
+      "physical": 75
+     },
+     "estimated_keys": [],
+     "provenance": "CATALOG"
+    }
+   },
+   {
+    "player_id": "FCM-202556",
+    "name": "Memphis Depay",
+    "origin": "CATALOG",
+    "natural_position": "ST",
+    "slot_position": "ST",
+    "slot_x": 75,
+    "slot_y": 18,
+    "shirt_number": 11,
+    "is_starter": true,
+    "stats": {
+     "overall": 78,
+     "attributes": {
+      "pace": 80,
+      "shooting": 81,
+      "passing": 72,
+      "dribbling": 78,
+      "defending": 48,
+      "physical": 76
+     },
+     "estimated_keys": [
+      "pace",
+      "shooting",
+      "passing",
+      "dribbling",
+      "defending",
+      "physical"
+     ],
+     "provenance": "ESTIMATED"
+    }
+   }
+  ],
+  "bench": [
+   {
+    "player_id": "FCM-93566",
+    "name": "Felipe Longo",
+    "origin": "CATALOG",
+    "natural_position": "GK",
+    "slot_position": "GK",
+    "slot_x": 50,
+    "slot_y": 50,
+    "shirt_number": 12,
+    "is_starter": false,
+    "stats": {
+     "overall": 66,
+     "attributes": {
+      "pace": 46,
+      "shooting": 21,
+      "passing": 48,
+      "dribbling": 41,
+      "defending": 36,
+      "physical": 58,
+      "gk_diving": 66,
+      "gk_handling": 66,
+      "gk_reflexes": 66,
+      "gk_positioning": 66
+     },
+     "estimated_keys": [
+      "pace",
+      "shooting",
+      "passing",
+      "dribbling",
+      "defending",
+      "physical",
+      "gk_diving",
+      "gk_handling",
+      "gk_reflexes",
+      "gk_positioning"
+     ],
+     "provenance": "ESTIMATED"
+    }
+   },
+   {
+    "player_id": "BR26-044",
+    "name": "André Ramalho",
+    "origin": "CATALOG",
+    "natural_position": "DF",
+    "slot_position": "DF",
+    "slot_x": 50,
+    "slot_y": 50,
+    "shirt_number": 13,
+    "is_starter": false,
+    "stats": {
+     "overall": 73,
+     "attributes": {
+      "pace": 64,
+      "shooting": 39,
+      "passing": 61,
+      "dribbling": 53,
+      "defending": 72,
+      "physical": 72
+     },
+     "estimated_keys": [],
+     "provenance": "CATALOG"
+    }
+   },
+   {
+    "player_id": "FCM-100285",
+    "name": "João Pedro Tchoca",
+    "origin": "CATALOG",
+    "natural_position": "DF",
+    "slot_position": "DF",
+    "slot_x": 50,
+    "slot_y": 50,
+    "shirt_number": 14,
+    "is_starter": false,
+    "stats": {
+     "overall": 73,
+     "attributes": {
+      "pace": 69,
+      "shooting": 45,
+      "passing": 65,
+      "dribbling": 61,
+      "defending": 76,
+      "physical": 75
+     },
+     "estimated_keys": [
+      "pace",
+      "shooting",
+      "passing",
+      "dribbling",
+      "defending",
+      "physical"
+     ],
+     "provenance": "ESTIMATED"
+    }
+   },
+   {
+    "player_id": "FCM-93562",
+    "name": "Hugo",
+    "origin": "CATALOG",
+    "natural_position": "DF",
+    "slot_position": "DF",
+    "slot_x": 50,
+    "slot_y": 50,
+    "shirt_number": 15,
+    "is_starter": false,
+    "stats": {
+     "overall": 70,
+     "attributes": {
+      "pace": 66,
+      "shooting": 42,
+      "passing": 62,
+      "dribbling": 58,
+      "defending": 73,
+      "physical": 72
+     },
+     "estimated_keys": [
+      "pace",
+      "shooting",
+      "passing",
+      "dribbling",
+      "defending",
+      "physical"
+     ],
+     "provenance": "ESTIMATED"
+    }
+   },
+   {
+    "player_id": "BR26-063",
+    "name": "Pablo Maia",
+    "origin": "CATALOG",
+    "natural_position": "MF",
+    "slot_position": "MF",
+    "slot_x": 50,
+    "slot_y": 50,
+    "shirt_number": 16,
+    "is_starter": false,
+    "stats": {
+     "overall": 74,
+     "attributes": {
+      "pace": 66,
+      "shooting": 63,
+      "passing": 74,
+      "dribbling": 65,
+      "defending": 77,
+      "physical": 78
+     },
+     "estimated_keys": [],
+     "provenance": "CATALOG"
+    }
+   }
+  ],
+  "tactics": {
+   "mentality": "BALANCED",
+   "pressure": "MEDIUM",
+   "style": "POSSESSION"
+  },
+  "instructions": {
+   "BR26-039": "LINE",
+   "BR26-042": "SUPPORT",
+   "BR26-043": "COVER",
+   "BR26-045": "COVER",
+   "FCM-201305": "SUPPORT",
+   "FCM-267629": "BALANCED",
+   "FCM-83933": "BALANCED",
+   "FCM-203299": "BALANCED",
+   "CUS-uV7DVzLE-COR-01": "COMPLETE",
+   "BR26-052": "COMPLETE",
+   "FCM-202556": "COMPLETE"
+  }
+ },
+ "away": {
+  "side": "AWAY",
+  "club_code": "SAO",
+  "formation_code": "4-4-2",
+  "starters": [
+   {
+    "player_id": "BR26-055",
+    "name": "Rafael",
+    "origin": "CATALOG",
+    "natural_position": "GK",
+    "slot_position": "GK",
+    "slot_x": 50,
+    "slot_y": 89,
+    "shirt_number": 1,
+    "is_starter": true,
+    "stats": {
+     "overall": 77,
+     "attributes": {
+      "pace": 45,
+      "shooting": 32,
+      "passing": 54,
+      "dribbling": 41,
+      "defending": 31,
+      "physical": 69,
+      "gk_diving": 79,
+      "gk_handling": 75,
+      "gk_reflexes": 80,
+      "gk_positioning": 75
+     },
+     "estimated_keys": [],
+     "provenance": "CATALOG"
+    }
+   },
+   {
+    "player_id": "FCM-228233",
+    "name": "Robert Arboleda",
+    "origin": "CATALOG",
+    "natural_position": "DF",
+    "slot_position": "DF",
+    "slot_x": 20,
+    "slot_y": 70,
+    "shirt_number": 2,
+    "is_starter": true,
+    "stats": {
+     "overall": 75,
+     "attributes": {
+      "pace": 71,
+      "shooting": 47,
+      "passing": 67,
+      "dribbling": 63,
+      "defending": 78,
+      "physical": 77
+     },
+     "estimated_keys": [
+      "pace",
+      "shooting",
+      "passing",
+      "dribbling",
+      "defending",
+      "physical"
+     ],
+     "provenance": "ESTIMATED"
+    }
+   },
+   {
+    "player_id": "FCM-187598",
+    "name": "Rafael Tolói",
+    "origin": "CATALOG",
+    "natural_position": "DF",
+    "slot_position": "DF",
+    "slot_x": 40,
+    "slot_y": 70,
+    "shirt_number": 3,
+    "is_starter": true,
+    "stats": {
+     "overall": 74,
+     "attributes": {
+      "pace": 70,
+      "shooting": 46,
+      "passing": 66,
+      "dribbling": 62,
+      "defending": 77,
+      "physical": 76
+     },
+     "estimated_keys": [
+      "pace",
+      "shooting",
+      "passing",
+      "dribbling",
+      "defending",
+      "physical"
+     ],
+     "provenance": "ESTIMATED"
+    }
+   },
+   {
+    "player_id": "FCM-234835",
+    "name": "Domingos Duarte",
+    "origin": "CATALOG",
+    "natural_position": "DF",
+    "slot_position": "DF",
+    "slot_x": 60,
+    "slot_y": 70,
+    "shirt_number": 4,
+    "is_starter": true,
+    "stats": {
+     "overall": 74,
+     "attributes": {
+      "pace": 70,
+      "shooting": 46,
+      "passing": 66,
+      "dribbling": 62,
+      "defending": 77,
+      "physical": 76
+     },
+     "estimated_keys": [
+      "pace",
+      "shooting",
+      "passing",
+      "dribbling",
+      "defending",
+      "physical"
+     ],
+     "provenance": "ESTIMATED"
+    }
+   },
+   {
+    "player_id": "FCM-246870",
+    "name": "Enzo Díaz",
+    "origin": "CATALOG",
+    "natural_position": "DF",
+    "slot_position": "DF",
+    "slot_x": 80,
+    "slot_y": 70,
+    "shirt_number": 5,
+    "is_starter": true,
+    "stats": {
+     "overall": 74,
+     "attributes": {
+      "pace": 70,
+      "shooting": 46,
+      "passing": 66,
+      "dribbling": 62,
+      "defending": 77,
+      "physical": 76
+     },
+     "estimated_keys": [
+      "pace",
+      "shooting",
+      "passing",
+      "dribbling",
+      "defending",
+      "physical"
+     ],
+     "provenance": "ESTIMATED"
+    }
+   },
+   {
+    "player_id": "BR26-065",
+    "name": "Marcos Antônio",
+    "origin": "CATALOG",
+    "natural_position": "MF",
+    "slot_position": "MF",
+    "slot_x": 20,
+    "slot_y": 44,
+    "shirt_number": 6,
+    "is_starter": true,
+    "stats": {
+     "overall": 78,
+     "attributes": {
+      "pace": 70,
+      "shooting": 71,
+      "passing": 84,
+      "dribbling": 76,
+      "defending": 62,
+      "physical": 73
+     },
+     "estimated_keys": [],
+     "provenance": "CATALOG"
+    }
+   },
+   {
+    "player_id": "BR26-068",
+    "name": "Lucas Moura",
+    "origin": "CATALOG",
+    "natural_position": "MF",
+    "slot_position": "MF",
+    "slot_x": 40,
+    "slot_y": 44,
+    "shirt_number": 7,
+    "is_starter": true,
+    "stats": {
+     "overall": 77,
+     "attributes": {
+      "pace": 83,
+      "shooting": 73,
+      "passing": 74,
+      "dribbling": 82,
+      "defending": 37,
+      "physical": 65
+     },
+     "estimated_keys": [],
+     "provenance": "CATALOG"
+    }
+   },
+   {
+    "player_id": "BR26-070",
+    "name": "Luciano",
+    "origin": "CATALOG",
+    "natural_position": "MF",
+    "slot_position": "MF",
+    "slot_x": 60,
+    "slot_y": 44,
+    "shirt_number": 8,
+    "is_starter": true,
+    "stats": {
+     "overall": 76,
+     "attributes": {
+      "pace": 74,
+      "shooting": 78,
+      "passing": 69,
+      "dribbling": 75,
+      "defending": 37,
+      "physical": 72
+     },
+     "estimated_keys": [],
+     "provenance": "CATALOG"
+    }
+   },
+   {
+    "player_id": "FCM-268482",
+    "name": "Damián Bobadilla",
+    "origin": "CATALOG",
+    "natural_position": "MF",
+    "slot_position": "MF",
+    "slot_x": 80,
+    "slot_y": 44,
+    "shirt_number": 9,
+    "is_starter": true,
+    "stats": {
+     "overall": 75,
+     "attributes": {
+      "pace": 72,
+      "shooting": 67,
+      "passing": 78,
+      "dribbling": 76,
+      "defending": 67,
+      "physical": 71
+     },
+     "estimated_keys": [
+      "pace",
+      "shooting",
+      "passing",
+      "dribbling",
+      "defending",
+      "physical"
+     ],
+     "provenance": "ESTIMATED"
+    }
+   },
+   {
+    "player_id": "FCM-219455",
+    "name": "Jonathan Calleri",
+    "origin": "CATALOG",
+    "natural_position": "ST",
+    "slot_position": "ST",
+    "slot_x": 33,
+    "slot_y": 18,
+    "shirt_number": 10,
+    "is_starter": true,
+    "stats": {
+     "overall": 77,
+     "attributes": {
+      "pace": 79,
+      "shooting": 80,
+      "passing": 71,
+      "dribbling": 77,
+      "defending": 47,
+      "physical": 75
+     },
+     "estimated_keys": [
+      "pace",
+      "shooting",
+      "passing",
+      "dribbling",
+      "defending",
+      "physical"
+     ],
+     "provenance": "ESTIMATED"
+    }
+   },
+   {
+    "player_id": "BR26-061",
+    "name": "Wendell",
+    "origin": "CATALOG",
+    "natural_position": "ST",
+    "slot_position": "ST",
+    "slot_x": 67,
+    "slot_y": 18,
+    "shirt_number": 11,
+    "is_starter": true,
+    "stats": {
+     "overall": 75,
+     "attributes": {
+      "pace": 78,
+      "shooting": 49,
+      "passing": 65,
+      "dribbling": 64,
+      "defending": 73,
+      "physical": 72
+     },
+     "estimated_keys": [],
+     "provenance": "CATALOG"
+    }
+   }
+  ],
+  "bench": [
+   {
+    "player_id": "FCM-242084",
+    "name": "Carlos Coronel",
+    "origin": "CATALOG",
+    "natural_position": "GK",
+    "slot_position": "GK",
+    "slot_x": 50,
+    "slot_y": 50,
+    "shirt_number": 12,
+    "is_starter": false,
+    "stats": {
+     "overall": 73,
+     "attributes": {
+      "pace": 53,
+      "shooting": 28,
+      "passing": 55,
+      "dribbling": 48,
+      "defending": 43,
+      "physical": 65,
+      "gk_diving": 73,
+      "gk_handling": 73,
+      "gk_reflexes": 73,
+      "gk_positioning": 73
+     },
+     "estimated_keys": [
+      "pace",
+      "shooting",
+      "passing",
+      "dribbling",
+      "defending",
+      "physical",
+      "gk_diving",
+      "gk_handling",
+      "gk_reflexes",
+      "gk_positioning"
+     ],
+     "provenance": "ESTIMATED"
+    }
+   },
+   {
+    "player_id": "BR26-058",
+    "name": "Sabino",
+    "origin": "CATALOG",
+    "natural_position": "DF",
+    "slot_position": "DF",
+    "slot_x": 50,
+    "slot_y": 50,
+    "shirt_number": 13,
+    "is_starter": false,
+    "stats": {
+     "overall": 72,
+     "attributes": {
+      "pace": 61,
+      "shooting": 40,
+      "passing": 64,
+      "dribbling": 54,
+      "defending": 77,
+      "physical": 76
+     },
+     "estimated_keys": [],
+     "provenance": "CATALOG"
+    }
+   },
+   {
+    "player_id": "FCM-81900",
+    "name": "Newton",
+    "origin": "CATALOG",
+    "natural_position": "DF",
+    "slot_position": "DF",
+    "slot_x": 50,
+    "slot_y": 50,
+    "shirt_number": 14,
+    "is_starter": false,
+    "stats": {
+     "overall": 71,
+     "attributes": {
+      "pace": 67,
+      "shooting": 43,
+      "passing": 63,
+      "dribbling": 59,
+      "defending": 74,
+      "physical": 73
+     },
+     "estimated_keys": [
+      "pace",
+      "shooting",
+      "passing",
+      "dribbling",
+      "defending",
+      "physical"
+     ],
+     "provenance": "ESTIMATED"
+    }
+   },
+   {
+    "player_id": "BR26-047",
+    "name": "Raniele",
+    "origin": "CATALOG",
+    "natural_position": "MF",
+    "slot_position": "MF",
+    "slot_x": 50,
+    "slot_y": 50,
+    "shirt_number": 15,
+    "is_starter": false,
+    "stats": {
+     "overall": 74,
+     "attributes": {
+      "pace": 62,
+      "shooting": 59,
+      "passing": 76,
+      "dribbling": 65,
+      "defending": 74,
+      "physical": 78
+     },
+     "estimated_keys": [],
+     "provenance": "CATALOG"
+    }
+   },
+   {
+    "player_id": "FCM-73049",
+    "name": "Pedro Lima",
+    "origin": "CATALOG",
+    "natural_position": "ST",
+    "slot_position": "ST",
+    "slot_x": 50,
+    "slot_y": 50,
+    "shirt_number": 16,
+    "is_starter": false,
+    "stats": {
+     "overall": 71,
+     "attributes": {
+      "pace": 73,
+      "shooting": 74,
+      "passing": 65,
+      "dribbling": 71,
+      "defending": 41,
+      "physical": 69
+     },
+     "estimated_keys": [
+      "pace",
+      "shooting",
+      "passing",
+      "dribbling",
+      "defending",
+      "physical"
+     ],
+     "provenance": "ESTIMATED"
+    }
+   }
+  ],
+  "tactics": {
+   "mentality": "BALANCED",
+   "pressure": "MEDIUM",
+   "style": "POSSESSION"
+  },
+  "instructions": {
+   "BR26-055": "LINE",
+   "FCM-228233": "SUPPORT",
+   "FCM-187598": "COVER",
+   "FCM-234835": "COVER",
+   "FCM-246870": "SUPPORT",
+   "BR26-065": "BALANCED",
+   "BR26-068": "BALANCED",
+   "BR26-070": "BALANCED",
+   "FCM-268482": "BALANCED",
+   "FCM-219455": "COMPLETE",
+   "BR26-061": "COMPLETE"
+  }
+ },
+ "provenance": {
+  "source": "season.matches.inputs",
+  "frozen_at": "round start",
+  "attributes": "catalogue/coach values with career progression and condition; missing keys from match_engine.estimated_attributes, listed in estimated_keys"
+ },
+ "checksum": "sha256:eb96df081fd370e6e956c37ef559ee308577166b2fa6ded4fd0d4fe480c2e98d"
+}

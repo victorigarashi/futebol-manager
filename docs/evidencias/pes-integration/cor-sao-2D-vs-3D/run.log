@@ -1,0 +1,29 @@
+01:54:14 PASS both coaches enter the same interactive match 
+01:54:35 PASS switch 2D→3D mid-match keeps the state rev 7 → 7
+01:54:37 PASS duplicate action id applied once (ACCEPTED then DUPLICATE) ACCEPTED / DUPLICATE
+01:55:13 PASS reload right after a goal keeps score and clock 2:0 45.0' → 2:0 45.0'
+01:55:28 PASS coach offline during his attack resumes the same decision tn-sf-1:O05 → tn-sf-1:O05 DECISION
+01:56:03 PASS competitive duration shown and enforced by the server {"mode":"LIMITED","seconds":120,"limit_at":1795571767.4286118,"limit_reached":false}
+01:56:03 PASS final whistle on both screens (official state FINISHED) FINISHED 90.0' / FINISHED 90.0'
+01:56:03 PASS 2D (A-2D) shows the final whistle before the post-game FINISHED on screen ? s before the post-game; states HALF_TIME>CLOCK>DECISION>EXECUTING>OUTCOME>FINISHED
+01:56:03 PASS 3D (B-3D) shows the final whistle before the post-game FINISHED on screen ? s before the post-game; states CLOCK>EXECUTING>OUTCOME>DECISION>HALF_TIME>FINISHED
+01:56:03 PASS same official score on 2D and 3D {"home":2,"away":0}
+01:56:03 PASS no divergence during the match 0 in 40 synchronised polls
+01:56:03 PASS every event recorded exactly once (ids stable, goals = score) 18 events, 2 goals, conflicts 0
+01:56:03 PASS both coaches played their own attacks 2D: 1 (0 recusados), 3D: 1 (0 recusados)
+01:56:07 PASS 2D (A-2D) leaves the match into the post-game screen 2.8 s after the whistle
+01:56:07 PASS A-2D post-game shows the official score and statistics 2–0 vs 2–0
+01:56:08 PASS 3D (B-3D) leaves the match into the post-game screen 0.0 s after the whistle
+01:56:08 PASS B-3D post-game shows the official score and statistics 2–0 vs 2–0
+01:56:08 PASS result recorded in the competition {"tie":["COR","SAO"],"winner":"COR"}
+01:56:08 PASS next round released (final drawn by the server) COR × PAL
+01:56:08 PASS A-2D back to the career centre 
+01:56:09 PASS B-3D back to the career centre 
+01:56:09 PASS match contract: COR home, SAO away COR x SAO
+01:56:09 PASS player bought from SAO plays for COR Pablo Maia (reserva)
+01:56:09 PASS created player in the contract with his own attributes Zé da Resenha CUSTOM ovr 79 titular
+01:56:09 PASS contract checksum present (sha256) sha256:eb96df081fd37
+01:56:09 timing {"engine":"v6","renderers":["2D","3D"],"real_match_seconds":108.449,"seconds_per_state":{"EXECUTING":4,"OUTCOME":1,"CLOCK":19,"DECISION":81,"HALF_TIME":3},"driver_misses":{"A-2D":0,"B-3D":0},"driver":{"A-2D":{"gestures":1,"mean_ms":4143,"total_s":4},"B-3D":{"gestures":1,"mean_ms":4394,"total_s":4}},"action_latency_ms":{"A-2D":{"p50":null,"p95":null,"n":0},"B-3D":{"p50":null,"p95":null,"n":0}},"fps":{"A-2D":{"p50":3.4838189565818265,"p5":-78.0678214198585},"B-3D":{"p50":4.381980441404371,"p5":3.541300780237814}},"heap_mb":{"A-2D":39,"B-3D":40},"post_game_s":{"A-2D":{"ok":true,"s":2.832},"B-3D":{"ok":true,"s":0.006}},"note":"Automated run, headless Chrome with SwiftShader (software rendering): FPS here is NOT a real-hardware measurement."}
+01:56:09 PASS no page errors (A-2D) 
+01:56:09 PASS no page errors (B-3D) 
+01:56:09 27/27 checks passed
