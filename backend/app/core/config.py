@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     # Modo Jogável engine for competitive matches. "v6" stays the default until the owner
     # approves V7 (docs/v7); the Football Lab uses V7 and can switch for comparison.
     gameplay_engine: str = "v6"
+    # Experimental external engine (PES 2013 Web). Off: nothing about it is reachable; on: it is
+    # listed as experimental and refuses every operation until its capabilities are validated.
+    pes2013_adapter_enabled: bool = False
 
     request_limit_per_minute: int = 600
     auth_limit_per_minute: int = 120

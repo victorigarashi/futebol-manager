@@ -48,6 +48,7 @@ from app.domain.catalog import catalog_status, load_catalog, provenance
 from app.domain.clubs import CLUBS
 from app.domain.demo_catalog import create_demo_catalog
 from app.domain.draft import DraftError
+from app.domain.engine_adapters import EngineCapabilityError
 from app.domain.market import InitialMarket, MarketError
 from app.domain.match_engine import PlayerInput, derived_attributes
 from app.domain.packs import PackError
@@ -63,6 +64,7 @@ from app.services.auth import (
 from app.services.draft_service import draft_service, validate_configuration
 from app.services.lab_service import lab_service
 from app.services.market_service import MarketSession, market_service
+from app.services.match_payload_service import match_payload_service
 from app.services.pack_service import pack_service
 from app.services.realtime import hub
 from app.services.season_service import season_service
@@ -1142,6 +1144,38 @@ async def live_command(room_id: str, payload: LiveCommand, identity: GuestIdenti
         raise HTTPException(status_code=409, detail=str(error)) from error
     await hub.broadcast(room_id, {"type": "season.live_command", "club_code": club, "kind": payload.kind})
     return envelope(result)
+
+
+@router.get("/match-engines")
+async def match_engines() -> dict[str, object]:
+    """Engines and their TESTED capability matrix (PES 2013 Web: experimental / unavailable)."""
+    return envelope({"engines": match_payload_service.engines()})
+
+
+@router.get("/rooms/{room_id}/season/matches/{match_id}/payload")
+async def match_payload(room_id: str, match_id: str, identity: GuestIdentity = Depends(current_identity)) -> dict[str, object]:
+    """Engine-neutral MatchPayload v1 of an official match that has started (room members only)."""
+    market_club(room_id, identity.id)
+    try:
+        async with round_locks.setdefault(room_id, asyncio.Lock()):
+            payload = match_payload_service.payload_for(room_id, match_id)
+    except MarketError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    return envelope(payload.model_dump(mode="json"))
+
+
+@router.post("/rooms/{room_id}/season/matches/{match_id}/prepare/{engine}")
+async def match_prepare(room_id: str, match_id: str, engine: str, identity: GuestIdentity = Depends(current_identity)) -> dict[str, object]:
+    """Ask an engine adapter to prepare a live match. Unsupported / unvalidated engines refuse."""
+    market_club(room_id, identity.id)
+    try:
+        async with round_locks.setdefault(room_id, asyncio.Lock()):
+            prepared = match_payload_service.prepare(room_id, match_id, engine)
+    except EngineCapabilityError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    except MarketError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    return envelope({"engine": prepared.engine, "match_id": prepared.match_id, "payload_checksum": prepared.payload_checksum})
 
 
 @router.get("/rooms/{room_id}/season/interactive")

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import logging
 import time
@@ -1785,6 +1786,20 @@ class SeasonService:
     @staticmethod
     def _result_view(result: MatchResult | None) -> dict[str, int] | None:
         return None if not result else {"home_goals": result.home_goals, "away_goals": result.away_goals}
+
+    def frozen_match(self, room_id: str, match_id: str) -> dict[str, object]:
+        """Read-only: the team snapshots frozen for an official match when its round started
+        (what every engine receives), with the match's lifecycle status. Copies, never the
+        season's own objects."""
+        season = self._season(room_id)
+        record = season.matches.get(match_id)
+        if not record or "inputs" not in record:
+            raise MarketError("Partida inexistente ou ainda não iniciada.")
+        live = season.live_round
+        status = "LIVE" if live and match_id in live.get("match_ids", []) else "FINISHED"
+        inputs = copy.deepcopy(record["inputs"])
+        return {"match_id": match_id, "mode": season.mode, "status": status, "seed": int(record.get("seed", 0)),
+                "competition": str(record.get("competition") or "LEAGUE"), "home": inputs["home"], "away": inputs["away"]}
 
     def _season(self, room_id: str) -> RoomSeason:
         if room_id not in self._seasons:
