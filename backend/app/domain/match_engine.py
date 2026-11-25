@@ -126,6 +126,20 @@ class TeamInput:
     instructions: dict[str, str] = field(default_factory=dict)
 
 
+def estimated_attributes(position: str, overall: int) -> dict[str, float]:
+    """The deterministic profile for a player without catalogue attributes: the overall
+    distributed by position (it never raises the player's level). One rule for the engine and
+    for the MatchPayload, so what an external engine receives is what this engine plays."""
+    o = float(overall)
+    base = {
+        "GK": {"pace": o - 20, "passing": o - 18, "shooting": o - 45, "dribbling": o - 25, "defending": o - 30, "physical": o - 8, "keeping": o},
+        "DF": {"pace": o - 4, "passing": o - 8, "shooting": o - 28, "dribbling": o - 12, "defending": o + 3, "physical": o + 2, "keeping": 20},
+        "MF": {"pace": o - 3, "passing": o + 3, "shooting": o - 8, "dribbling": o + 1, "defending": o - 8, "physical": o - 4, "keeping": 20},
+        "ST": {"pace": o + 2, "passing": o - 6, "shooting": o + 3, "dribbling": o, "defending": o - 30, "physical": o - 2, "keeping": 20},
+    }.get(position, {})
+    return {key: float(max(15, min(99, value))) for key, value in base.items()}
+
+
 def derived_attributes(player: PlayerInput) -> dict[str, float]:
     """Catalog attributes when present; otherwise a transparent profile from overall.
 
@@ -133,13 +147,7 @@ def derived_attributes(player: PlayerInput) -> dict[str, float]:
     player's level) and is computed at runtime — nothing is written to the catalog.
     """
     o = float(player.overall)
-    base = {
-        "GK": {"pace": o - 20, "passing": o - 18, "shooting": o - 45, "dribbling": o - 25, "defending": o - 30, "physical": o - 8, "keeping": o},
-        "DF": {"pace": o - 4, "passing": o - 8, "shooting": o - 28, "dribbling": o - 12, "defending": o + 3, "physical": o + 2, "keeping": 20},
-        "MF": {"pace": o - 3, "passing": o + 3, "shooting": o - 8, "dribbling": o + 1, "defending": o - 8, "physical": o - 4, "keeping": 20},
-        "ST": {"pace": o + 2, "passing": o - 6, "shooting": o + 3, "dribbling": o, "defending": o - 30, "physical": o - 2, "keeping": 20},
-    }.get(player.position, {})
-    attrs = {key: float(max(15, min(99, value))) for key, value in base.items()}
+    attrs = estimated_attributes(player.position, player.overall)
     for key in ("pace", "passing", "shooting", "dribbling", "defending", "physical"):
         if key in player.attributes:
             attrs[key] = float(player.attributes[key])

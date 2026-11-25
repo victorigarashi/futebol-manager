@@ -12,10 +12,12 @@ from fastapi import (
     WebSocketDisconnect,
     status,
 )
+from pydantic import ValidationError
 
 from app.api.schemas import (
     BotChange,
     ClubSelectionRequest,
+    CustomPlayerCreate,
     DraftFormation,
     DraftPick,
     DraftSlot,
@@ -46,6 +48,16 @@ from app.api.schemas import (
 from app.core.config import get_settings
 from app.domain.catalog import catalog_status, load_catalog, provenance
 from app.domain.clubs import CLUBS
+from app.domain.custom_players import (
+    ATTRIBUTE_MAX,
+    ATTRIBUTE_MIN,
+    KEEPER_KEYS,
+    MAX_OVERALL,
+    MAX_PER_CLUB,
+    OUTFIELD_KEYS,
+    WEIGHTS,
+    CustomPlayerSpec,
+)
 from app.domain.demo_catalog import create_demo_catalog
 from app.domain.draft import DraftError
 from app.domain.engine_adapters import EngineCapabilityError
@@ -1322,6 +1334,30 @@ async def transfer_clubs(room_id: str, identity: GuestIdentity = Depends(current
         return envelope(transfer_service.club_rosters(room_id, club))
     except MarketError as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
+
+
+@router.get("/custom-players/rules")
+async def custom_player_rules() -> dict[str, object]:
+    """Limits and the overall formula for created players (the UI previews the same numbers)."""
+    return envelope({"attribute_min": ATTRIBUTE_MIN, "attribute_max": ATTRIBUTE_MAX, "max_overall": MAX_OVERALL, "max_per_club": MAX_PER_CLUB,
+                     "outfield_keys": list(OUTFIELD_KEYS), "keeper_keys": list(KEEPER_KEYS), "weights": WEIGHTS})
+
+
+@router.post("/rooms/{room_id}/club/custom-players")
+async def create_custom_player(room_id: str, payload: CustomPlayerCreate, identity: GuestIdentity = Depends(current_identity)) -> dict[str, object]:
+    """A coach creates an athlete for his club, in place of one of the same position."""
+    club = market_club(room_id, identity.id)
+    try:
+        spec = CustomPlayerSpec(name=payload.name, position=payload.position, attributes=payload.attributes, shirt_number=payload.shirt_number)
+    except ValidationError as error:
+        raise HTTPException(status_code=422, detail=str(error.errors()[0].get("msg", "")).removeprefix("Value error, ")) from error
+    try:
+        result = await transfer_service.create_custom_player(room_id, club, spec, payload.replace_player_id, payload.operation_id)
+    except MarketError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    snapshot_room(room_id)
+    await hub.broadcast(room_id, {"type": "transfer.completed", "club_code": club})
+    return envelope(result)
 
 
 @router.post("/rooms/{room_id}/transfers/buy")

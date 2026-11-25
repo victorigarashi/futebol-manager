@@ -14,10 +14,13 @@ Rules (all from the project, none invented):
   number of starters and the position of each slot must match exactly.
 - Exactly one goalkeeper among the starters; no player twice in a team or in both teams.
 - Bench: at most 7 (the size `_team_input` builds).
-- Attributes: only the keys the catalog actually has (FUT six + four goalkeeper keys), 1..99.
-  Players the catalog has no attributes for carry none (provenance OVERALL_ONLY); the payload
-  never derives or invents them. The values are the catalog's, shifted by the player's career
-  progression and condition exactly as the current engine receives them.
+- Attributes: every player carries the six outfield keys (and the four goalkeeper keys when he
+  is a keeper). Values from the catalogue (or the coach, for custom players) are kept as they
+  are; a missing key comes from the engine's own deterministic rule by overall and position
+  (`match_engine.estimated_attributes`) and is LISTED in `estimated_keys`. Provenance:
+  CATALOG (none estimated), PARTIAL, ESTIMATED (all estimated). The values are the ones the
+  current engine plays with (career progression and condition included).
+- Origin: CATALOG, or CUSTOM for coach-created players (stable ids "CUS-...").
 """
 
 from __future__ import annotations
@@ -29,6 +32,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from app.domain.market import MarketError
+from app.domain.match_engine import estimated_attributes
 from app.domain.squad import formation_slots
 
 MATCH_PAYLOAD_SCHEMA_VERSION = 1
@@ -49,7 +53,8 @@ class PlayerStats(BaseModel):
 
     overall: int = Field(ge=1, le=99)
     attributes: dict[str, int] = Field(default_factory=dict)
-    provenance: Literal["CATALOG", "OVERALL_ONLY"]
+    estimated_keys: tuple[str, ...] = ()
+    provenance: Literal["CATALOG", "PARTIAL", "ESTIMATED"]
 
     @model_validator(mode="after")
     def _known(self) -> PlayerStats:
@@ -58,8 +63,11 @@ class PlayerStats(BaseModel):
             raise ValueError(f"Atributos desconhecidos: {sorted(unknown)}")
         if any(not 1 <= v <= 99 for v in self.attributes.values()):
             raise ValueError("Atributos devem estar entre 1 e 99.")
-        if (self.provenance == "CATALOG") != bool(self.attributes):
-            raise ValueError("Proveniência inconsistente com os atributos.")
+        if not set(OUTFIELD_ATTRIBUTES) <= set(self.attributes) or not set(self.estimated_keys) <= set(self.attributes):
+            raise ValueError("Atributos incompletos.")
+        expected = "CATALOG" if not self.estimated_keys else "ESTIMATED" if set(self.estimated_keys) == set(self.attributes) else "PARTIAL"
+        if self.provenance != expected:
+            raise ValueError("Proveniência inconsistente com os atributos estimados.")
         return self
 
 
@@ -69,7 +77,7 @@ class MatchPlayer(BaseModel):
     player_id: str = Field(min_length=1)
     name: str = Field(min_length=1)
     # Only catalogue players exist in the project today (no user-created players).
-    origin: Literal["CATALOG"] = "CATALOG"
+    origin: Literal["CATALOG", "CUSTOM"] = "CATALOG"
     natural_position: Literal["GK", "DF", "MF", "ST"]
     slot_position: Literal["GK", "DF", "MF", "ST"]
     slot_x: float = Field(ge=0, le=100)
@@ -159,13 +167,35 @@ def _validate_team(team: MatchTeam, mode: str) -> None:
             raise MatchContractError(f"{team.club_code}: titular {player.player_id} sem instrução individual.")
 
 
+def player_stats(position: str, overall: int, known: dict[str, int]) -> PlayerStats:
+    """Known values kept; each missing key from the engine's deterministic rule, and listed."""
+    unknown = set(known) - KNOWN_ATTRIBUTES
+    if unknown:
+        raise MatchContractError(f"Atributos desconhecidos: {sorted(unknown)}")
+    estimate = estimated_attributes(position, overall)
+    keys = OUTFIELD_ATTRIBUTES + (GOALKEEPER_ATTRIBUTES if position == "GK" else ())
+    attributes, estimated = {}, []
+    for key in keys:
+        if key in known:
+            attributes[key] = int(known[key])
+        else:
+            attributes[key] = int(round(estimate["keeping"] if key.startswith("gk_") else estimate[key]))
+            estimated.append(key)
+    for key in GOALKEEPER_ATTRIBUTES:                      # an outfielder's catalogue keeper values, if any
+        if key in known and key not in attributes:
+            attributes[key] = int(known[key])
+    provenance = "CATALOG" if not estimated else "ESTIMATED" if len(estimated) == len(attributes) else "PARTIAL"
+    return PlayerStats(overall=overall, attributes=attributes, estimated_keys=tuple(estimated), provenance=provenance)
+
+
 def _player(row: dict[str, object], starter: bool) -> MatchPlayer:
-    attributes = {str(k): int(v) for k, v in dict(row.get("attributes") or {}).items()}
+    known = {str(k): int(v) for k, v in dict(row.get("attributes") or {}).items()}
+    player_id = str(row["id"])
     return MatchPlayer(
-        player_id=str(row["id"]), name=str(row["name"]), natural_position=str(row["position"]),
-        slot_position=str(row["slot_position"]), slot_x=float(row["slot_x"]), slot_y=float(row["slot_y"]),
+        player_id=player_id, name=str(row["name"]), origin="CUSTOM" if player_id.startswith("CUS-") else "CATALOG",
+        natural_position=str(row["position"]), slot_position=str(row["slot_position"]), slot_x=float(row["slot_x"]), slot_y=float(row["slot_y"]),
         shirt_number=int(row.get("number", 0)), is_starter=starter,
-        stats=PlayerStats(overall=int(row["overall"]), attributes=attributes, provenance="CATALOG" if attributes else "OVERALL_ONLY"))
+        stats=player_stats(str(row["position"]), int(row["overall"]), known))
 
 
 def _team(side: str, view: dict[str, object]) -> MatchTeam:
@@ -185,7 +215,7 @@ def build_match_payload(match_id: str, mode: str, home_view: dict[str, object], 
         draft = MatchPayload(match_id=match_id, mode=mode, competition=competition, seed=int(seed),
                              home=_team("HOME", home_view), away=_team("AWAY", away_view),
                              provenance={"source": "season.matches.inputs", "frozen_at": "round start",
-                                         "attributes": "catalog values shifted by career progression and condition; none derived"})
+                                         "attributes": "catalogue/coach values with career progression and condition; missing keys from match_engine.estimated_attributes, listed in estimated_keys"})
     except ValidationError as error:
         first = error.errors()[0]
         raise MatchContractError(str(first.get("msg", "")).removeprefix("Value error, ")) from error

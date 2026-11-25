@@ -221,6 +221,15 @@ class LiveCommand(BaseModel):
     in_player_id: str | None = Field(default=None, min_length=1, max_length=80)
 
 
+class CustomPlayerCreate(BaseModel):
+    name: str = Field(min_length=2, max_length=40)
+    position: str = Field(min_length=2, max_length=2)
+    attributes: dict[str, int]
+    shirt_number: int | None = Field(default=None, ge=1, le=99)
+    replace_player_id: str = Field(min_length=1)
+    operation_id: str = Field(min_length=8, max_length=120)
+
+
 class TransferBuy(BaseModel):
     incoming_player_id: str = Field(min_length=1)
     replace_player_id: str = Field(min_length=1)

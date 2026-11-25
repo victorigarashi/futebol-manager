@@ -26,6 +26,7 @@ from app.domain.match_contract import (
     payload_checksum,
     verify_checksum,
 )
+from app.domain.match_engine import estimated_attributes
 from app.services.match_payload_service import MatchPayloadService
 from app.services.season_service import SeasonService
 from app.tests.fixtures.clock import finish_round
@@ -71,7 +72,7 @@ def test_payload_from_the_frozen_round_respects_the_mode(mode, size):
     assert verify_checksum(payload)
 
 
-def test_bought_player_plays_for_his_current_club_and_attributes_are_never_invented():
+def test_bought_player_plays_for_his_current_club_and_missing_attributes_follow_the_engine_rule():
     service, market = _season(room="pes-move", move=("C03", "C00"))
     season = service._season("pes-move")
     moved = next(p for p in market.teams["C00"].roster if p.startswith("C03") or market.catalog[p].club_code == "C03")
@@ -82,13 +83,20 @@ def test_bought_player_plays_for_his_current_club_and_attributes_are_never_inven
     other = payload.away if team is payload.home else payload.home
     assert moved not in {p.player_id for p in (*other.starters, *other.bench)}
     assert moved in ids or len(market.teams["C00"].roster) > len(ids)      # in the squad (lineup or beyond the 7-man bench)
+    frozen = service.frozen_match("pes-move", match_id)
+    side = frozen["home"] if frozen["home"]["club_code"] == "C00" else frozen["away"]
+    engine_rows = {r["id"]: r for r in (*side["starters"], *side["bench"])}
     for player in (*team.starters, *team.bench):
         catalog = market.catalog[player.player_id]
         assert player.name == catalog.name
-        if not catalog.attributes:
-            assert player.stats.attributes == {} and player.stats.provenance == "OVERALL_ONLY"
-        else:
-            assert set(player.stats.attributes) == set(catalog.attributes) and player.stats.provenance == "CATALOG"
+        played = engine_rows[player.player_id]["attributes"]            # what the engine plays with
+        for key, value in played.items():
+            assert player.stats.attributes[key] == value and key not in player.stats.estimated_keys
+        estimate = estimated_attributes(player.natural_position, player.stats.overall)
+        for key in player.stats.estimated_keys:                          # never a value from nowhere
+            assert key not in played
+            assert player.stats.attributes[key] == round(estimate["keeping" if key.startswith("gk_") else key])
+        assert player.stats.provenance == ("CATALOG" if not player.stats.estimated_keys else "ESTIMATED" if not played else "PARTIAL")
 
 
 def test_snapshot_is_stable_after_the_market_changes():

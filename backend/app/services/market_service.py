@@ -114,8 +114,10 @@ class MarketService:
         market.generated_players = dict(payload.get("generated_players", {}))
         for player_id, raw_player in market.generated_players.items():
             player = CatalogPlayer.model_validate(raw_player)
-            if player.id != player_id or player.source != "synthetic-career":
-                raise ValueError("Snapshot contém jogador genérico inválido.")
+            valid = (player.source == "synthetic-career"
+                     or (player.source == "CUSTOM" and player_id.startswith("CUS-") and player.attribute_source == "CUSTOM"))
+            if player.id != player_id or not valid:
+                raise ValueError("Snapshot contém jogador genérico ou personalizado inválido.")
             market.catalog[player.id] = player
         market.transactions = list(payload.get("transactions", []))
         market.reassignment = list(payload.get("reassignment", []))
@@ -294,7 +296,7 @@ class MarketService:
             player = market.catalog[str(transaction["player_id"])]
             club = str(transaction["club_code"])
             entries.append({"number": number, "total": len(market.review), "player_id": player.id, "player_name": player.name, "position": player.position, "overall": player.overall, "origin_club_code": player.club_code, "buyer_club_code": club, "manager_name": session.managers.get(club, f"Bot do {club}"), "amount_cents": abs(int(transaction["amount_cents"]))})
-        return {"entries": entries, "summary": {"player_count": len(entries), "total_spent_cents": sum(item["amount_cents"] for item in entries), "generic_players_by_club": {club: sum(player_id in market.generated_players for player_id in team.roster) for club, team in market.teams.items()}, "balances_cents": {club: team.budget_cents for club, team in market.teams.items()}, "withdrawals_cents": dict(session.withdrawals_by_club)}}
+        return {"entries": entries, "summary": {"player_count": len(entries), "total_spent_cents": sum(item["amount_cents"] for item in entries), "generic_players_by_club": {club: sum(player_id in market.generated_players and not player_id.startswith("CUS-") for player_id in team.roster) for club, team in market.teams.items()}, "balances_cents": {club: team.budget_cents for club, team in market.teams.items()}, "withdrawals_cents": dict(session.withdrawals_by_club)}}
 
     async def complete_review(self, room_id: str) -> None:
         session = self._session(room_id)

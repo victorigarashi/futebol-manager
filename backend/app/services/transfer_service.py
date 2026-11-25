@@ -20,6 +20,12 @@ import time
 from dataclasses import asdict, dataclass
 
 from app.domain.bot_coach import choose_lineup
+from app.domain.custom_players import (
+    MAX_PER_CLUB,
+    CustomPlayerSpec,
+    build_custom_player,
+    custom_player_id,
+)
 from app.domain.market import InitialMarket, MarketError
 from app.services.market_service import market_service
 from app.services.season_service import season_service
@@ -211,6 +217,55 @@ class TransferService:
             operations.add(scoped_operation)
             self._listings.get(room_id, set()).discard(replace_id)
             return {"status": "COMPLETED", "operation_id": operation_id, "club_code": club, "incoming_player_id": incoming_id, "released_player_id": replace_id, "amount_cents": cost, "balance_cents": team.budget_cents}
+
+    def _roster_editable_market(self, room_id: str) -> InitialMarket:
+        """Squads may change while the transfer window is open, or in the pre-season of the first
+        season (no match played, no round live): when the coaches build their teams."""
+        season = season_service._season(room_id)
+        preseason = not season.live_round and not season.matches and not season.state.results
+        if not (season.transfer_window_open or preseason):
+            raise MarketError("Jogadores personalizados só podem ser criados na pré-temporada ou com a janela de transferências aberta.")
+        return market_service._session(room_id).market
+
+    async def create_custom_player(self, room_id: str, club: str, spec: CustomPlayerSpec, replace_id: str, operation_id: str) -> dict[str, object]:
+        """A coach's created athlete joins his club in place of one of the same position (squad
+        size and balance unchanged; the released athlete becomes a free agent). Idempotent."""
+        async with self._lock(room_id):
+            market = self._roster_editable_market(room_id)
+            operations = self._operations.setdefault(room_id, set())
+            scoped_operation = f"{club}:custom:{operation_id}"
+            team = market.teams.get(club)
+            if team is None:
+                raise MarketError("Clube não encontrado.")
+            created = sorted(pid for pid in market.generated_players if pid.startswith(f"CUS-{room_id[:8]}-{club}-"))
+            if scoped_operation in operations:
+                existing = next((pid for pid in created if market.generated_players[pid].get("_operation") == scoped_operation), None)
+                return {"status": "COMPLETED", "operation_id": operation_id, "player": self.player_view(room_id, market, existing) if existing else None}
+            if replace_id not in team.roster:
+                raise MarketError("O atleta de saída não pertence ao seu clube.")
+            if replace_id in self.loans(room_id):
+                raise MarketError("Atleta emprestado não pode ser substituído.")
+            if sum(1 for pid in team.roster if pid in created) >= MAX_PER_CLUB:
+                raise MarketError(f"Cada clube pode ter no máximo {MAX_PER_CLUB} jogadores personalizados no elenco.")
+            if market.catalog[replace_id].position != spec.position:
+                raise MarketError("O jogador criado precisa ter a mesma posição do atleta que sai (equilíbrio do elenco).")
+            sequence = len(created) + 1
+            player_id = custom_player_id(room_id, club, sequence)
+            while player_id in market.catalog:
+                sequence += 1
+                player_id = custom_player_id(room_id, club, sequence)
+            player = build_custom_player(spec, club, player_id)
+            market.catalog[player_id] = player
+            lineup = squad_service.prepare_replacement(room_id, club, replace_id, player_id, market)
+            team.roster[team.roster.index(replace_id)] = player_id
+            market.generated_players[player_id] = {**player.model_dump(mode="json"), "_operation": scoped_operation}
+            team.financial_ledger.append({"operation_id": f"{room_id}:{scoped_operation}", "type": "CUSTOM_PLAYER", "amount_cents": 0,
+                                          "player_id": player_id, "released_player_id": replace_id})
+            if lineup:
+                squad_service.commit_lineup(room_id, club, lineup)
+            operations.add(scoped_operation)
+            self._listings.get(room_id, set()).discard(replace_id)
+            return {"status": "COMPLETED", "operation_id": operation_id, "released_player_id": replace_id, "player": self.player_view(room_id, market, player_id)}
 
     async def create_offer(self, room_id: str, buyer: str, incoming_id: str, offered_id: str, amount_cents: int, idempotency_key: str,
                            human_clubs: set[str], kind: str = "TRADE", origin: str = "HUMAN") -> TransferOffer:
