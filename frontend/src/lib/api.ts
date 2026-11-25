@@ -247,7 +247,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+export type EngineCapabilities = {
+  can_load_custom_roster: boolean; can_select_teams: boolean; can_auto_start_match: boolean; can_read_result: boolean;
+  can_netplay: boolean; supports_5v5: boolean; supports_11v11: boolean; evidence: string[];
+};
+export type MatchEngineInfo = { name: string; status: "AVAILABLE" | "EXPERIMENTAL_UNAVAILABLE" | "DISABLED"; capabilities: EngineCapabilities };
+
 export const api = {
+  matchEngines: () => request<Envelope<{ engines: MatchEngineInfo[] }>>("/match-engines"),
   catalogStatus: () => request<Envelope<{ loaded: boolean; demo: boolean; reason: string | null }>>("/catalog/status"),
   createGuest: () => request<Envelope<Identity>>("/auth/guest", { method: "POST" }).then((result) => ({ ...result, data: rememberToken(result.data) })),
   me: () => request<Envelope<Identity>>("/me"),

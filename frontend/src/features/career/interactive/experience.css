@@ -13,3 +13,9 @@
 .xp footer select { margin-left: .4rem; padding: .25rem; border-radius: .4rem; color: inherit; background: var(--surface-raised, #1b222c); }
 .xp footer small { color: var(--muted, #9aa6b2); }
 @media (max-width: 520px) { .xp-cards { grid-template-columns: 1fr; } }
+
+/* External engines under study (only when the server's experimental flag is on). */
+.xp-ext { display: grid; gap: .4rem; margin-top: .6rem; }
+.xp-ext__row { display: grid; grid-template-columns: auto 1fr; gap: .15rem .6rem; align-items: center; padding: .55rem .7rem; border: 1px dashed rgb(255 255 255 / 25%); border-radius: .6rem; opacity: .85; }
+.xp-ext__tag { justify-self: start; padding: .05rem .45rem; border-radius: .3rem; background: rgb(255 196 0 / 18%); color: #ffd666; font-size: .75rem; font-weight: 700; text-transform: uppercase; }
+.xp-ext__row small { grid-column: 1 / -1; color: var(--muted, #9aa4b2); }

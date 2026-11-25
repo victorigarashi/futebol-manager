@@ -1,4 +1,7 @@
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+
+import { api } from "../../../lib/api";
 
 import { readExperience, readQuality, writeExperience, writeQuality, type Experience, type QualityChoice } from "./render/preference";
 import "./experience.css";
@@ -31,9 +34,26 @@ export function ExperiencePicker({ compact = false }: { compact?: boolean }) {
         {value === "3D" && <i aria-hidden="true">✓</i>}
       </button>
     </div>
+    <ExternalEngines />
     <footer>
       <label>Qualidade gráfica <select value={quality} onChange={(e) => { const q = e.target.value as QualityChoice; setQuality(q); writeQuality(q); }}><option value="auto">Automática</option><option value="low">Baixa</option><option value="medium">Média</option><option value="high">Alta</option></select></label>
       <small>Se o 3D ficar lento ou não for compatível, a partida continua automaticamente em 2D.</small>
     </footer>
   </section>;
+}
+
+/** External engines under study (e.g. PES 2013 Web). Listed only when the server enables the
+ * experimental flag, and then always as unavailable until their capabilities are validated:
+ * matches keep being played with the current engine. Nothing shows in normal operation. */
+function ExternalEngines() {
+  const engines = useQuery({ queryKey: ["match-engines"], queryFn: () => api.matchEngines().then((r) => r.data.engines), staleTime: 300_000, retry: false });
+  const experimental = (engines.data ?? []).filter((e) => e.status === "EXPERIMENTAL_UNAVAILABLE");
+  if (!experimental.length) return null;
+  return <div className="xp-ext" role="note" aria-label="Engines experimentais">
+    {experimental.map((e) => <div key={e.name} className="xp-ext__row">
+      <b>{e.name === "PES2013_WEB" ? "PES 2013 Web" : e.name}</b>
+      <span className="xp-ext__tag">Experimental · indisponível</span>
+      <small>Integração em estudo, ainda não validada. As partidas continuam na engine atual.</small>
+    </div>)}
+  </div>;
 }
