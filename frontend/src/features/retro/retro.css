@@ -7,22 +7,23 @@
  * white on --rt-teal-ink 5.0:1 · --rt-ink on --rt-lime 8.9:1 · white on --rt-night 13:1.
  */
 .rt {
-  --rt-sky: #b8cedb;
-  --rt-panel: #f4f7f8;
-  --rt-panel-a: rgba(244, 247, 248, 0.9);
-  --rt-panel-2: #dce5ea;
-  --rt-panel-2a: rgba(220, 229, 234, 0.92);
-  --rt-line: rgba(38, 57, 69, 0.14);
-  --rt-ink: #263945;
-  --rt-ink-2: #4f6571;
-  --rt-teal: #168ca3;
-  --rt-teal-ink: #11768a;
-  --rt-teal-hi: #22a9c1;
-  --rt-lime: #d6e642;
-  --rt-lime-ink: #a9b928;
+  --rt-sky: var(--rs-bg);
+  --rt-panel: var(--rs-surface);
+  --rt-panel-a: var(--rs-surface-a);
+  --rt-panel-2: var(--rs-surface-2);
+  --rt-panel-2a: var(--rs-surface-2a);
+  --rt-line: var(--rs-line);
+  --rt-ink: var(--rs-ink);
+  --rt-ink-2: var(--rs-ink-2);
+  --rt-ink-3: var(--rs-ink-3);
+  --rt-teal: var(--rs-teal);
+  --rt-teal-ink: var(--rs-teal-deep);
+  --rt-teal-hi: var(--rs-teal-hi);
+  --rt-lime: var(--rs-lime);
+  --rt-lime-ink: var(--rs-lime-deep);
   --rt-pitch: #397b43;
-  --rt-red: #b33d3d;
-  --rt-night: #1e2f3a;
+  --rt-red: var(--rs-danger);
+  --rt-night: var(--rs-night);
   --rt-display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
   --rt-ui: Inter, "Segoe UI", system-ui, sans-serif;
   --rt-gap: 8px;
@@ -127,7 +128,7 @@ html .rt .rt-tile:focus-visible, html .rt .rt-nav button:focus-visible { outline
 .rt-btn--lime:hover { background: #e2f05a; }
 .rt-btn--ghost { background: rgba(38, 57, 69, .08); color: var(--rt-ink) !important; }
 .rt-btn--ghost:hover { background: rgba(38, 57, 69, .14); }
-.rt-btn[disabled] { opacity: .55; cursor: not-allowed; }
+.rt-btn[disabled] { opacity: 1; background: var(--rt-panel-2); color: var(--rt-ink-3) !important; cursor: not-allowed; }
 .rt-btn kbd { font-family: var(--rt-ui); font-size: 11px; padding: 2px 6px; border: 1px solid currentColor; opacity: .7; }
 
 /* footer: button hints sit on the background, only for shortcuts that work */
@@ -160,6 +161,21 @@ html .rt .rt-tile:focus-visible, html .rt .rt-nav button:focus-visible { outline
   .rt-nav { grid-auto-columns: minmax(120px, 1fr); overflow-x: auto; scrollbar-width: none; }
   .rt-nav button { font-size: 18px; }
   .rt-footer { display: none; }
+}
+@media (max-width: 640px) {
+  .rt-frame { padding-inline: 10px; }
+  .rt-nav { grid-auto-columns: minmax(max-content, 1fr); overflow-x: auto; scrollbar-width: none; }
+  .rt-nav button { height: 42px; padding: 0 8px; font-size: 16px; text-align: center; letter-spacing: .02em; overflow: visible; }
+  .rt-h--xl { font-size: 32px; }
+  .rt-plate { padding: 6px 26px 6px 10px; gap: 8px; }
+  .rt-plate__text { margin-left: 0 !important; }
+  .rt-plate__text strong { font-size: 20px; }
+  .rt-plate__text span { font-size: 11px; }
+  .rt-brand { font-size: 26px; }
+  .rt-plate--right { display: flex; flex-wrap: wrap; width: 100%; min-width: 0; overflow: visible; padding: 8px 10px; }
+  .rt-plate--right .rt-stat { flex: 1 1 42%; border-left: 0; padding: 2px 4px; }
+  .rt-plate--right .rt-stat b { font-size: 18px; }
+  .rt-plate--right .rt-invite { flex: 1 1 100%; text-align: right; }
 }
 
 /* ---- Console scaling: the frame is laid out at 1366×768 and zoomed uniformly on larger

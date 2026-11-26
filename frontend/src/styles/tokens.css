@@ -1,0 +1,72 @@
+/*
+ * Brasileirão Manager — Resenha design system.
+ * FIFA 16-inspired console look (own identity: no assets, fonts or layouts copied):
+ * ice-blue stage, translucent white panels, teal blocks, lime accent for the active tab,
+ * overall numbers and focus. Dark ink on light surfaces keeps text at AA contrast.
+ *
+ * Contrast (WCAG AA): --rs-ink on --rs-surface 11.4:1 · --rs-ink-2 on --rs-surface 5.9:1
+ * white on --rs-teal-deep 5.0:1 · --rs-ink on --rs-lime 8.9:1 · white on --rs-night 13:1.
+ */
+html:root {
+  color-scheme: light;
+
+  /* ---- stage and surfaces (bottom to top) */
+  --rs-bg: #b8cedb;
+  --rs-bg-soft: #d6e5ee;
+  --rs-surface: #f4f7f8;
+  --rs-surface-a: rgba(244, 247, 248, .9);
+  --rs-surface-a-strong: rgba(244, 247, 248, .93);
+  --rs-surface-2: #dce5ea;
+  --rs-surface-2a: rgba(220, 229, 234, .92);
+  --rs-surface-3: #cdd9e0;
+  --rs-line: rgba(38, 57, 69, .14);
+  --rs-line-strong: rgba(38, 57, 69, .26);
+
+  /* ---- brand */
+  --rs-teal: #168ca3;
+  --rs-teal-deep: #11768a;
+  --rs-teal-hi: #22a9c1;
+  --rs-lime: #d6e642;
+  --rs-lime-hi: #dcec52;
+  --rs-lime-deep: #a9b928;
+  --rs-night: #1e2f3a;
+
+  /* ---- text */
+  --rs-ink: #263945;
+  --rs-ink-2: #4f6571;
+  --rs-ink-3: #6c7f89;
+  --rs-on-lime: #263945;
+  --rs-on-teal: #fff;
+
+  /* ---- feedback */
+  --rs-green: #2f8f4e;
+  --rs-green-soft: rgba(70, 179, 94, .16);
+  --rs-danger: #b33d3d;
+  --rs-danger-soft: #f6dede;
+  --rs-warn: #9a6400;
+  --rs-gold: #f2c230;
+
+  /* ---- positions (solid chips, white text) */
+  --rs-pos-gk: #c88a12;
+  --rs-pos-df: #2d6ea8;
+  --rs-pos-mf: #2f8f4e;
+  --rs-pos-st: #b33d3d;
+
+  /* ---- type */
+  --rs-font-display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --rs-font-ui: Inter, "Segoe UI", system-ui, sans-serif;
+
+  /* ---- spacing / shape / elevation (console UI: square corners) */
+  --rs-space-1: 4px;
+  --rs-space-2: 8px;
+  --rs-space-3: 12px;
+  --rs-space-4: 16px;
+  --rs-space-5: 24px;
+  --rs-space-6: 32px;
+  --rs-r-sm: 0px;
+  --rs-r-md: 0px;
+  --rs-r-pill: 999px;
+  --rs-shadow-1: 0 8px 24px rgb(20 40 52 / 16%);
+  --rs-shadow-2: 0 24px 60px rgb(10 20 26 / 45%);
+  --rs-ease: cubic-bezier(.2, .7, .2, 1);
+}

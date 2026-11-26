@@ -15,7 +15,10 @@
 .mm-hero__room span:not(.rt-btn) { font-size: 13px; opacity: .85; }
 .mm-hero__room .rt-btn { margin-left: auto; }
 .mm-hero .club-crest { width: 58px !important; height: 58px !important; flex: none; }
-.mm-hero:focus-visible .rt-btn--lime, .mm-hero.is-focus .rt-btn--lime { background: #fff; }
+.mm-hero .rt-kicker { color: #0b5a6b; }
+.mm-hero .rt-btn--lime { background: var(--rt-ink); color: #fff !important; }
+.mm-hero .rt-btn--lime:hover { background: #31495a; }
+.mm-hero:focus-visible .rt-btn--lime, .mm-hero.is-focus .rt-btn--lime { background: #fff; color: var(--rt-ink) !important; }
 
 .mm-side { display: grid; grid-auto-rows: minmax(0, 1fr); gap: 8px; min-height: 0; }
 .mm-side .rt-tile { justify-content: center; }
@@ -54,4 +57,7 @@
   .mm-side { grid-auto-rows: minmax(84px, auto); }
   .mm-modes { grid-template-columns: 1fr; grid-template-rows: none; height: auto; }
   .mm-mode--lead { grid-row: auto; }
+  .mm-hero__room { flex-wrap: wrap; row-gap: 10px; }
+  .mm-hero__room > div { flex: 1 1 180px; }
+  .mm-hero__room .rt-btn { width: 100%; margin-left: 0; justify-content: center; }
 }

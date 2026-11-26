@@ -19,3 +19,21 @@
 .cpf__ok { color: #1d6b2f; }
 .cpf .rt-btn:disabled { opacity: .5; cursor: not-allowed; }
 @media (max-width: 40rem) { .cpf__attr { grid-template-columns: 6rem 1fr 2rem; } }
+
+/* live preview: the coach sees the player card before creating it */
+.cpf__body { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(260px, .8fr); gap: 16px; align-items: start; }
+.cpf__attr input[type=range] { accent-color: var(--rt-teal-ink); }
+.cpf__preview { position: sticky; top: 0; display: grid; gap: 10px; padding: 14px 16px; background: var(--rt-panel-2a); box-shadow: inset 0 0 0 1px var(--rt-line), inset 6px 0 0 var(--rt-lime); }
+.cpf__preview-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.cpf__preview-head > span { font: 600 13px/1 var(--rt-display); letter-spacing: .1em; text-transform: uppercase; color: var(--rt-ink-2); }
+.cpf__preview-head b { font: 700 52px/.85 var(--rt-display); color: var(--rt-teal-ink); font-variant-numeric: tabular-nums; }
+.cpf__preview-head b.is-bad { color: var(--rt-red); }
+.cpf__preview-name { display: grid; gap: 2px; }
+.cpf__preview-name strong { font: 600 24px/1.05 var(--rt-display); text-transform: uppercase; overflow-wrap: anywhere; }
+.cpf__preview-name span { font: 700 12px/1 var(--rt-display); letter-spacing: .08em; text-transform: uppercase; color: var(--rt-teal-ink); }
+.cpf__preview ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.cpf__preview li { display: grid; grid-template-columns: 92px minmax(0, 1fr) 30px; align-items: center; gap: 8px; font-size: 13px; color: var(--rt-ink-2); }
+.cpf__preview li i { height: 7px; background: rgba(38, 57, 69, .14); }
+.cpf__preview li em { display: block; height: 100%; background: var(--rt-teal); }
+.cpf__preview li b { font: 700 16px/1 var(--rt-display); color: var(--rt-ink); text-align: right; font-variant-numeric: tabular-nums; }
+@media (max-width: 56rem) { .cpf__body { grid-template-columns: minmax(0, 1fr); } .cpf__preview { position: static; } }
