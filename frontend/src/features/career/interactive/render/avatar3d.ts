@@ -38,6 +38,8 @@ export class Avatar3D {
   readonly athlete: Athlete;
   readonly ring: THREE.Mesh;
   readonly key: string;
+  /** Soft contact shadow under the athlete: grounds the body even when shadow maps are off. */
+  private readonly blob: THREE.Mesh;
   private loco = new Locomotion();
   private action: Action | null = null;
   private weight = 0;
@@ -55,10 +57,19 @@ export class Avatar3D {
     this.ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xc6f24e, transparent: true, opacity: 0.9, depthWrite: false }));
     this.ring.position.y = 0.03; this.ring.scale.setScalar(0.8); this.ring.visible = false;
     this.root.add(this.ring);
+    const blobGeo = new THREE.CircleGeometry(0.44, 20);
+    blobGeo.rotateX(-Math.PI / 2);
+    this.blob = new THREE.Mesh(blobGeo, new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.26, depthWrite: false }));
+    this.blob.position.y = 0.014;
+    this.root.add(this.blob);
     this.key = key;
   }
 
-  dispose() { this.athlete.dispose(); }
+  dispose() {
+    this.athlete.dispose();
+    this.blob.geometry.dispose();
+    (this.blob.material as THREE.Material).dispose();
+  }
 
   /** The clip and timing of the official action this athlete is doing now (or null). */
   private chooseAction(p: ScenePlayer, step: InteractiveStep | null, t: number): Action | null {

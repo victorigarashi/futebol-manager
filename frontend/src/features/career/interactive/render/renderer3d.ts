@@ -8,7 +8,8 @@ import type { Scene, ScenePlayer } from "./presentation";
 import type { Kit, Overlay } from "./renderer2d";
 import { createHuman, type Detail } from "./human";
 import { applyDaylight, buildStadium as buildBroadcastStadium, cornerFlags, paintGrass } from "./stadium3d";
-import { broadcastShot, portraitShot } from "./camera3d";
+import { cameraShot, readCameraSettings, type CameraSettings } from "./cameraPresets";
+import { rollStep } from "./ball";
 import { clubColors } from "../../clubColors";
 
 /**
@@ -21,7 +22,6 @@ import { clubColors } from "../../clubColors";
  * World axes: X = along the pitch (x·L − L/2), Z = across (y·W − W/2), Y = up.
  */
 export type Quality = "low" | "medium" | "high";
-export type CameraMode = "auto" | "wide";
 
 const SHADOW = { low: 0, medium: 1024, high: 2048 } as const;
 const TEXTURE = { low: 1024, medium: 2048, high: 4096 } as const;
@@ -321,8 +321,6 @@ export class Renderer3D {
   private nets: { lines: THREE.LineSegments; base: Float32Array; end: 0 | 1 }[] = [];
   private crowd: THREE.Group | null = null;
   private stadiumClubs: [string, string] = ["", ""];
-  /** V7 portrait camera kept as a fallback (off by default). */
-  private legacyPortrait = false;
   private aimGroup = new THREE.Group();
   private trajectory: THREE.Line;
   private target: THREE.Mesh;
@@ -338,7 +336,13 @@ export class Renderer3D {
   private framedOpp = "";
   private lastGoal = "";
   quality: Quality;
-  cameraMode: CameraMode = "auto";
+  /** The coach's own camera (local preference, see cameraPresets.ts). */
+  cameraSettings: CameraSettings = readCameraSettings();
+  private shadowsWanted = true;
+  private lastBall = new THREE.Vector3();
+  private hasBall = false;
+  private spinAxis = new THREE.Vector3();
+  private spinQuat = new THREE.Quaternion();
   /** "human" (semi-realistic, default) or "voxel" (previous blocky style, kept as a fallback/comparison). */
   /** "athlete" (V8 default): skinned human + clip library + matched locomotion. "human"/"voxel": V6 styles, kept for comparison. */
   characterStyle: "athlete" | "human" | "voxel" = (() => { try { const v = localStorage.getItem("bm_3d_style"); return v === "voxel" ? "voxel" : v === "human" ? "human" : "athlete"; } catch { return "athlete"; } })();
@@ -390,17 +394,28 @@ export class Renderer3D {
 
   private applyQuality() {
     const q = this.quality;
+    const shadows = this.shadowsWanted && SHADOW[q] > 0;
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, q === "high" ? 2 : q === "medium" ? 1.5 : 1));
-    this.renderer.shadowMap.enabled = SHADOW[q] > 0;
+    this.renderer.shadowMap.enabled = shadows;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    this.sun.castShadow = SHADOW[q] > 0;
-    if (SHADOW[q]) {
+    this.sun.castShadow = shadows;
+    if (shadows) {
       this.sun.shadow.mapSize.set(SHADOW[q], SHADOW[q]);
       const cam = this.sun.shadow.camera;
       cam.left = -70; cam.right = 70; cam.top = 50; cam.bottom = -50; cam.near = 10; cam.far = 220;
       this.sun.shadow.bias = -0.0005;
       cam.updateProjectionMatrix();
     }
+  }
+
+  /** Camera changes apply on the next frame, without a reload or a restart of the move. */
+  setCamera(settings: CameraSettings) { this.cameraSettings = settings; }
+
+  /** Shadows on/off without rebuilding the pitch. */
+  setShadows(on: boolean) {
+    if (on === this.shadowsWanted) return;
+    this.shadowsWanted = on;
+    this.applyQuality();
   }
 
   setQuality(q: Quality) {
@@ -570,7 +585,18 @@ export class Renderer3D {
       const b = scene.ball;
       this.world(b.x, b.y, BALL_RADIUS + b.z, this.ball.position);
       this.ball.visible = !b.held;
-      this.ball.rotation.set(b.roll / BALL_RADIUS * 0.5, 0, b.roll / BALL_RADIUS * 0.3);
+      // Coherent roll: the spin axis and angle come from the official displacement, so the
+      // ball always rolls the way it travels (never slides, never spins in place).
+      if (!b.held) {
+        if (!this.hasBall) { this.lastBall.copy(this.ball.position); this.hasBall = true; }
+        const step = rollStep({ x: this.lastBall.x, z: this.lastBall.z }, { x: this.ball.position.x, z: this.ball.position.z }, BALL_RADIUS);
+        if (step.angle > 1e-4) {
+          this.spinAxis.set(step.axis[0], step.axis[1], step.axis[2]);
+          this.spinQuat.setFromAxisAngle(this.spinAxis, step.angle);
+          this.ball.quaternion.premultiply(this.spinQuat).normalize();
+        }
+        this.lastBall.copy(this.ball.position);
+      } else this.hasBall = false;
       this.world(b.x, b.y, 0.02, this.ballShadow.position);
       this.ballShadow.scale.setScalar(BALL_RADIUS * (1 - Math.min(0.5, b.z * 0.08)));
       (this.ballShadow.material as THREE.MeshBasicMaterial).opacity = Math.max(0.1, 0.32 - b.z * 0.04);
@@ -650,69 +676,42 @@ export class Renderer3D {
     if (this.frozen) { this.camera.position.copy(this.camPos); this.camera.lookAt(this.camLook); return; }
     const opp = view.opportunity;
     const pos = new THREE.Vector3(), look = new THREE.Vector3();
-    const portrait = this.camera.aspect < 0.9;
     let fov = this.camera.aspect < 0.8 ? 62 : this.camera.aspect < 1.2 ? 52 : 45;
     if (!scene || !opp) {
-      // Fast simulation: broadcast camera from the main stand.
-      look.set(0, 0, 0); pos.set(0, this.L * 0.36, this.W * 0.5 + this.L * 0.5); fov = this.camera.aspect < 1.2 ? 50 : 38;
+      // Fast simulation: the whole pitch from the broadcast stand.
+      look.set(0, 0, 0);
+      pos.set(0, this.W / 2 + 42, this.L * 0.55);
+      fov = this.camera.aspect < 1.2 ? 52 : 40;
     } else {
       const dir = opp.right === false ? -1 : 1;
       const ball = this.world(scene.ball.x, scene.ball.y);
       const goalX = dir * this.L / 2;
-      const toGoal = Math.abs(goalX - ball.x);
-      const s = this.L / 105;
+      const k = Math.max(0.55, this.L / 105);
       const setPiece = (opp.kind === "PENALTY" || opp.kind === "FREE_KICK") && view.state === "DECISION";
-      if (setPiece) {
-        // Behind the taker, ball low in the frame, wall/keeper/goal ahead.
-        const ahead = new THREE.Vector3(goalX - ball.x, 0, -ball.z).normalize();
-        const k = Math.max(0.6, s);
-        pos.set(ball.x - ahead.x * 9 * k, 6.5 * k, ball.z - ahead.z * 9 * k);
-        look.set(goalX - dir * 3 * k, 1.0, ball.z * 0.3);
-      } else if (this.cameraMode === "wide") {
-        // Manual wide view: the whole pitch, tactical tilt.
-        look.set(dir * this.L * 0.06, 0, 0);
-        pos.set(-dir * this.L * 0.5, this.L * (portrait ? 0.95 : 0.62), 0);
-      } else if (!portrait || !this.legacyPortrait) {
-        // V8 broadcast cameras (camera3d.ts): main stand in landscape, elevated end camera on portrait phones.
-        const mates = scene.players.filter((p) => p.team === "A" && !p.keeper).map((p) => this.world(p.x, p.y));
-        const input = { L: this.L, W: this.W, ball, dir: dir as 1 | -1, mates, aspect: this.camera.aspect };
-        const shot = portrait ? portraitShot(input) : broadcastShot(input);
-        pos.copy(shot.pos); look.copy(shot.look); fov = shot.fov;
-      } else {
-        // Build-up/finishing: elevated and tilted behind the ball carrier (ball in the lower third,
-        // team-mates and the goal ahead), the goal kept in frame when close to it.
-        const k = Math.max(0.55, s);
-        // Wide enough to read the play: ~35 m of pitch ahead, team-mates and markers in view.
-        // V7: steeper (~36°) — the pitch fills the screen instead of the stands (audit item 11).
-        const back = (portrait ? 16 : 11.5) * k, height = (portrait ? 19 : 13.5) * k;
-        // Far from goal: look down the pitch. Close to it (crosses, byline, box): turn towards
-        // the goal mouth so the goal never leaves the frame.
-        const near = Math.max(0, Math.min(1, 1 - (toGoal - 12 * k) / (22 * k)));
-        let ax = dir, az = 0;
-        const gx = goalX - ball.x, gz = -ball.z, gl = Math.hypot(gx, gz) || 1;
-        ax = ax * (1 - near) + (gx / gl) * near; az = (gz / gl) * near;
-        const al = Math.hypot(ax, az) || 1; ax /= al; az /= al;
-        // Short lead: the carrier sits in the lower-middle of the screen, above the action bar.
-        const lead = Math.min(6 * k, Math.max(1.5 * k, gl * 0.3));
-        look.set(ball.x + ax * lead, 0, ball.z + az * lead);
-        pos.set(ball.x - ax * back, height, ball.z - az * back);
-      }
+      // The dynamic preset steps in on decisive moments and around the box; the others ignore it.
+      const nearGoal = Math.max(0, Math.min(1, 1 - Math.abs(goalX - ball.x) / (40 * k)));
+      const cinematicK = view.state === "DECISION" ? Math.max(0.35, nearGoal) : nearGoal * 0.5;
+      const shot = cameraShot(this.cameraSettings, {
+        L: this.L, W: this.W, aspect: this.camera.aspect, ball, dir: dir as 1 | -1, cinematicK, setPiece,
+      }, { pos, look, fov: 0 });
+      fov = shot.fov;
       const c = this.cinematic;
       if (c && now < c.until) {
-        const k = 1 - (c.until - now) / (c.kind === "goal" ? 2.2 : 1.4);
+        const t = 1 - (c.until - now) / (c.kind === "goal" ? 2.2 : 1.4);
         if (c.kind === "goal") {
-          look.set(goalX, 1.2, ball.z); pos.set(goalX - dir * (7 + k * 3), 1.6 + k * 1.5, ball.z + (6 - k * 8));
+          look.set(goalX, 1.2, ball.z); pos.set(goalX - dir * (7 + t * 3), 1.6 + t * 1.5, ball.z + (6 - t * 8));
         } else {
-          look.set(ball.x, 0.6, ball.z); const a = k * 1.2 - 0.6;
-          pos.set(ball.x - dir * 4 * Math.cos(a), 1.2 + k * 2, ball.z + 4 * Math.sin(a));
+          look.set(ball.x, 0.6, ball.z); const a = t * 1.2 - 0.6;
+          pos.set(ball.x - dir * 4 * Math.cos(a), 1.2 + t * 2, ball.z + 4 * Math.sin(a));
         }
         this.camPos.copy(pos); this.camLook.copy(look);
       } else this.cinematic = null;
     }
-    // A new opportunity (or the first frame) cuts straight to its framing; then it follows smoothly.
+    // A new opportunity (or the first frame) cuts straight to its framing; then it follows with
+    // the user's smoothing (never a jolt, never a shake).
     const cut = Boolean(opp && opp.id !== this.framedOpp);
     if (opp) this.framedOpp = opp.id;
-    const smooth = cut ? 1 : 1 - Math.exp(-dt * 3.2);
+    const smooth = cut ? 1 : 1 - Math.exp(-dt * (1.6 + this.cameraSettings.follow * 9));
     this.camPos.lerp(pos, this.cinematic ? 1 : smooth);
     this.camLook.lerp(look, this.cinematic ? 1 : smooth);
     this.camera.position.copy(this.camPos);
@@ -759,6 +758,18 @@ export class Renderer3D {
         const w = ctx.measureText(text).width + 16 * dpr, h = 22 * dpr;
         ctx.fillStyle = "rgba(10,14,20,0.82)"; ctx.beginPath(); ctx.roundRect(s[0] - w / 2, s[1] - h, w, h, h / 2); ctx.fill();
         ctx.fillStyle = "#ffffff"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(text, s[0], s[1] - h / 2);
+      }
+    }
+    // Selectable team-mates: a small ring under each one the pass would consider.
+    if (overlay.aim && overlay.receivers.size) {
+      ctx.lineWidth = 2 * dpr;
+      for (const p of scene.players) {
+        if (!overlay.receivers.has(p.id)) continue;
+        const s = this.project(p.x, p.y, 0.04);
+        if (!s) continue;
+        ctx.beginPath(); ctx.arc(s[0], s[1], 10 * dpr, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(198,242,78,0.20)"; ctx.fill();
+        ctx.strokeStyle = "rgba(198,242,78,0.95)"; ctx.stroke();
       }
     }
   }

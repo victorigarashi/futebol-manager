@@ -481,3 +481,45 @@ A seleção é gravada na partida (`HighlightMatch.kits`, que vai no snapshot) e
 - Chute com efeito.
 - Parâmetros experimentais no Lab (dimensões e velocidade). A física competitiva continua fixa.
 - Notas internas 8/10: não foram dadas, porque dependem de playtest humano e não quero inventar avaliações.
+
+## 11. Câmera 3D e apresentação (26/11/2026)
+
+**Escopo.** Só apresentação. O motor autoritativo, a física e o resultado continuam em `highlights.py` / `app/domain/football/`. Nenhuma câmera altera posição, placar ou tempo.
+
+### 11.1 Câmeras
+
+Cinco presets em `render/cameraPresets.ts`, aplicados sem recarregar a partida:
+
+| Preset | Uso | Padrões |
+|---|---|---|
+| Transmissão | visão lateral elevada, lente fechada, acompanha a bola | 17 m, 52 m, FOV 27°, 0,32 de avanço |
+| Cooperativa | mais distante e ampla, leitura coletiva | 27 m, 78 m, FOV 38° |
+| Dinâmica | mais baixa e próxima; aproxima em jogadas decisivas e perto da área | 13 m, 40 m, FOV 34° |
+| Tática | alta e inclinada, leitura de posições | 40 m, 46 m, FOV 46° |
+| Personalizada | ajustes do técnico | altura, distância, zoom, FOV, ângulo, lateral, suavidade |
+
+- O técnico troca de preset pelo botão do topo (cicla) ou pelo painel 🎥, com sliders ao vivo.
+- Toda posição é limitada: altura ≥ 3,5 m, fora da linha lateral, e a câmera nunca cruza o gramado.
+- A suavidade (`follow`) define a constante de acompanhamento; nunca há corte entre frames, só entre lances.
+- Em retrato o FOV abre e a câmera recua para o lance caber na tela.
+- Em falta e pênalti a câmera vai para trás do cobrador, com o gol no quadro.
+- A preferência fica em `localStorage` (`bm_match_camera_v1`) por navegador. Não vai ao servidor.
+
+### 11.2 Gráficos
+
+- Qualidade automática, baixa, média e alta (sombras 0/1024/2048, texturas até 4096).
+- Sombras ligáveis/desligáveis sem reconstruir o campo.
+- Limite de FPS (livre, 30, 60, 120) só na apresentação; o relógio oficial não depende dele.
+- Queda sustentada de FPS reduz a qualidade e, no limite, volta ao 2D sem mexer no estado.
+- Sombra de contato sob cada atleta (funciona também com sombras desligadas).
+
+### 11.3 Bola e leitura do passe
+
+- `render/ball.ts`: rotação sem escorregamento, eixo = (vz, 0, −vx)/|v|, ângulo = distância/raio, limitado a meia volta por quadro (um salto de snapshot não borra a bola).
+- No 3D, os companheiros que o passe considera ganham um anel discreto durante a mira.
+
+### 11.4 Evidências e limites
+
+- Capturas reais em `docs/evidencias/3d-premium/` (Transmissão, Cooperativa, Dinâmica e painel).
+- Testes: `cameraPresets.test.ts` (9) e `ball.test.ts` (5), além dos testes existentes do Modo Jogável (28 no total).
+- **Não medido**: FPS em hardware real (a captura usa renderização por software) e playtest humano. As capturas acima são a evidência visual desta entrega.

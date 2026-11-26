@@ -11,7 +11,9 @@ import { drawScene2D, geometryFor, playRegion, type Kit, type Overlay } from "./
 import type { Region } from "./gesture";
 import { readLocal, writeLocal } from "../../../lib/storage";
 import type { Renderer3D } from "./render/renderer3d";
-import { autoQuality, readExperience, readQuality, writeExperience, writeQuality, type Experience, type QualityChoice } from "./render/preference";
+import { autoQuality, readExperience, readFpsCap, readQuality, readShadows, writeExperience, writeFpsCap, writeQuality, writeShadows, type Experience, type QualityChoice } from "./render/preference";
+import { cyclePreset, normalizeCamera, presetSettings, readCameraSettings, writeCameraSettings, PRESET_LABEL, type CameraSettings } from "./render/cameraPresets";
+import { CameraPanel } from "./CameraPanel";
 import { matchSound } from "./sound";
 import "./interactive.css";
 
@@ -97,9 +99,13 @@ export function InteractiveMatch({ roomId, clubCode, clubs, source: given, onExi
   const [panel, setPanel] = useState(false);
   const [soundOpen, setSoundOpen] = useState(false);
   const [sound, setSound] = useState(matchSound.settings);
-  const [wide, setWide] = useState(false);
+  const [camera, setCameraState] = useState<CameraSettings>(readCameraSettings);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [shadows, setShadows] = useState(readShadows);
+  const [fpsCap, setFpsCap] = useState<0 | 30 | 60 | 120>(readFpsCap);
   const [cam2d, setCam2d] = useState<"play" | "full">(() => (readLocal("bm_cam2d") === "full" ? "full" : "play"));
   const cam2dRef = useRef(cam2d); cam2dRef.current = cam2d;
+  const fpsCapRef = useRef(fpsCap); fpsCapRef.current = fpsCap;
   const regionRef = useRef<Region | null>(null);
   const [toast, setToast] = useState<{ text: string; tone: string; id: number } | null>(null);
   const [celebration, setCelebration] = useState<{ name: string; club: string; until: number } | null>(null);
@@ -119,6 +125,12 @@ export function InteractiveMatch({ roomId, clubCode, clubs, source: given, onExi
   const yourTurnRef = useRef(yourTurn); yourTurnRef.current = yourTurn;
 
   const setExperience = (value: Experience, persist = true) => { setExperienceState(value); if (persist) writeExperience(value); };
+  // Camera changes apply at once and are saved in this browser only (never sent to the server).
+  const changeCamera = (next: CameraSettings) => {
+    const safe = normalizeCamera(next);
+    setCameraState(safe);
+    writeCameraSettings(safe);
+  };
 
   // Immersive: no page scroll (and no league chrome) behind the match.
   useEffect(() => { document.body.classList.add("im-open"); return () => document.body.classList.remove("im-open"); }, []);
@@ -133,6 +145,8 @@ export function InteractiveMatch({ roomId, clubCode, clubs, source: given, onExi
       if (!webglAvailable()) throw new Error("WebGL indisponível");
       const quality = qualityChoice === "auto" ? autoQuality() : qualityChoice;
       const renderer = new R(quality);
+      renderer.setCamera(camera);
+      renderer.setShadows(shadows);
       host3d.current?.append(renderer.canvas, renderer.overlay);
       r3d.current = renderer;
       setR3dStatus("ready");
@@ -149,7 +163,9 @@ export function InteractiveMatch({ roomId, clubCode, clubs, source: given, onExi
     };
   }, [experience]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (r3d.current && qualityChoice !== "auto") r3d.current.setQuality(qualityChoice); writeQuality(qualityChoice); }, [qualityChoice]);
-  useEffect(() => { if (r3d.current) r3d.current.cameraMode = wide ? "wide" : "auto"; }, [wide, r3dStatus]);
+  useEffect(() => { r3d.current?.setCamera(camera); }, [camera, r3dStatus]);
+  useEffect(() => { r3d.current?.setShadows(shadows); writeShadows(shadows); }, [shadows, r3dStatus]);
+  useEffect(() => { writeFpsCap(fpsCap); }, [fpsCap]);
 
   // --------------------------------------------------------------- frame loop (no React render per frame)
   useEffect(() => {
@@ -160,8 +176,14 @@ export function InteractiveMatch({ roomId, clubCode, clubs, source: given, onExi
     const diag = (() => { try { return window.location.hash.startsWith("#lab") && localStorage.getItem("bm_lab_diag") === "1"; } catch { return false; } })();
     const diagEl = diag ? Object.assign(document.createElement("div"), { className: "im-diag" }) : null;
     if (diagEl) stage.current?.append(diagEl);
+    let lastPaint = 0;
     const draw = () => {
       raf = requestAnimationFrame(draw);
+      // Optional frame-rate cap (presentation only; the official state keeps its own clock).
+      const minInterval = fpsCapRef.current ? 1000 / fpsCapRef.current : 0;
+      const paintedAt = performance.now();
+      if (minInterval && paintedAt - lastPaint < minInterval - 1) return;
+      lastPaint = paintedAt;
       const box = stage.current, current = viewRef.current;
       if (!box || !current) return;
       const cpu0 = performance.now();
@@ -465,7 +487,10 @@ export function InteractiveMatch({ roomId, clubCode, clubs, source: given, onExi
 
       <div className="im-tools">
         <button type="button" className="im-tool im-tool--exp" onClick={() => setExperience(experience === "3D" ? "2D" : "3D")} title="Trocar a visualização (a jogada e o tempo continuam)">{experience === "3D" ? "2D" : "3D"}</button>
-        {experience === "3D" ? <button type="button" className={`im-tool ${wide ? "is-on" : ""}`} onClick={() => setWide(!wide)} title="Câmera ampla (campo inteiro)" aria-pressed={wide}>⛶</button>
+        {experience === "3D" ? <>
+          <button type="button" className="im-tool im-tool--cam" onClick={() => changeCamera(presetSettings(cyclePreset(camera.preset)))} title={`Câmera: ${PRESET_LABEL[camera.preset]} — clique para trocar`} aria-label={`Câmera ${PRESET_LABEL[camera.preset]}: trocar`}>{PRESET_LABEL[camera.preset]}</button>
+          <button type="button" className={`im-tool ${cameraOpen ? "is-on" : ""}`} onClick={() => setCameraOpen(!cameraOpen)} title="Câmera e gráficos" aria-expanded={cameraOpen}>🎥</button>
+        </>
           : <button type="button" className={`im-tool ${cam2d === "full" ? "is-on" : ""}`} onClick={() => { const next = cam2d === "full" ? "play" : "full"; setCam2d(next); writeLocal("bm_cam2d", next); }} title={cam2d === "full" ? "Câmera da jogada" : "Campo inteiro"} aria-pressed={cam2d === "full"}>⛶</button>}
         <button type="button" className={`im-tool ${sound.muted ? "" : "is-on"}`} onClick={() => { matchSound.unlock(); setSoundOpen(!soundOpen); }} title="Som e gráficos" aria-expanded={soundOpen}>{sound.muted ? "🔇" : "🔊"}</button>
         <button type="button" className={`im-tool ${panel ? "is-on" : ""}`} onClick={() => setPanel(!panel)} title="Lances e estatísticas" aria-expanded={panel}>☰</button>
@@ -475,8 +500,9 @@ export function InteractiveMatch({ roomId, clubCode, clubs, source: given, onExi
       {soundOpen && <div className="im-pop" role="dialog" aria-label="Som e gráficos">
         <label><input type="checkbox" checked={!sound.muted} onChange={(e) => { matchSound.set({ muted: !e.target.checked }); setSound({ ...matchSound.settings }); }} /> Som</label>
         <input type="range" min={0} max={1} step={0.05} value={sound.volume} aria-label="Volume" onChange={(e) => { matchSound.set({ volume: Number(e.target.value), muted: false }); setSound({ ...matchSound.settings }); }} />
-        {experience === "3D" && <label>Gráficos <select value={qualityChoice} onChange={(e) => setQualityChoice(e.target.value as QualityChoice)}><option value="auto">Automático</option><option value="low">Baixo</option><option value="medium">Médio</option><option value="high">Alto</option></select></label>}
       </div>}
+      {cameraOpen && experience === "3D" && <CameraPanel value={camera} onChange={changeCamera} quality={qualityChoice} onQuality={setQualityChoice}
+        shadows={shadows} onShadows={setShadows} fpsCap={fpsCap} onFpsCap={setFpsCap} onClose={() => setCameraOpen(false)} />}
 
       {banner && <div className={`im-banner im-banner--${banner.tone}`} role="status"><b>{banner.title}</b>{banner.detail && <span>{banner.detail}</span>}</div>}
       {left !== null && view.state === "DECISION" && <div className={`im-timer ${left < 3 ? "is-low" : ""}`} aria-label={`${Math.ceil(left)} segundos para decidir`}><svg viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="18" r="15" /><circle cx="18" cy="18" r="15" style={{ strokeDashoffset: 94.2 * (1 - left / view.decision_seconds) }} /></svg><b>{Math.ceil(left)}</b></div>}

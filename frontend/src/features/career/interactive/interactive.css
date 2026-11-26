@@ -31,6 +31,25 @@ body.im-open { overflow: hidden; }
 .im-pop { position: absolute; top: 54px; right: 10px; z-index: 7; display: grid; gap: 8px; min-width: 200px; padding: 12px; border-radius: 12px; background: rgb(8 12 18 / 92%); font-size: .8rem; }
 .im-pop label { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .im-pop select { padding: 4px; border-radius: 6px; color: #fff; background: #1c2430; }
+.im-tool--cam { flex: 0 0 auto; width: auto; max-width: 96px; padding: 0 9px; overflow: hidden; font-size: .66rem; letter-spacing: .04em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+
+/* Camera + graphics panel: applies live, saved locally, never shared with the rival. */
+.im-cam { position: absolute; top: 54px; right: 10px; z-index: 7; display: grid; gap: 8px; width: min(300px, calc(100vw - 24px)); max-height: min(74dvh, 640px); padding: 12px; overflow-y: auto; border-radius: 12px; background: rgb(8 12 18 / 94%); font-size: .76rem; }
+.im-cam__head { display: flex; align-items: center; justify-content: space-between; }
+.im-cam h3 { margin: 6px 0 0; color: #c9d4e0; font-size: .68rem; letter-spacing: .09em; text-transform: uppercase; }
+.im-cam__head h3 { margin: 0; color: #fff; font-size: .9rem; }
+.im-cam__head button { border: 0; color: #fff; background: transparent; font-size: .95rem; cursor: pointer; }
+.im-cam__presets { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.im-cam__presets button { padding: 7px 4px; border: 1px solid #2b3542; border-radius: 8px; color: #dbe3ec; background: #141b24; font-size: .7rem; font-weight: 800; cursor: pointer; }
+.im-cam__presets button:hover { background: #1d2733; }
+.im-cam__presets button.is-on { border-color: var(--im-you); color: var(--im-you); }
+.im-cam p { margin: 0; color: #93a1b0; font-size: .68rem; line-height: 1.35; }
+.im-cam__row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 8px; }
+.im-cam__row output { color: var(--im-you); font-weight: 800; font-variant-numeric: tabular-nums; }
+.im-cam__row input[type="range"] { grid-column: 1 / -1; width: 100%; accent-color: var(--im-you); }
+.im-cam__row select { grid-column: 2; padding: 3px 5px; border-radius: 6px; color: #fff; background: #1c2430; }
+.im-cam__check { display: flex; align-items: center; gap: 7px; }
+.im-cam__reset { padding: 7px; border: 1px solid #2b3542; border-radius: 8px; color: #dbe3ec; background: #141b24; font-weight: 700; cursor: pointer; }
 
 /* Banner + timer + chip. */
 .im-banner { position: absolute; top: 14px; left: 50%; z-index: 4; display: grid; justify-items: center; max-width: min(60%, 520px); padding: 6px 14px; border-radius: 999px; background: rgb(8 12 18 / 78%); transform: translateX(-50%); text-align: center; pointer-events: none; }
@@ -99,10 +118,12 @@ body.im-open { overflow: hidden; }
   .im-bug__team { gap: 3px; }
   .im-tools { flex-direction: column; }
   .im-pop { top: 6px; right: 48px; }
+  .im-cam { top: 6px; right: 48px; max-height: 86dvh; }
   .im-timer { top: auto; bottom: 110px; right: 8px; }
   .im-bug__team { font-size: .72rem; }
   .im-bug__score { min-width: 50px; font-size: 1.2rem; }
   .im-tools { top: 6px; right: 6px; gap: 4px; }
+  .im-tools .im-tool--cam { width: auto; max-width: 92px; }
   .im-panel { padding-top: 14px; }
   .im-tool { width: 34px; height: 34px; }
   .im-banner { top: 64px; max-width: 90%; }
