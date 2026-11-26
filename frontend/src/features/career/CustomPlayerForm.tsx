@@ -57,6 +57,7 @@ export function CustomPlayerForm({ roomId }: { roomId: string }) {
       <h2 id="cpf-title">Criar jogador</h2>
       <p>Crie um atleta para o seu clube. O overall segue os atributos (a mesma conta do servidor) e o jogador entra no lugar de um atleta da mesma posição. Disponível na pré-temporada e com a janela de transferências aberta. Máximo de {r.max_per_club} por clube ({customCount} criados).</p>
     </header>
+    <div className="cpf__body">
     <form className="cpf__form" onSubmit={(e) => { e.preventDefault(); if (canSubmit) create.mutate(); }}>
       <label className="cpf__field">Nome <input value={name} maxLength={40} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Zé da Resenha" required /></label>
       <fieldset className="cpf__positions"><legend>Posição</legend>
@@ -80,5 +81,11 @@ export function CustomPlayerForm({ roomId }: { roomId: string }) {
       {create.isSuccess && <p className="cpf__ok" role="status">Jogador criado e incluído no elenco.</p>}
       <button type="submit" className="rt-btn rt-btn--lime" disabled={!canSubmit}>{create.isPending ? "Criando…" : "Criar jogador"}</button>
     </form>
+    <aside className="cpf__preview" aria-label="Prévia do jogador">
+      <div className="cpf__preview-head"><span>Overall</span><b className={tooStrong ? "is-bad" : ""}>{overall}</b></div>
+      <div className="cpf__preview-name"><strong>{name.trim() || "Novo atleta"}</strong><span>{POSITION_LABEL[position] ?? position}</span></div>
+      <ul>{Object.keys(attrs).map((key) => <li key={key}><span>{LABEL[key] ?? key}</span><i aria-hidden="true"><em style={{ width: `${attrs[key]}%` }} /></i><b>{attrs[key]}</b></li>)}</ul>
+    </aside>
+    </div>
   </section>;
 }

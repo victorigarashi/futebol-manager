@@ -51,6 +51,7 @@ html body .rt-skin :is(.text-action, .back-link, .link) { background: transparen
 html body .rt-skin :is(.button-secondary, .btn, .btn--ghost):not(.btn--primary):hover:not(:disabled) { background: #fff; }
 html body .rt-skin :is(button, a, input, select, textarea):focus-visible { outline: 3px solid var(--rt-teal-ink); outline-offset: 1px; }
 html body .rt-skin button:disabled { opacity: .5; }
+html body .rt-skin :is(.button-primary, .btn--primary):disabled { opacity: 1; background: var(--rt-panel-2); color: var(--rt-ink-2); }
 
 /* ---------- fields ---------- */
 html body .rt-skin :is(input:not([type=checkbox]):not([type=radio]):not([type=range]), select, textarea) {

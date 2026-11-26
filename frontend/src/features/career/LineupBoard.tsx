@@ -182,7 +182,16 @@ function PlayerHead({ player, slotPosition }: { player: SquadPlayer; slotPositio
   const positionFit = slotPosition ? fit(player, slotPosition) : null;
   return <div className="sq-head__player">
     <div className="sq-head__card"><span className={`rt-pos rt-pos--${player.position}`}>{POSITION_LABEL[player.position]}</span><b className="sq-head__ovr">{positionFit?.rating ?? player.overall}</b><PlayerPhoto name={player.name} photoUrl={player.photo_url} size="md" /><strong>{player.name}</strong></div>
-    <ul className="sq-head__attrs">{keys.map((key) => <li key={key}><span>{ATTRIBUTE_LABEL[key]}</span><b>{attributes[key] ?? "—"}</b><i aria-hidden="true"><em style={{ width: `${attributes[key] ?? 0}%` }} /></i></li>)}</ul>
+    <div className="sq-head__info">
+      <p className="sq-head__meta">
+        <span>{POSITION_NAME[player.position]}</span>
+        <span>{player.age ?? "—"} anos</span>
+        <span>Potencial {player.potential}</span>
+        {player.attributes_derived && <span className="sq-tag sq-tag--derived" title="O catálogo não traz atributos detalhados: valores estimados pelo motor">≈ Estimado</span>}
+        {player.id.startsWith("CUS-") && <span className="sq-tag sq-tag--custom">Criado</span>}
+      </p>
+      <ul className="sq-head__attrs">{keys.map((key) => <li key={key}><span>{ATTRIBUTE_LABEL[key]}</span><b>{attributes[key] ?? "—"}</b><i aria-hidden="true"><em style={{ width: `${attributes[key] ?? 0}%` }} /></i></li>)}</ul>
+    </div>
   </div>;
 }
 
@@ -197,6 +206,13 @@ function PlayerSheet({ player, other, slotPosition, players, onCompare, compareI
   const positionFit = slotPosition ? fit(player, slotPosition) : null;
   return <>
     <header><PlayerPhoto name={player.name} photoUrl={player.photo_url} size="md" /><span className="pos">{POSITION_LABEL[player.position]}</span><h3>{player.name}</h3><b className="ovr ovr--big">{player.overall}</b></header>
+    <p className="sq-sheet__meta">
+      <span>{POSITION_NAME[player.position]}</span>
+      <span>{player.age ?? "—"} anos</span>
+      <span>POT {player.potential}</span>
+      {player.attributes_derived && <span className="sq-tag sq-tag--derived">≈ Estimado</span>}
+      {player.id.startsWith("CUS-") && <span className="sq-tag sq-tag--custom">Criado</span>}
+    </p>
     <dl className="mini-stats"><div><dt>Idade</dt><dd>{player.age ?? "—"}</dd></div><div><dt>Potencial</dt><dd>{player.potential}</dd></div><div><dt>Valor</dt><dd>{formatMoney(player.internal_market_value_cents ?? player.market_value_cents)}</dd></div>{player.overall_delta ? <div><dt>Evolução</dt><dd>{player.overall_delta > 0 ? "+" : ""}{player.overall_delta}</dd></div> : null}</dl>
     {positionFit && <p className={`fit fit--${positionFit.kind}`}>{positionFit.kind === "natural" ? "Jogando na posição ideal" : positionFit.kind === "secondary" ? "Posição secundária, sem perda" : `Improvisado: rende como ${positionFit.rating}`}</p>}
     <label className="field field--inline"><span>Comparar com</span><select value={compareId ?? ""} onChange={(event) => onCompare(event.target.value || null)}><option value="">—</option>{players.filter((p) => p.id !== player.id).map((p) => <option key={p.id} value={p.id}>{POSITION_LABEL[p.position]} · {p.name} ({p.overall})</option>)}</select></label>
