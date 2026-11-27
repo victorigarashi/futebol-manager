@@ -94,7 +94,7 @@ CONNECTED_WINDOW = 6.0        # a client polling within this window counts as co
 RECONNECT_GRACE = 30.0        # approved tolerance (validation 47)
 DECISION_CHOICES = (5, 10, 15, 20)
 DURATION_CHOICES = (60, 90, 120, 180)   # the room's approved match durations
-OPPORTUNITY_COST_SECONDS = 13.0
+OPPORTUNITY_COST_SECONDS = 11.0      # planned real cost of one decisive moment (measured: bots ~11 s)
 MOMENT_TAIL_SECONDS = 7.0
 MIN_DECISION_SECONDS = 6.0      # a shortened decision timer never goes below this (time for a human gesture)       # typical real time to play out the rest of a move once decisions stop         # mean real cost of one decisive moment (measured: tools/match_duration.py)
 ACTION_TYPES = ("PASS", "LOFT", "CARRY", "SHOT")
@@ -1251,11 +1251,11 @@ class HighlightMatch:
         time between them runs."""
         self.duration_mode, self.duration_seconds = "LIMITED", seconds
         self.limit_at = now + seconds
-        self.clock_rate = max(CLOCK_MINUTES_PER_SECOND, 90.0 / (0.2 * seconds))
+        self.clock_rate = max(CLOCK_MINUTES_PER_SECOND, 90.0 / (0.12 * seconds))   # the clock between moments: 12% of the duration
         self.half_time_seconds = _clamp(0.04 * seconds, 2.5, HALF_TIME_SECONDS)
         self.outcome_pause = _clamp(seconds / 100.0, 1.0, OUTCOME_PAUSE_SECONDS)
         available = seconds * 0.92 - 90.0 / self.clock_rate - self.half_time_seconds
-        self.chance_factor = round(_clamp(available / (10.0 * OPPORTUNITY_COST_SECONDS), 0.2, 1.0), 3)
+        self.chance_factor = round(_clamp(available / (10.0 * OPPORTUNITY_COST_SECONDS), 0.35, 1.0), 3)
 
     def _repace(self, at: float) -> None:
         """A, adaptive (after each decisive moment, at a safe point between moments): fit what is
@@ -1270,7 +1270,7 @@ class HighlightMatch:
         prior = OPPORTUNITY_COST_SECONDS
         cost = (prior * 2 + self.paced_cost) / (2 + self.paced_count)        # measured, smoothed by the plan's estimate
         if remaining > 0 and minutes_left > 0:
-            self.clock_rate = _clamp(minutes_left / (0.2 * remaining), self.clock_rate, 30.0)
+            self.clock_rate = _clamp(minutes_left / (0.12 * remaining), self.clock_rate, 30.0)
         clock_time = minutes_left / self.clock_rate if self.clock_rate else 0.0
         half_left = 0.0 if self.half_time_done else self.half_time_seconds
         budget = remaining * 0.92 - clock_time - half_left
