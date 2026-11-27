@@ -523,3 +523,60 @@ Cinco presets em `render/cameraPresets.ts`, aplicados sem recarregar a partida:
 - Capturas reais em `docs/evidencias/3d-premium/` (Transmissão, Cooperativa, Dinâmica e painel).
 - Testes: `cameraPresets.test.ts` (9) e `ball.test.ts` (5), além dos testes existentes do Modo Jogável (28 no total).
 - **Não medido**: FPS em hardware real (a captura usa renderização por software) e playtest humano. As capturas acima são a evidência visual desta entrega.
+
+## 12. Fim da partida — causa raiz do congelamento (27/11/2026)
+
+**Sintoma.** Ao apito final a partida não terminava na tela: ela ficava parada, sem
+placar final utilizável e sem caminho de volta ao campeonato.
+
+**Causa raiz.** O servidor sempre registrou o resultado (uma vez, em `finish_due`), mas a
+tela não tinha um estado de fim própria. A sessão sai da rodada quando o resultado é
+gravado e o endpoint passa a responder `state: "NONE"`; a tela tratava isso como
+"aguardando a partida jogável" — um carregamento estático — e **não recebia `onExit`** pela
+carreira. Ou seja: a única saída era o componente pai atualizar a consulta `live`
+exatamente no instante do registro. Se essa atualização atrasava (socket sem o evento, aba
+em segundo plano, consulta em erro), o técnico ficava preso numa tela morta. Três defeitos
+menores no mesmo caminho agravavam o quadro:
+
+1. o laço de `requestAnimationFrame` dependia do deslocamento de relógio atualizado a cada
+   consulta (350 ms), então era destruído e recriado o jogo inteiro, para sempre — inclusive
+   depois do fim;
+2. a consulta continuava a 350 ms depois que a sessão já tinha saído da rodada, e uma falha
+   ao carregar não oferecia nova tentativa;
+3. `Renderer3D.dispose()` liberava geometrias, mas não materiais, texturas nem os `Avatar3D`
+   (malha com esqueleto), deixando GPU ocupada ao sair da partida.
+
+**Correção (apresentação e ciclo de vida; o motor não mudou).**
+
+- `render/result.ts`: máquina de fases do fim — `inplay` (jogo), `finished` (apito final,
+  aguardando o registro) e `settled` (resultado gravado, sessão fora da rodada). O placar
+  oficial da última vista é preservado, porque a resposta `NONE` não carrega placar.
+- `MatchResult`: tela de resultado com placar, gols, estatísticas, "Ver o campo" e
+  "Continuar →". Em `settled` a mesma tela permanece, com "Continuar campeonato →".
+- `CareerShell` passa `onExit` e, ao sair da partida, mostra um painel de espera com
+  "Voltar à partida" (rodada em andamento) ou "Atualizar" (rodada em registro). O relatório
+  oficial (`PostMatch`) continua abrindo sozinho quando a rodada fecha.
+- Consulta: 350 ms durante o jogo, **1,2 s** em `finished` e **para** quando a sessão sai da
+  rodada; erro de carregamento ganha "Tentar de novo".
+- O deslocamento de relógio do laço de quadro passou a ser lido por `ref`: o laço não é mais
+  recriado a cada consulta.
+- `Renderer3D.dispose()` libera atletas, geometria, materiais, texturas de canvas, gramado e
+  o contexto WebGL ao sair da partida, e para o laço no desmonte.
+
+**Garantias do servidor (já existentes, agora cobertas por teste).** O resultado é gravado
+uma única vez, em `finish_due`, no ponto seguro depois do apito e depois de
+`FINAL_WHISTLE_SECONDS`; uma segunda chamada devolve `False` e não altera nada. Ação
+duplicada devolve `DUPLICATE`; ação atrasada é recusada e não entra no registro. Técnico
+ausente no apito não bloqueia a rodada (a IA conclui). O renderizador é apresentação: a
+mesma sessão consultada duas vezes não avança nem muda o placar.
+
+**Testes.** `backend/app/tests/test_interactive_finish.py` (5 casos, V6 e V8):
+registro único e imutável; técnico ausente no apito; gesto duplicado e gesto atrasado;
+consulta repetida (2D/3D) sem efeito. No frontend, `render/result.test.ts` (6 casos) cobre a
+máquina de fases, o placar preservado, os gols oficiais e o veredito.
+
+**Não verificado nesta entrega.** Teste em navegador real: este ambiente não tem as
+bibliotecas de sistema do Chromium e não há permissão de root para instalá-las. O roteiro
+automatizado de dois navegadores (`frontend/scripts/verify-finish.cjs`, criado aqui) cobre
+partida inteira → apito → relatório → carreira → recarga, e deve ser executado num ambiente
+com Chromium antes de publicar. Também não foi medido FPS em hardware real.

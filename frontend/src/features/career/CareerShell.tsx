@@ -48,6 +48,8 @@ export function CareerShell({ roomId, room, isHost, clubCode, chrome }: { roomId
   const squadQuery = useQuery({ queryKey: ["squad", roomId], queryFn: () => api.squad(roomId).then((r) => r.data) });
   const [tab, setTab] = useState<CareerTab>(() => (readLocal(`bm_tab_${roomId}`) as CareerTab | null) ?? "hub");
   const [openMatch, setOpenMatch] = useState<string | null>(null);
+  /** Interactive match the coach chose to leave: the screen must not bounce him back into it. */
+  const [leftMatch, setLeftMatch] = useState<string | null>(null);
   const baseline = useRef<SeasonTableRow[] | undefined>(undefined);
   useEffect(() => { writeLocal(`bm_tab_${roomId}`, tab); }, [roomId, tab]);
   // The socket nudges refreshes when something changes; these intervals are only the
@@ -67,6 +69,8 @@ export function CareerShell({ roomId, room, isHost, clubCode, chrome }: { roomId
   const clubList: Club[] = clubs.data ?? [];
   const club = (code: string): Club => clubList.find((c) => c.code === code) ?? { code, name: code, sort_order: 0 };
 
+  // A new round clears the dismissal; the previous round's report still opens by itself.
+  useEffect(() => { if (!live.data?.live_round) setLeftMatch(null); }, [live.data?.live_round]);
   // Keep the official table from before the live round to show movement afterwards.
   useEffect(() => { if (live.data?.live_round) baseline.current = live.data.official_table; }, [live.data]);
   // After a live round, show the report of the coach's own match until acknowledged.
@@ -102,7 +106,23 @@ export function CareerShell({ roomId, room, isHost, clubCode, chrome }: { roomId
   }
   if (live.data?.live_round && live.data.interactive && clubList.length) {
     // Modo Jogável: the same round, the coach plays the decisive moments of his match.
-    return legacy(<div className="career career--live"><InteractiveMatch roomId={roomId} clubCode={clubCode} clubs={clubList} /></div>);
+    const matchKey = live.data.interactive;
+    const roundOver = live.data.round_state === "FINISHED";
+    if (leftMatch === matchKey) {
+      // He left the match screen (result or pause). Never strand him: the round keeps running
+      // on the server and the official report opens by itself once it is registered.
+      return framed(<div className="career"><section className="card">
+        <h2>{roundOver ? "Rodada em registro" : "Partida em andamento"}</h2>
+        <p>{roundOver
+          ? "O resultado oficial já está definido e está sendo registrado. A súmula abre automaticamente assim que a rodada fechar."
+          : "Sua partida continua no servidor. Volte a ela quando quiser: uma jogada aberta espera por você (a IA assume depois de 30 s)."}</p>
+        <div className="settings-row">
+          <button type="button" className="btn btn--primary" onClick={() => { if (roundOver) refresh(); else setLeftMatch(null); }}>{roundOver ? "Atualizar" : "Voltar à partida →"}</button>
+        </div>
+      </section></div>, roundOver ? "Rodada em registro" : "Partida em andamento");
+    }
+    return legacy(<div className="career career--live"><InteractiveMatch roomId={roomId} clubCode={clubCode} clubs={clubList}
+      onExit={() => { setLeftMatch(matchKey); refresh(); }} /></div>);
   }
   if (live.data?.live_round && live.data.match && clubList.length) {
     return framed(<div className="career career--live"><LiveMatchCenter roomId={roomId} data={live.data} clubCode={clubCode} clubs={clubList} /></div>, "Ao vivo");

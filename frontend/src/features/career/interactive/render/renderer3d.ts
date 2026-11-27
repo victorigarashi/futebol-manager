@@ -440,9 +440,29 @@ export class Renderer3D {
 
   freeze(on: boolean) { this.frozen = on; if (on) this.cinematic = null; }
 
+  /**
+   * Releases the GPU resources of the whole screen: athletes (skinned meshes and skeletons),
+   * geometry, every material and its canvas texture, the pitch, the crowd and the WebGL
+   * context. Called when the match screen is left (end of the match, 2D switch, navigation),
+   * so no render loop or GPU buffer survives it.
+   */
   dispose() {
+    for (const avatar of this.avatars.values()) avatar.dispose();
+    this.scene.traverse((obj) => {
+      const mesh = obj as THREE.Mesh;
+      if (mesh.geometry && !Object.values(geo).includes(mesh.geometry as never)) mesh.geometry.dispose();
+      const material = mesh.material as THREE.Material | THREE.Material[] | undefined;
+      for (const one of Array.isArray(material) ? material : material ? [material] : []) {
+        (one as THREE.MeshLambertMaterial).map?.dispose();
+        one.dispose();
+      }
+    });
+    this.avatars.clear();
+    this.rigs.clear();
+    materials.clear(); jerseyTextures.clear(); numberDecals.clear();
+    this.scene.clear();
     this.renderer.dispose();
-    this.scene.traverse((obj) => { const mesh = obj as THREE.Mesh; if (mesh.geometry && !Object.values(geo).includes(mesh.geometry as never)) mesh.geometry.dispose(); });
+    this.renderer.forceContextLoss?.();
   }
 
   /** Pointer (client px) -> pitch coordinates by raycasting onto the grass plane. */

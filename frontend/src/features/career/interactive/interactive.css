@@ -185,3 +185,36 @@ body.im-open { overflow: hidden; }
 /* Competitive duration (A+C): remaining match time, server-controlled */
 .im-limit { grid-column: 1 / -1; justify-self: center; margin-top: 12px; padding: 1px 8px; border-radius: 6px; background: rgb(5 7 11 / 80%); color: #e8eef5; font: 800 .72rem/1.4 Inter, system-ui, sans-serif; font-variant-numeric: tabular-nums; }
 .im-limit.is-over { color: #ffb4b4; }
+
+/* ---------------------------------------------------------------------------------------------
+   Full-time result (v8): the official score, the goals and the way out. It is the screen that
+   replaces the match when the whistle goes, so the coach never waits on a dead loading state.
+   --------------------------------------------------------------------------------------------- */
+.im--settled { place-items: center; padding: 16px; }
+.im-retry { justify-self: center; margin-top: 10px; padding: 6px 14px; border: 0; border-radius: 4px; color: var(--v8-ink, #121821); background: var(--im-you); font-size: .8rem; font-weight: 900; cursor: pointer; }
+.im-result { position: absolute; inset: 0; z-index: 9; display: grid; place-items: center; padding: 16px; overflow: auto; background: radial-gradient(circle at 50% 30%, rgb(10 16 22 / 62%), rgb(6 9 13 / 88%)); }
+.im--settled .im-result { position: static; width: 100%; background: none; }
+.im-result__card { display: grid; gap: 10px; width: min(560px, 100%); padding: 18px 20px 16px; border-radius: 8px; background: linear-gradient(180deg, #121924, #0c1119); box-shadow: 0 18px 48px rgb(0 0 0 / 55%), inset 0 0 0 1px rgb(255 255 255 / 8%); }
+.im-result__kicker { margin: 0; color: #9fb0c1; font-size: .68rem; font-weight: 900; letter-spacing: .14em; text-align: center; }
+.im-result__verdict { margin: 0; font-size: clamp(1.5rem, 5vw, 2.1rem); font-weight: 950; letter-spacing: -.01em; text-align: center; }
+.im-result__card.is-win .im-result__verdict { color: var(--im-you); }
+.im-result__card.is-loss .im-result__verdict { color: #ff8f8f; }
+.im-result__card.is-draw .im-result__verdict { color: #e8edf2; }
+.im-result__score { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; padding: 8px 0; border-block: 1px solid rgb(255 255 255 / 10%); }
+.im-result__score span { display: flex; align-items: center; gap: 6px; font-size: .82rem; }
+.im-result__score span:last-child { justify-content: flex-end; text-align: right; }
+.im-result__score strong { display: flex; align-items: center; gap: 4px; font-size: clamp(1.6rem, 7vw, 2.4rem); font-weight: 950; font-variant-numeric: tabular-nums; }
+.im-result__score i { color: #78879a; font-style: normal; }
+.im-result__goals { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 10px; margin: 0; padding: 0; list-style: none; color: #cfdae5; font-size: .76rem; }
+.im-result__goals b { margin-right: 3px; color: var(--im-goal); font-variant-numeric: tabular-nums; }
+.im-result__stats { display: grid; gap: 3px; margin: 0; font-size: .76rem; }
+.im-result__stats div { display: grid; grid-template-columns: 2.4rem 1fr 2.4rem; text-align: center; }
+.im-result__stats dt { color: #9fb0c1; }
+.im-result__stats b { font-variant-numeric: tabular-nums; }
+.im-result__actions { display: flex; justify-content: center; gap: 8px; padding-top: 4px; }
+.im-result__actions button { min-height: 44px; padding: 0 18px; border: 0; border-radius: 4px; color: var(--v8-ink, #121821); background: #e8edf2; font-size: .82rem; font-weight: 900; cursor: pointer; }
+.im-result__actions button.is-primary { background: var(--im-you); }
+.im-result__actions button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+.im-result__note { margin: 0; color: #8794a3; font-size: .68rem; text-align: center; }
+.im-tool--result { color: var(--im-goal); }
+@media (prefers-reduced-motion: reduce) { .im-result { animation: none; } }
