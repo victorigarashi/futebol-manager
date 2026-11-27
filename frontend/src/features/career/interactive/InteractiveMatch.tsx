@@ -7,6 +7,7 @@ import { aimFromDrag, attackDir, fromScreen, predictTarget, toScreen, type Aim, 
 import { adjustPower, aimAtMate, initialAim, mates, POWER_STEP, retype, rotateAim } from "./keyboardAim";
 import { roomSource, type MatchSource } from "./source";
 import { buildScene, crossedCues, type Scene } from "./render/presentation";
+import { endPhase, endScore, endScorers, endVerdict } from "./render/result";
 import { drawScene2D, geometryFor, playRegion, type Kit, type Overlay } from "./render/renderer2d";
 import type { Region } from "./gesture";
 import { readLocal, writeLocal } from "../../../lib/storage";
@@ -25,6 +26,8 @@ import "./interactive.css";
  * pitch metres) and send ONE action. The predicted line is a forecast only.
  */
 const POLL_MS = 350;
+/** After the final whistle the only pending change is the official record: a slow poll is enough. */
+const FINISHED_POLL_MS = 1200;
 const TYPE_LABEL: Record<InteractiveActionType, string> = { PASS: "Passe", LOFT: "Lançamento / cruzamento", CARRY: "Conduzir", SHOT: "Chute" };
 const TYPE_ICON: Record<InteractiveActionType | "AUTO", string> = { AUTO: "✦", PASS: "➜", LOFT: "⤴", CARRY: "⇢", SHOT: "◎" };
 /** Only events that do NOT end the move get a toast: the end of a move is explained once, by the outcome banner. */
@@ -38,6 +41,8 @@ function useInteractive(source: MatchSource) {
   const [view, setView] = useState<InteractiveView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
+  /** Last official match state seen: the settled answer ("NONE") carries no score of its own. */
+  const [last, setLast] = useState<InteractiveView | null>(null);
   const latest = useRef<InteractiveView | null>(null);
   const [offline, setOffline] = useState(false);
   const poll = useCallback(async (full = false) => {
@@ -48,7 +53,10 @@ function useInteractive(source: MatchSource) {
       if (data.unchanged && latest.current) {
         const merged = { ...latest.current, minute: data.minute, server_now: data.server_now, connected: data.connected ?? latest.current.connected };
         latest.current = merged; setView(merged);
-      } else { latest.current = data; setView(data); }
+      } else {
+        latest.current = data; setView(data);
+        if (data.state !== "NONE" && data.match_id) setLast(data);
+      }
       setError(null);
     } catch (cause) {
       if (cause instanceof ApiError && cause.kind === "network") setOffline(true);
@@ -57,15 +65,21 @@ function useInteractive(source: MatchSource) {
   }, [source]);
   useEffect(() => {
     let alive = true, timer = 0;
-    const loop = async () => { await poll(); if (alive) timer = window.setTimeout(loop, POLL_MS); };
+    const loop = async () => {
+      await poll();
+      if (!alive) return;
+      // The round was recorded and the session left it: this screen will not change again.
+      if (latest.current?.state === "NONE") return;
+      timer = window.setTimeout(loop, latest.current?.state === "FINISHED" ? FINISHED_POLL_MS : POLL_MS);
+    };
     void loop();
     const wake = () => { if (document.visibilityState === "visible") void poll(true); };
     document.addEventListener("visibilitychange", wake);
     window.addEventListener("online", wake);
     return () => { alive = false; window.clearTimeout(timer); document.removeEventListener("visibilitychange", wake); window.removeEventListener("online", wake); };
   }, [poll]);
-  const replace = (data: InteractiveView) => { latest.current = data; setView(data); };
-  return { view, error, offset, offline, refresh: () => poll(true), replace };
+  const replace = (data: InteractiveView) => { latest.current = data; setView(data); if (data.state !== "NONE" && data.match_id) setLast(data); };
+  return { view, last, error, offset, offline, refresh: () => poll(true), replace };
 }
 
 /** The match's official kits (server selection); a local fallback only for an old server. */
@@ -82,7 +96,7 @@ function teamKits(view: InteractiveView): { home: Kit; away: Kit } {
 
 export function InteractiveMatch({ roomId, clubCode, clubs, source: given, onExit }: { roomId: string; clubCode: string; clubs: Club[]; source?: MatchSource; onExit?: () => void }) {
   const source = useMemo(() => given ?? roomSource(roomId), [given, roomId]);
-  const { view, error, offset, offline, refresh, replace } = useInteractive(source);
+  const { view, last: lastMatch, error, offset, offline, refresh, replace } = useInteractive(source);
   const root = useRef<HTMLElement | null>(null);
   const stage = useRef<HTMLDivElement | null>(null);
   const canvas2d = useRef<HTMLCanvasElement | null>(null);
@@ -97,6 +111,7 @@ export function InteractiveMatch({ roomId, clubCode, clubs, source: given, onExi
   const [pending, setPending] = useState<Aim | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [panel, setPanel] = useState(false);
+  const [resultOpen, setResultOpen] = useState(true);
   const [soundOpen, setSoundOpen] = useState(false);
   const [sound, setSound] = useState(matchSound.settings);
   const [camera, setCameraState] = useState<CameraSettings>(readCameraSettings);
@@ -111,6 +126,8 @@ export function InteractiveMatch({ roomId, clubCode, clubs, source: given, onExi
   const [celebration, setCelebration] = useState<{ name: string; club: string; until: number } | null>(null);
   const drag = useRef<{ id: number; start: [number, number] } | null>(null);
   const viewRef = useRef(view); viewRef.current = view;
+  // The frame loop must not be rebuilt on every poll: the clock offset is read from a ref.
+  const offsetRef = useRef(offset); offsetRef.current = offset;
   const aimRef = useRef(aim); aimRef.current = aim;
   const pendingRef = useRef(pending); pendingRef.current = pending;
   const receiversRef = useRef<Set<string>>(new Set());
@@ -199,7 +216,7 @@ export function InteractiveMatch({ roomId, clubCode, clubs, source: given, onExi
         queueMicrotask(() => { diagCpu += performance.now() - cpu0; });
       }
       const width = box.clientWidth, height = box.clientHeight;
-      const now = Date.now() / 1000 + offset;
+      const now = Date.now() / 1000 + offsetRef.current;
       const scene = buildScene(current, now);
       sceneRef.current = scene;
       const o = current.opportunity;
@@ -288,7 +305,7 @@ export function InteractiveMatch({ roomId, clubCode, clubs, source: given, onExi
     };
     raf = requestAnimationFrame(draw);
     return () => { cancelAnimationFrame(raf); diagEl?.remove(); };
-  }, [offset, kits, r3dStatus]);
+  }, [kits, r3dStatus]);
 
   // Lab-only playtest hook (#lab): lets the automated playtest drag from real screen points.
   // Read-only: it exposes the official view and the projection, never a way to change the state.
@@ -454,8 +471,16 @@ export function InteractiveMatch({ roomId, clubCode, clubs, source: given, onExi
     else void element.requestFullscreen?.().catch(() => setNotice("Tela cheia indisponível neste navegador."));
   };
 
-  if (!view) return <section className="im im--loading" ref={root}><div className="panel-loading" role="status">{error ?? "Entrando em campo…"}</div></section>;
-  if (view.state === "NONE") return <section className="im im--loading" ref={root}><div className="panel-loading" role="status">Aguardando a partida jogável…</div></section>;
+  const phase = endPhase(view, lastMatch);
+  useEffect(() => { if (phase === "finished") setResultOpen(true); }, [phase]);
+
+  if (!view) return <section className="im im--loading" ref={root}><div className="panel-loading" role="status">{error ?? "Entrando em campo…"}{error && <button type="button" className="im-retry" onClick={() => void refresh()}>Tentar de novo</button>}</div></section>;
+  // The round was recorded and the session left it. Never a dead loading state: the last
+  // official score stays on screen with a way back to the championship.
+  if (phase === "settled" && lastMatch) return <section className="im im--settled" ref={root} aria-label="Fim de jogo">
+    <MatchResult view={lastMatch} clubs={clubs} settled onContinue={onExit} />
+  </section>;
+  if (view.state === "NONE") return <section className="im im--loading" ref={root}><div className="panel-loading" role="status">Aguardando a partida jogável…{error && <button type="button" className="im-retry" onClick={() => void refresh()}>Tentar de novo</button>}</div></section>;
   const now = Date.now() / 1000 + offset;
   const left = view.deadline ? Math.max(0, view.deadline - now) : null;
   const grace = view.grace_until ? Math.max(0, Math.ceil(view.grace_until - now)) : null;
@@ -496,6 +521,7 @@ export function InteractiveMatch({ roomId, clubCode, clubs, source: given, onExi
         <button type="button" className={`im-tool ${panel ? "is-on" : ""}`} onClick={() => setPanel(!panel)} title="Lances e estatísticas" aria-expanded={panel}>☰</button>
         <button type="button" className="im-tool" onClick={toggleFullscreen} title="Tela cheia">⤢</button>
         {onExit && <button type="button" className="im-tool" onClick={onExit} title="Sair">✕</button>}
+        {phase === "finished" && <button type="button" className="im-tool im-tool--result" onClick={() => setResultOpen(true)} title="Resultado final" aria-expanded={resultOpen}>🏁</button>}
       </div>
       {soundOpen && <div className="im-pop" role="dialog" aria-label="Som e gráficos">
         <label><input type="checkbox" checked={!sound.muted} onChange={(e) => { matchSound.set({ muted: !e.target.checked }); setSound({ ...matchSound.settings }); }} /> Som</label>
@@ -513,6 +539,7 @@ export function InteractiveMatch({ roomId, clubCode, clubs, source: given, onExi
       {toast && <div key={toast.id} className={`im-toast im-toast--${toast.tone}`} role="status">{toast.text}</div>}
       {r3dStatus === "loading" && <div className="im-loading3d" role="status">Preparando o estádio 3D…</div>}
       {celebration && <button type="button" className="im-goal" onClick={() => setCelebration(null)} aria-label="Pular comemoração"><b>GOL!</b><span>{celebration.name} · {club(celebration.club).name}</span><small>toque para pular</small></button>}
+      {phase === "finished" && resultOpen && <MatchResult view={lastMatch ?? view} clubs={clubs} onContinue={onExit} onClose={() => setResultOpen(false)} />}
 
       {aim && <div className="im-power" aria-live="off">{Math.round(aim.power * 100)}%</div>}
       {!spectator && <nav className={`im-actions ${yourTurn ? "" : "is-idle"}`} role="radiogroup" aria-label="Tipo de jogada" aria-disabled={!yourTurn}>
@@ -600,6 +627,45 @@ function bannerText(view: InteractiveView, attackingName: string, left: number |
   }
   if (view.state === "OUTCOME") return opp.status === "GOAL" ? null : { title: opp.result ?? "Fim da jogada", tone: "end" };
   return null;
+}
+
+/**
+ * Official result screen: final score, goals, key statistics and a way out.
+ *
+ * It is drawn from the official view only (nothing is computed here) and it is the reason
+ * the end of a match never depends on the parent screen refreshing at the right moment:
+ * at the whistle the coach already sees the result and can continue, and if the round was
+ * recorded first (`settled`) the same screen stays instead of an empty loading state.
+ */
+function MatchResult({ view, clubs, settled = false, onContinue, onClose }: {
+  view: InteractiveView; clubs: Club[]; settled?: boolean; onContinue?: () => void; onClose?: () => void;
+}) {
+  const club = (code: string): Club => clubs.find((c) => c.code === code) ?? { code, name: code, sort_order: 0 };
+  const score = endScore(view, view);
+  const scorers = endScorers(view, view);
+  const verdict = endVerdict(score, view.you, view.home);
+  const headline = view.you
+    ? verdict === "win" ? "VITÓRIA" : verdict === "loss" ? "DERROTA" : "EMPATE"
+    : verdict === "win" ? `${club(view.home).name} venceu` : verdict === "loss" ? `${club(view.away).name} venceu` : "EMPATE";
+  const rows: [string, string][] = [["Chances", "chances"], ["Chutes", "shots"], ["No gol", "shots_on_target"], ["Passes certos", "passes_completed"], ["Defesas", "saves"], ["Desarmes", "tackles"]];
+  return <div className="im-result" role="dialog" aria-modal="true" aria-label="Resultado da partida">
+    <div className={`im-result__card is-${verdict}`}>
+      <p className="im-result__kicker">{settled ? "RODADA REGISTRADA" : "APITO FINAL"}</p>
+      <h2 className="im-result__verdict">{headline}</h2>
+      <div className="im-result__score">
+        <span><ClubCrest club={club(view.home)} size="md" /><b>{club(view.home).name}</b></span>
+        <strong>{score.home}<i>–</i>{score.away}</strong>
+        <span><b>{club(view.away).name}</b><ClubCrest club={club(view.away)} size="md" /></span>
+      </div>
+      {scorers.length > 0 && <ul className="im-result__goals" aria-label="Gols">{scorers.map((goal) => <li key={goal.id} className={goal.team === view.home ? "is-home" : "is-away"}><b>{goal.minute}′</b> {goal.name || "Gol"}</li>)}</ul>}
+      <dl className="im-result__stats">{rows.map(([label, key]) => <div key={key}><b>{view.stats[view.home]?.[key] ?? 0}</b><dt>{label}</dt><b>{view.stats[view.away]?.[key] ?? 0}</b></div>)}</dl>
+      <div className="im-result__actions">
+        {onClose && <button type="button" onClick={onClose}>Ver o campo</button>}
+        {onContinue && <button type="button" className="is-primary" onClick={onContinue}>{settled ? "Continuar campeonato →" : "Continuar →"}</button>}
+      </div>
+      <p className="im-result__note">{settled ? "Resultado oficial registrado. A súmula completa está na carreira." : "Placar final confirmado. O resultado é registrado uma única vez e a súmula abre na sequência."}</p>
+    </div>
+  </div>;
 }
 
 /** m:ss of the remaining competitive time. */
