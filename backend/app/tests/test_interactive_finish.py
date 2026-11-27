@@ -157,6 +157,10 @@ def test_polling_the_same_state_twice_never_changes_it() -> None:
     else:
         assert (second["revision"], second["score"]) == (first["revision"], first["score"])
     assert service.interactive_view(room, club)["revision"] == first["revision"]
+    # Both coaches read the same official state (the 2D and the 3D screen).
+    rival = next(c for session in season.highlights.values() for c in session.clubs if c not in humans)
+    other = service.interactive_view(room, rival)
+    assert (other["revision"], other["score"]) == (first["revision"], first["score"])
     _play_to_the_whistle(service, season, now)
     final = service.interactive_view(room, club)
     assert final["state"] == "FINISHED"
